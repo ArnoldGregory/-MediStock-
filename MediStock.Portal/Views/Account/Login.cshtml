@@ -8,76 +8,102 @@
     <meta charset="utf-8" />
     <title>MediStock — Sign In</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="description" content="MediStock Pharmaceutical Inventory Management System" />
     <link rel="shortcut icon" type="image/png" href="~/assets/static/img/favicon.ico" />
 
-    <link href="~/assets/static/plugins/jquery-ui/themes/base/minified/jquery-ui.min.css" rel="stylesheet" />
     <link href="~/assets/static/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
     <link href="~/assets/static/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" />
-    <link href="~/assets/static/css/animate.min.css" rel="stylesheet" />
-    <link href="~/assets/static/css/style.min.css" rel="stylesheet" />
-    <link href="~/assets/static/css/style-responsive.min.css" rel="stylesheet" />
-    <link href="~/assets/static/css/theme/default.css" rel="stylesheet" id="theme" />
     <style>
-        .login.login-with-news-feed {
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+
+        .login-wrapper {
             display: flex;
             width: 100%;
-            min-height: 100vh;
+            height: 100vh;
         }
-        .login .news-feed {
-            width: 50%;
-            min-height: 100vh;
-            overflow: hidden;
+
+        .login-left {
+            flex: 1;
             position: relative;
+            overflow: hidden;
         }
-        .login .news-feed .news-image {
-            width: 100%;
-            height: 100%;
-        }
-        .login .news-feed .news-image img {
+        .login-left img {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            object-position: center;
             display: block;
         }
-        .login .right-content {
-            width: 50%;
-            min-height: 100vh;
+
+        .login-right {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
             background: #fff;
+            padding: 40px;
         }
-        .login .right-content .login-content {
+
+        .login-form-box {
             width: 100%;
-            max-width: 400px;
-            padding: 30px 40px;
+            max-width: 380px;
         }
-        .login-content .madison-logo {
-            display: block;
-            max-width: 160px;
-            margin: 0 auto 10px;
+
+        .login-brand {
+            text-align: center;
+            margin-bottom: 30px;
         }
-        .login-brand-text h1 {
-            font-size: 1.8rem;
+        .login-brand h1 {
+            font-size: 2rem;
             font-weight: 700;
-            margin: 10px 0 4px;
+            margin-bottom: 4px;
         }
-        .login-brand-text p {
+        .login-brand p {
             color: #999;
             font-size: 0.85rem;
-            margin-bottom: 25px;
         }
+
+        .login-form label {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: #333;
+        }
+        .login-form .form-control {
+            height: 44px;
+            font-size: 0.9rem;
+            border-radius: 6px;
+            border: 1px solid #ddd;
+        }
+        .login-form .form-control:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.15);
+        }
+
+        .btn-signin {
+            background: #3498db;
+            border: none;
+            color: #fff;
+            height: 44px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            border-radius: 6px;
+            transition: background 0.2s;
+        }
+        .btn-signin:hover { background: #2980b9; color: #fff; }
+
+        .forgot-link {
+            font-size: 0.82rem;
+            color: #3498db;
+        }
+
         .feature-list {
             list-style: none;
             padding: 0;
-            margin: 20px 0 0;
+            margin: 24px 0 0;
         }
         .feature-list li {
-            padding: 6px 0;
-            font-size: 0.82rem;
-            color: #666;
+            padding: 5px 0;
+            font-size: 0.8rem;
+            color: #777;
         }
         .feature-list li i {
             color: #2ecc71;
@@ -85,130 +111,94 @@
             width: 16px;
             text-align: center;
         }
-        .login-buttons .btn {
-            padding: 10px;
-            font-size: 0.95rem;
+
+        .login-footer {
+            text-align: center;
+            font-size: 0.78rem;
+            color: #aaa;
+            margin-top: 20px;
         }
-        .login-content .form-group label {
-            font-weight: 600;
-            font-size: 0.85rem;
-            color: #333;
-        }
-        .login-content .form-control.input-lg {
-            height: 46px;
-            font-size: 0.95rem;
-            border-radius: 6px;
-        }
+
         @@media (max-width: 992px) {
-            .login.login-with-news-feed {
-                flex-direction: column;
-            }
-            .login .news-feed,
-            .login .right-content {
-                width: 100%;
-                min-height: auto;
-            }
-            .login .news-feed {
-                height: 250px;
-            }
+            .login-wrapper { flex-direction: column; }
+            .login-left { flex: none; height: 250px; }
+            .login-right { flex: none; min-height: auto; padding: 30px 20px; }
         }
     </style>
 </head>
-<body class="pace-top bg-white">
-    <div id="page-loader" class="fade in"><span class="spinner"></span></div>
+<body>
+    <div class="login-wrapper">
+        <!-- LEFT — Cover Image -->
+        <div class="login-left">
+            <img src="~/images/pexels-tara-winstead-7722640.jpg" alt="MediStock" />
+        </div>
 
-    <div id="page-container" class="fade">
-        <div class="login login-with-news-feed">
-            <!-- LEFT PANEL — Cover Image -->
-            <div class="news-feed">
-                <div class="news-image">
-                    <img src="~/images/pexels-tara-winstead-7722640.jpg" alt="MediStock" />
+        <!-- RIGHT — Login Form -->
+        <div class="login-right">
+            <div class="login-form-box">
+                <div class="login-brand">
+                    <h1><strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong></h1>
+                    <p>Pharmaceutical Inventory Management</p>
                 </div>
-            </div>
 
-            <!-- RIGHT PANEL — Login Form -->
-            <div class="right-content">
-                <div class="login-content">
-                    <div class="login-brand-text text-center">
-                        <h1><strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong></h1>
-                        <p>Pharmaceutical Inventory Management</p>
+                <form asp-controller="Account" asp-action="Login" method="POST" class="login-form">
+                    @Html.AntiForgeryToken()
+                    <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+                    @if (!string.IsNullOrEmpty(ViewBag.ExpiredMessage as string))
+                    {
+                        <div class="alert alert-info">@ViewBag.ExpiredMessage</div>
+                    }
+                    @if (!string.IsNullOrEmpty(Model.errormessage))
+                    {
+                        <div class="alert alert-danger">@Model.errormessage</div>
+                    }
+
+                    <div class="form-group" style="margin-bottom:15px;">
+                        <label for="pharmacySlug">Pharmacy <span style="color:red;">*</span></label>
+                        <input type="text" id="pharmacySlug" name="pharmacySlug" value="@Model?.pharmacySlug" class="form-control" placeholder="Enter pharmacy slug or code" required />
+                    </div>
+                    <div class="form-group" style="margin-bottom:15px;">
+                        <label for="email">Email Address <span style="color:red;">*</span></label>
+                        <input type="text" id="email" name="username" value="@Model?.username" class="form-control" placeholder="Email Address" required />
+                    </div>
+                    <div class="form-group" style="margin-bottom:15px;">
+                        <label for="password">Password <span style="color:red;">*</span></label>
+                        <input type="password" id="password" name="password" class="form-control" placeholder="Password" required />
                     </div>
 
-                    <form asp-controller="Account" asp-action="Login" method="POST" class="margin-bottom-0">
-                        @Html.AntiForgeryToken()
-                        <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+                    <div style="margin-bottom:20px;">
+                        <a href="@Url.Action("ResetPassword", "Account")" class="forgot-link">Forgot your password?</a>
+                    </div>
 
-                        <div class="row" id="errors">
-                            @if (!string.IsNullOrEmpty(ViewBag.ExpiredMessage as string))
-                            {
-                                <div class="alert alert-info">@ViewBag.ExpiredMessage</div>
-                            }
-                            @if (!string.IsNullOrEmpty(Model.errormessage))
-                            {
-                                <div class="alert alert-danger">@Model.errormessage</div>
-                            }
-                        </div>
+                    <button type="submit" class="btn btn-signin btn-block">
+                        <i class="fa fa-sign-in"></i> Sign In
+                    </button>
 
-                        <div class="form-group m-b-15">
-                            <label for="pharmacySlug">Pharmacy <span style="color:red;">*</span></label>
-                            <input type="text" id="pharmacySlug" name="pharmacySlug" value="@Model?.pharmacySlug" class="form-control input-lg" placeholder="Enter pharmacy slug or code" required />
-                        </div>
-                        <div class="form-group m-b-15">
-                            <label for="email">Email Address <span style="color:red;">*</span></label>
-                            <input type="text" id="email" name="username" value="@Model?.username" class="form-control input-lg" placeholder="Email Address" required />
-                        </div>
-                        <div class="form-group has-feedback">
-                            <label for="password">Password <span style="color:red;">*</span></label>
-                            <input type="password" id="password" name="password" class="form-control input-lg" placeholder="Password" required />
-                        </div>
+                    <ul class="feature-list">
+                        <li><i class="fa fa-check-circle"></i> Real-time inventory tracking</li>
+                        <li><i class="fa fa-check-circle"></i> POS &amp; wholesale management</li>
+                        <li><i class="fa fa-check-circle"></i> DDA &amp; controlled substance compliance</li>
+                        <li><i class="fa fa-check-circle"></i> Supplier &amp; purchase order management</li>
+                    </ul>
 
-                        <div class="checkbox m-b-30"></div>
-
-                        <div class="login-buttons">
-                            <div class="form-group">
-                                <a href="@Url.Action("ResetPassword", "Account")" title="Forgot your password?">Forgot your password?</a>
-                            </div>
-                            <button id="login" name="login" type="submit" class="btn btn-primary btn-block btn-sm">
-                                <i class="fa fa-sign-in"></i> Sign In
-                            </button>
-                        </div>
-
-                        <hr />
-
-                        <ul class="feature-list">
-                            <li><i class="fa fa-check-circle"></i> Real-time inventory tracking</li>
-                            <li><i class="fa fa-check-circle"></i> POS &amp; wholesale management</li>
-                            <li><i class="fa fa-check-circle"></i> DDA &amp; controlled substance compliance</li>
-                            <li><i class="fa fa-check-circle"></i> Supplier &amp; purchase order management</li>
-                        </ul>
-
-                        <hr />
-                        <p class="text-center">
-                            Copyright &copy; @DateTime.Now.Year <strong>MediStock</strong> &mdash; Pharmaceutical Management System
-                        </p>
-                    </form>
-                </div>
+                    <div class="login-footer">
+                        Copyright &copy; @DateTime.Now.Year <strong>MediStock</strong> &mdash; Pharmaceutical Management System
+                    </div>
+                </form>
             </div>
         </div>
     </div>
 
     <script src="~/assets/static/plugins/jquery/jquery-1.9.1.min.js"></script>
-    <script src="~/assets/static/plugins/jquery/jquery-migrate-1.1.0.min.js"></script>
-    <script src="~/assets/static/plugins/jquery-ui/ui/minified/jquery-ui.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap/js/bootstrap.min.js"></script>
-    <script src="~/assets/static/plugins/slimscroll/jquery.slimscroll.min.js"></script>
-    <script src="~/assets/static/plugins/jquery-cookie/jquery.cookie.js"></script>
-    <script src="~/assets/static/js/apps.min.js"></script>
-    <script src="~/assets/static/js/jquery.blockUI.js"></script>
     <script>
-        $(document).ready(function () {
-            App.init();
-            $('#page-loader').addClass('hide');
-        });
         $(document).on('submit', 'form', function (e) {
             if ($('form')[0].checkValidity()) {
                 if (!e.isDefaultPrevented()) {
-                    $.blockUI({ message: '<h4><i class="fa fa-spinner fa-spin"></i> Please wait...</h4>' });
+                    e.preventDefault();
+                    $('button[type=submit]').html('<i class="fa fa-spinner fa-spin"></i> Please wait...').prop('disabled', true);
+                    $('form')[0].submit();
                 }
             }
         });
