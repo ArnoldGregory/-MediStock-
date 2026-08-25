@@ -113,11 +113,17 @@
         });
 
         function loadDashboardStats() {
-            $.get('/api/dashboard/stats', function (data) {
-                $('#statProducts').text(data.totalProducts || 0);
-                $('#statTodaySales').text('KES ' + numberWithCommas(data.todaySales || 0));
-                $('#statCustomers').text(data.totalCustomers || 0);
-                $('#statLowStock').text(data.lowStockAlerts || 0);
+            $.get('/Dashboard/Summary', function (resp) {
+                if (resp && resp.data) {
+                    var d = resp.data;
+                    $('#statProducts').text(d.total_products || 0);
+                    $('#statTodaySales').text('KES ' + numberWithCommas(d.today_sales || 0));
+                    $('#statCustomers').text(d.total_customers || 0);
+                    $('#statLowStock').text(d.low_stock_count || 0);
+                    $('#statMonthSales').text('KES ' + numberWithCommas(d.month_sales || 0));
+                    $('#statExpiring').text(d.expiring_soon_count || 0);
+                    $('#statInventoryValue').text('KES ' + numberWithCommas(d.total_inventory_value || 0));
+                }
             }).fail(function () {
                 $('#statProducts').text('0');
                 $('#statTodaySales').text('KES 0');
@@ -125,27 +131,30 @@
                 $('#statLowStock').text('0');
             });
 
-            $.get('/api/dashboard/top-products', function (data) {
-                var html = '<table class="table table-condensed"><tbody>';
-                if (data && data.length) {
-                    $.each(data, function (i, item) {
-                        html += '<tr><td>' + item.name + '</td><td class="text-right">' + item.quantitySold + ' sold</td></tr>';
-                    });
-                } else {
-                    html += '<tr><td class="text-muted">No data available</td></tr>';
+            $.get('/Dashboard/PharmacistStats', function (data) {
+                if (data) {
+                    if (data.totalProducts !== undefined) $('#statProducts').text(data.totalProducts);
+                    if (data.todaySales !== undefined) $('#statTodaySales').text('KES ' + numberWithCommas(data.todaySales));
                 }
-                html += '</tbody></table>';
-                $('#topProductsList').html(html);
-            }).fail(function () {
-                $('#topProductsList').html('<p class="text-muted">Unable to load data</p>');
             });
 
-            $.get('/api/dashboard/expiring-soon', function (data) {
+            $.get('/Dashboard/Summary', function (resp) {
+                if (resp && resp.data) {
+                    var d = resp.data;
+                    $('#statMonthSales').text('KES ' + numberWithCommas(d.month_sales || 0));
+                    $('#statExpiring').text(d.expiring_soon_count || 0);
+                }
+            });
+
+            $.get('/api/dashboard/expiringitems', function (resp) {
+                var items = resp.data || resp;
                 var html = '<table class="table table-condensed"><tbody>';
-                if (data && data.length) {
-                    $.each(data, function (i, item) {
-                        var badge = item.daysLeft <= 30 ? 'label-danger' : (item.daysLeft <= 90 ? 'label-warning' : 'label-info');
-                        html += '<tr><td>' + item.productName + '</td><td>' + item.batchNo + '</td><td><span class="label ' + badge + '">' + item.expiryDate + '</span></td></tr>';
+                if (items && items.length) {
+                    $.each(items, function (i, item) {
+                        var expDate = item.expiry_date ? item.expiry_date.substring(0, 10) : '';
+                        var product = item.product_name || item.ProductName || '';
+                        var batch = item.batch_number || item.BatchNumber || '';
+                        html += '<tr><td>' + product + '</td><td>' + batch + '</td><td><span class="label label-warning">' + expDate + '</span></td></tr>';
                     });
                 } else {
                     html += '<tr><td class="text-muted">No products expiring soon</td></tr>';
@@ -156,14 +165,17 @@
                 $('#expiringProducts').html('<p class="text-muted">Unable to load data</p>');
             });
 
-            $.get('/api/dashboard/recent-activity', function (data) {
+            $.get('/api/dashboard/alerts', function (resp) {
+                var items = resp.data || resp;
                 var html = '<ul class="list-group">';
-                if (data && data.length) {
-                    $.each(data, function (i, item) {
-                        html += '<li class="list-group-item"><small class="text-muted pull-right">' + item.timeAgo + '</small>' + item.description + '</li>';
+                if (items && items.length) {
+                    $.each(items, function (i, item) {
+                        var severity = item.severity || item.Severity || 'info';
+                        var icon = severity === 'danger' ? 'fa-exclamation-circle text-danger' : 'fa-exclamation-triangle text-warning';
+                        html += '<li class="list-group-item"><i class="fa ' + icon + ' m-r-5"></i>' + (item.title || item.Title || '') + ' <small class="text-muted">— ' + (item.description || item.Description || '') + '</small></li>';
                     });
                 } else {
-                    html += '<li class="list-group-item text-muted">No recent activity</li>';
+                    html += '<li class="list-group-item text-muted">No alerts</li>';
                 }
                 html += '</ul>';
                 $('#recentActivity').html(html);

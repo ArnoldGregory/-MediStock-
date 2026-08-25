@@ -36,16 +36,10 @@ namespace MediStock.Portal.Controllers
             ViewBag.Name = name;
             ViewBag.PharmacyId = pharmacy;
             ViewBag.RoleId = roleId;
-
-            if (roleId == "3")
-            {
-                ViewData["Title"] = "My Dashboard";
-                return View("ClerkDashboard");
-            }
+            ViewBag.IsAdmin = roleId == "1" || roleId == "2";
 
             ViewData["Title"] = "Dashboard";
-            ViewBag.IsAdmin = roleId == "1";
-            return View("PharmacistDashboard");
+            return View("Index");
         }
 
         // ── GET /Dashboard/Summary ───────────────────────────────────────────

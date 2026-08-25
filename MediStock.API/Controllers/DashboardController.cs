@@ -68,6 +68,109 @@ namespace MediStock.API.Controllers
             }
         }
 
+        [Authorize]
+        [HttpGet("stocksummary")]
+        public IActionResult GetStockSummary()
+        {
+            try
+            {
+                var pharmacyId = GetCallerPharmacyId();
+                DataTable dt = dbhandler.GetStockSummary(pharmacyId);
+                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("GetStockSummary: " + ex.Message);
+                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("salesstats")]
+        public IActionResult GetSalesStats()
+        {
+            try
+            {
+                var pharmacyId = GetCallerPharmacyId();
+                DataTable dt = dbhandler.GetSalesStats(pharmacyId);
+                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("GetSalesStats: " + ex.Message);
+                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("expiringitems")]
+        public IActionResult GetExpiringItems()
+        {
+            try
+            {
+                var pharmacyId = GetCallerPharmacyId();
+                DataTable dt = dbhandler.GetExpiringItems(pharmacyId);
+                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("GetExpiringItems: " + ex.Message);
+                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("alerts")]
+        public IActionResult GetAlerts()
+        {
+            try
+            {
+                var pharmacyId = GetCallerPharmacyId();
+                DataTable dt = dbhandler.GetAlerts(pharmacyId);
+                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("GetAlerts: " + ex.Message);
+                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("mysales")]
+        public IActionResult GetMySales()
+        {
+            try
+            {
+                var pharmacyId = GetCallerPharmacyId();
+                var userId = GetCallerUserId();
+                DataTable dt = dbhandler.GetMySales(pharmacyId, userId);
+                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("GetMySales: " + ex.Message);
+                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+            }
+        }
+
+        [Authorize]
+        [HttpGet("pendingorders")]
+        public IActionResult GetPendingOrders()
+        {
+            try
+            {
+                var pharmacyId = GetCallerPharmacyId();
+                DataTable dt = dbhandler.GetPendingOrders(pharmacyId);
+                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("GetPendingOrders: " + ex.Message);
+                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+            }
+        }
+
         private Int64 GetCallerPharmacyId()
         {
             var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
@@ -89,6 +192,19 @@ namespace MediStock.API.Controllers
         {
             var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
             return claim != null ? Convert.ToInt32(claim.Value) : 0;
+        }
+
+        private static List<Dictionary<string, object?>> DataTableToList(DataTable dt)
+        {
+            var list = new List<Dictionary<string, object?>>();
+            foreach (DataRow row in dt.Rows)
+            {
+                var dict = new Dictionary<string, object?>();
+                foreach (DataColumn col in dt.Columns)
+                    dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
+                list.Add(dict);
+            }
+            return list;
         }
     }
 }

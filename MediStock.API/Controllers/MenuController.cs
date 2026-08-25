@@ -14,6 +14,21 @@ namespace MediStock.API.Controllers
         private readonly IConfiguration _config;
         private readonly ILoggerManager _logger;
 
+        private static readonly Dictionary<string, string> _menuIcons = new()
+        {
+            { "Dashboard",  "fa-dashboard" },
+            { "Inventory",  "fa-cube" },
+            { "Sales",      "fa-shopping-cart" },
+            { "Customers",  "fa-users" },
+            { "Suppliers",  "fa-truck" },
+            { "Finance",    "fa-money" },
+            { "Reports",    "fa-bar-chart" },
+            { "Clinical",   "fa-heartbeat" },
+            { "DDA",        "fa-balance-scale" },
+            { "Settings",   "fa-cog" },
+            { "Admin",      "fa-user-secret" },
+        };
+
         public MenuController(IConfiguration config, ILoggerManager logger)
         {
             dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
@@ -30,31 +45,56 @@ namespace MediStock.API.Controllers
             {
                 var roleId = GetCallerRoleId();
                 var userId = GetCallerUserId();
+                var pharmacyId = GetCallerPharmacyId();
+                var email = GetCallerEmail();
 
                 if (roleId == 0)
                     return Unauthorized(new ApiResponse<object> { success = false, message = "Invalid or missing role_id in token" });
 
-                if (userId == 0)
-                    return Unauthorized(new ApiResponse<object> { success = false, message = "Invalid or missing user_id in token" });
+                DataTable dt = dbhandler.GetMenuRecords(roleId);
 
-                DataTable dt = dbhandler.GetRecords("menu_access", roleId.ToString(), pageaccessed);
+                var mainMenus = new Dictionary<string, MenuMainNode>();
 
-                var menus = new List<object>();
                 foreach (DataRow row in dt.Rows)
                 {
-                    menus.Add(new
+                    string mainMenuName = row["main_menu_name"]?.ToString() ?? "";
+                    string subMenuName = row["sub_menu_name"]?.ToString() ?? "";
+                    string pageUrl = row["page_url"]?.ToString() ?? "";
+                    int menuOrder = row["menu_order"] != DBNull.Value ? Convert.ToInt32(row["menu_order"]) : 0;
+                    int subMenuOrder = row["sub_menu_order"] != DBNull.Value ? Convert.ToInt32(row["sub_menu_order"]) : 0;
+
+                    if (!mainMenus.ContainsKey(mainMenuName))
                     {
-                        menu_id = row["menu_id"] != DBNull.Value ? Convert.ToInt64(row["menu_id"]) : 0,
-                        menu_name = row["menu_name"]?.ToString() ?? "",
-                        menu_url = row["menu_url"]?.ToString() ?? "",
-                        icon = row["icon"]?.ToString() ?? "",
-                        parent_id = row["parent_id"] != DBNull.Value ? Convert.ToInt64(row["parent_id"]) : 0,
-                        sort_order = row["sort_order"] != DBNull.Value ? Convert.ToInt32(row["sort_order"]) : 0,
-                        is_visible = row["is_visible"] != DBNull.Value ? Convert.ToBoolean(row["is_visible"]) : true
+                        string icon = _menuIcons.ContainsKey(mainMenuName) ? _menuIcons[mainMenuName] : "fa-circle";
+                        bool isSelected = pageUrl.TrimStart('~', '/') == pageaccessed.TrimStart('~', '/');
+
+                        mainMenus[mainMenuName] = new MenuMainNode
+                        {
+                            MenuOrder = menuOrder,
+                            MenuName = mainMenuName,
+                            MenuIcon = icon,
+                            MenuUrl = "",
+                            MenuSelected = isSelected ? "active" : "",
+                            SubMenus = new List<MenuSubNode>()
+                        };
+                    }
+
+                    bool subSelected = pageUrl.TrimStart('~', '/') == pageaccessed.TrimStart('~', '/');
+                    mainMenus[mainMenuName].SubMenus.Add(new MenuSubNode
+                    {
+                        SubMenuOrder = subMenuOrder,
+                        SubMenuName = subMenuName,
+                        SubMenuUrl = pageUrl,
+                        SubMenuSelected = subSelected ? "active" : ""
                     });
+
+                    if (subSelected)
+                        mainMenus[mainMenuName].MenuSelected = "active";
                 }
 
-                _logger.LogInfo($"GetMenu: roleId={roleId} pageaccessed={pageaccessed} menus={menus.Count}");
+                var menuList = mainMenus.Values.OrderBy(m => m.MenuOrder).ToList();
+
+                _logger.LogInfo($"GetMenu: roleId={roleId} pageaccessed={pageaccessed} menus={menuList.Count}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -62,9 +102,9 @@ namespace MediStock.API.Controllers
                     {
                         user_id = userId,
                         role_id = roleId,
-                        pharmacy_id = GetCallerPharmacyId(),
-                        email = GetCallerEmail(),
-                        menu = menus
+                        pharmacy_id = pharmacyId,
+                        email = email,
+                        menu = menuList
                     }
                 });
             }
@@ -97,5 +137,23 @@ namespace MediStock.API.Controllers
             var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
             return claim != null ? Convert.ToInt32(claim.Value) : 0;
         }
+    }
+
+    public class MenuMainNode
+    {
+        public int MenuOrder { get; set; }
+        public string MenuName { get; set; } = "";
+        public string MenuIcon { get; set; } = "";
+        public string MenuUrl { get; set; } = "";
+        public string MenuSelected { get; set; } = "";
+        public List<MenuSubNode> SubMenus { get; set; } = new();
+    }
+
+    public class MenuSubNode
+    {
+        public int SubMenuOrder { get; set; }
+        public string SubMenuName { get; set; } = "";
+        public string SubMenuUrl { get; set; } = "";
+        public string SubMenuSelected { get; set; } = "";
     }
 }

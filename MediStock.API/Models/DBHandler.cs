@@ -1223,5 +1223,230 @@ namespace MediStock.API.Models
         }
 
         #endregion
+
+        #region Menu Methods
+
+        public DataTable GetMenuRecords(int roleId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_records", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@module", "menu_access");
+                cmd.Parameters.AddWithValue("@param1", roleId.ToString());
+                cmd.Parameters.AddWithValue("@param2", "");
+                cmd.Parameters.AddWithValue("@param3", "");
+                cmd.Parameters.AddWithValue("@param4", "");
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetMenuRecords: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+            }
+            return dt;
+        }
+
+        #endregion
+
+        #region Admin Methods
+
+        public DataTable GetUsersByPharmacy(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_users_by_pharmacy", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetUsersByPharmacy: " + ex.Message + " - " + ex.StackTrace);
+            }
+            return dt;
+        }
+
+        public DataTable GetUserById(Int64 id)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_user_by_id", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_id", id);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetUserById: " + ex.Message + " - " + ex.StackTrace);
+            }
+            return dt;
+        }
+
+        public bool AdminUpdateUser(Int64 id, string? firstName, string? lastName,
+            string? email, string? mobile, int? roleId, bool isActive)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("update_user", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_id", id);
+                cmd.Parameters.AddWithValue("@p_first_name", (object?)firstName ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_last_name", (object?)lastName ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_email", (object?)email ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_mobile", (object?)mobile ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_role_id", (object?)roleId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_is_active", isActive ? 1 : 0);
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("AdminUpdateUser: " + ex.Message + " - " + ex.StackTrace);
+                return false;
+            }
+        }
+
+        public bool AdminResetPassword(Int64 userId, string hashedPassword)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("admin_reset_password", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_user_id", userId);
+                cmd.Parameters.AddWithValue("@p_new_password", hashedPassword);
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("AdminResetPassword: " + ex.Message + " - " + ex.StackTrace);
+                return false;
+            }
+        }
+
+        #endregion
+
+        #region Dashboard Detail Methods
+
+        public DataTable GetStockSummary(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_stock_summary", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetStockSummary: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetSalesStats(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_sales_stats", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetSalesStats: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetExpiringItems(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_expiring_items", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetExpiringItems: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetAlerts(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_alerts", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetAlerts: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetMySales(Int64 pharmacyId, Int64 userId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_my_sales", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_user_id", userId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetMySales: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetPendingOrders(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_pending_orders", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetPendingOrders: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        #endregion
     }
 }

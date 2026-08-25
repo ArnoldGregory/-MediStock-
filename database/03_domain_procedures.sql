@@ -81,15 +81,15 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `validate_login`$$
 CREATE PROCEDURE `validate_login`(
-    IN p_email    VARCHAR(200),
-    IN p_password VARCHAR(200)
+    IN p_username    VARCHAR(200),
+    IN p_profiletype VARCHAR(50)
 )
 BEGIN
     SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
-           email, mobile, avatar, locked, change_password, failed_login_attempts,
-           google_authenticate, sec_key
+           email, mobile, password, avatar, locked, change_password,
+           failed_login_attempts, google_authenticate, sec_key
     FROM pharmacy_users
-    WHERE email = p_email AND password = p_password AND is_deleted = 0
+    WHERE email = p_username AND is_deleted = 0
     LIMIT 1;
 END$$
 
@@ -1026,6 +1026,233 @@ BEGIN
     UPDATE notifications
     SET is_read = 1
     WHERE id = p_id AND is_deleted = 0;
+END$$
+
+-- ============================================================
+-- 13. ADMIN — get_pharmacy_by_slug
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_pharmacy_by_slug`$$
+CREATE PROCEDURE `get_pharmacy_by_slug`(
+    IN p_slug VARCHAR(100)
+)
+BEGIN
+    SELECT id, name, slug, phone, email, address, license_number,
+           currency, subscription_plan, is_active
+    FROM pharmacies
+    WHERE slug = p_slug AND is_deleted = 0
+    LIMIT 1;
+END$$
+
+-- ============================================================
+-- 13. ADMIN — get_users_by_pharmacy
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_users_by_pharmacy`$$
+CREATE PROCEDURE `get_users_by_pharmacy`(
+    IN p_pharmacy_id BIGINT
+)
+BEGIN
+    SELECT id, pharmacy_id, role_id, first_name, last_name, email,
+           mobile, avatar, locked, is_active, created_on
+    FROM pharmacy_users
+    WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+    ORDER BY first_name;
+END$$
+
+-- ============================================================
+-- 13. ADMIN — get_user_by_id
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_user_by_id`$$
+CREATE PROCEDURE `get_user_by_id`(
+    IN p_id BIGINT
+)
+BEGIN
+    SELECT id, pharmacy_id, role_id, first_name, last_name, email,
+           mobile, avatar, locked, is_active, created_on
+    FROM pharmacy_users
+    WHERE id = p_id AND is_deleted = 0
+    LIMIT 1;
+END$$
+
+-- ============================================================
+-- 13. ADMIN — update_user
+-- ============================================================
+DROP PROCEDURE IF EXISTS `update_user`$$
+CREATE PROCEDURE `update_user`(
+    IN  p_id         BIGINT,
+    IN  p_first_name VARCHAR(100),
+    IN  p_last_name  VARCHAR(100),
+    IN  p_email      VARCHAR(200),
+    IN  p_mobile     VARCHAR(50),
+    IN  p_role_id    INT,
+    IN  p_is_active  TINYINT,
+    OUT p_error_code VARCHAR(2),
+    OUT p_error_desc VARCHAR(500)
+)
+BEGIN
+    SET p_error_code = '01'; SET p_error_desc = 'Failed';
+    IF NOT EXISTS (SELECT 1 FROM pharmacy_users WHERE id = p_id AND is_deleted = 0) THEN
+        SET p_error_desc = 'User not found';
+    ELSEIF EXISTS (SELECT 1 FROM pharmacy_users WHERE email = p_email AND id != p_id AND is_deleted = 0) THEN
+        SET p_error_desc = 'Email already in use by another user';
+    ELSE
+        UPDATE pharmacy_users
+        SET first_name = COALESCE(p_first_name, first_name),
+            last_name  = COALESCE(p_last_name, last_name),
+            email      = COALESCE(p_email, email),
+            mobile     = COALESCE(p_mobile, mobile),
+            role_id    = COALESCE(p_role_id, role_id),
+            is_active  = p_is_active
+        WHERE id = p_id AND is_deleted = 0;
+        SET p_error_code = '00'; SET p_error_desc = 'User updated';
+    END IF;
+END$$
+
+-- ============================================================
+-- 13. ADMIN — admin_reset_password
+-- ============================================================
+DROP PROCEDURE IF EXISTS `admin_reset_password`$$
+CREATE PROCEDURE `admin_reset_password`(
+    IN  p_user_id     BIGINT,
+    IN  p_new_password VARCHAR(200),
+    OUT p_error_code  VARCHAR(2),
+    OUT p_error_desc  VARCHAR(500)
+)
+BEGIN
+    SET p_error_code = '01'; SET p_error_desc = 'Failed';
+    IF NOT EXISTS (SELECT 1 FROM pharmacy_users WHERE id = p_user_id AND is_deleted = 0) THEN
+        SET p_error_desc = 'User not found';
+    ELSE
+        UPDATE pharmacy_users
+        SET password = p_new_password, change_password = 1, failed_login_attempts = 0
+        WHERE id = p_user_id AND is_deleted = 0;
+        SET p_error_code = '00'; SET p_error_desc = 'Password reset';
+    END IF;
+END$$
+
+-- ============================================================
+-- 14. DASHBOARD — get_stock_summary (top products by qty)
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_stock_summary`$$
+CREATE PROCEDURE `get_stock_summary`(
+    IN p_pharmacy_id BIGINT
+)
+BEGIN
+    SELECT id, name, sku, stock_qty, reorder_level, cost_price, selling_price
+    FROM products
+    WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+    ORDER BY stock_qty DESC
+    LIMIT 20;
+END$$
+
+-- ============================================================
+-- 14. DASHBOARD — get_sales_stats (today + recent totals)
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_sales_stats`$$
+CREATE PROCEDURE `get_sales_stats`(
+    IN p_pharmacy_id BIGINT
+)
+BEGIN
+    SELECT
+        (SELECT COALESCE(SUM(total), 0) FROM sales
+         WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+           AND DATE(created_on) = CURDATE()) AS today_total,
+        (SELECT COUNT(*) FROM sales
+         WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+           AND DATE(created_on) = CURDATE()) AS today_count,
+        (SELECT COALESCE(SUM(total), 0) FROM sales
+         WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+           AND created_on >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)) AS week_total,
+        (SELECT COALESCE(SUM(total), 0) FROM sales
+         WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+           AND YEAR(created_on) = YEAR(CURDATE()) AND MONTH(created_on) = MONTH(CURDATE())) AS month_total;
+END$$
+
+-- ============================================================
+-- 14. DASHBOARD — get_expiring_items (batches expiring within 90 days)
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_expiring_items`$$
+CREATE PROCEDURE `get_expiring_items`(
+    IN p_pharmacy_id BIGINT
+)
+BEGIN
+    SELECT b.id, b.batch_number, b.expiry_date, b.quantity, b.cost_price,
+           p.name AS product_name, p.sku
+    FROM product_batches b
+    JOIN products p ON p.id = b.product_id
+    WHERE b.pharmacy_id = p_pharmacy_id AND b.is_deleted = 0
+      AND b.expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)
+      AND b.quantity > 0
+    ORDER BY b.expiry_date
+    LIMIT 20;
+END$$
+
+-- ============================================================
+-- 14. DASHBOARD — get_alerts (low stock + expiring + locked users)
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_alerts`$$
+CREATE PROCEDURE `get_alerts`(
+    IN p_pharmacy_id BIGINT
+)
+BEGIN
+    SELECT 'Low Stock' AS alert_type, name AS title,
+           CONCAT('Stock: ', stock_qty, ' / Reorder: ', reorder_level) AS description,
+           'warning' AS severity
+    FROM products
+    WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+      AND stock_qty <= reorder_level AND stock_qty > 0
+    UNION ALL
+    SELECT 'Out of Stock' AS alert_type, name AS title,
+           CONCAT('Stock: ', stock_qty) AS description,
+           'danger' AS severity
+    FROM products
+    WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
+      AND stock_qty = 0
+    UNION ALL
+    SELECT 'Expiring Soon' AS alert_type, p.name AS title,
+           CONCAT(b.batch_number, ' expires ', DATE_FORMAT(b.expiry_date, '%d %b %Y')) AS description,
+           'warning' AS severity
+    FROM product_batches b
+    JOIN products p ON p.id = b.product_id
+    WHERE b.pharmacy_id = p_pharmacy_id AND b.is_deleted = 0
+      AND b.expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY)
+      AND b.quantity > 0
+    ORDER BY severity DESC, title
+    LIMIT 20;
+END$$
+
+-- ============================================================
+-- 14. DASHBOARD — get_my_sales (today's sales for current user)
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_my_sales`$$
+CREATE PROCEDURE `get_my_sales`(
+    IN p_pharmacy_id BIGINT,
+    IN p_user_id     BIGINT
+)
+BEGIN
+    SELECT s.id, s.sale_number, s.total, s.payment_method, s.status, s.created_on
+    FROM sales s
+    WHERE s.pharmacy_id = p_pharmacy_id AND s.is_deleted = 0
+      AND s.sold_by = p_user_id
+      AND DATE(s.created_on) = CURDATE()
+    ORDER BY s.created_on DESC;
+END$$
+
+-- ============================================================
+-- 14. DASHBOARD — get_pending_orders (pending purchase orders)
+-- ============================================================
+DROP PROCEDURE IF EXISTS `get_pending_orders`$$
+CREATE PROCEDURE `get_pending_orders`(
+    IN p_pharmacy_id BIGINT
+)
+BEGIN
+    SELECT po.id, po.po_number, po.total, po.expected_date, po.status, po.created_on,
+           sp.name AS supplier_name
+    FROM purchase_orders po
+    JOIN suppliers sp ON sp.id = po.supplier_id
+    WHERE po.pharmacy_id = p_pharmacy_id AND po.is_deleted = 0
+      AND po.status = 'Pending'
+    ORDER BY po.expected_date
+    LIMIT 20;
 END$$
 
 DELIMITER ;

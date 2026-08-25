@@ -25,6 +25,7 @@ namespace MediStock.API.Controllers
 
         [AllowAnonymous]
         [HttpPost("login")]
+        [HttpPost("clientlogin")]
         public IActionResult Login([FromBody] JObject jobject)
         {
             _logger.LogInfo("******* LOGIN REQUEST **********");
@@ -32,11 +33,16 @@ namespace MediStock.API.Controllers
 
             try
             {
-                if (jobject == null || !jobject.ContainsKey("email") || !jobject.ContainsKey("password"))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email and password are required" });
+                string email = "";
+                if (jobject.ContainsKey("email"))
+                    email = jobject["email"]!.ToString().Trim();
+                else if (jobject.ContainsKey("username"))
+                    email = jobject["username"]!.ToString().Trim();
 
-                string email = jobject["email"]!.ToString().Trim();
-                string password = jobject["password"]!.ToString();
+                string password = jobject["password"]?.ToString() ?? "";
+
+                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+                    return BadRequest(new ApiResponse<object> { success = false, message = "Email and password are required" });
 
                 DataTable dt = dbhandler.ValidateUserLogin("PHARMACY", email);
                 if (dt.Rows.Count == 0)
@@ -52,9 +58,14 @@ namespace MediStock.API.Controllers
                     });
                 }
 
-                string? storedPassword = dt.Rows[0]["password"].ToString();
+                string? storedPassword = dt.Rows[0]["password"]?.ToString() ?? "";
 
-                if (!BCrypt.Net.BCrypt.Verify(password, storedPassword))
+                var crypto = new CryptoHelper.MediSecurity.Rijndael();
+                string decryptedPassword = "";
+                try { decryptedPassword = crypto.Decrypt(storedPassword); }
+                catch { decryptedPassword = storedPassword; }
+
+                if (password != decryptedPassword)
                 {
                     _logger.LogInfo($"Login failed: Wrong password for email: {email}");
                     return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
@@ -84,11 +95,15 @@ namespace MediStock.API.Controllers
 
                 var userJobject = new JObject
                 {
-                    { "user_id", userId.ToString() },
+                    { "userid", userId.ToString() },
                     { "email", userEmail },
-                    { "role_id", roleId.ToString() },
+                    { "role_type", roleType },
+                    { "profile_id", roleId.ToString() },
                     { "pharmacy_id", pharmacyId.ToString() },
-                    { "first_name", name }
+                    { "name", name },
+                    { "mobile", dt.Rows[0]["mobile"]?.ToString() ?? "" },
+                    { "avatar", dt.Rows[0]["avatar"]?.ToString() ?? "user-default.svg" },
+                    { "change_password", dt.Rows[0]["change_password"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["change_password"]) }
                 };
 
                 var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
@@ -210,6 +225,7 @@ namespace MediStock.API.Controllers
 
         [AllowAnonymous]
         [HttpPost("verify-otp")]
+        [HttpPost("otpclientlogin")]
         public IActionResult VerifyOTP([FromBody] JObject jobject)
         {
             _logger.LogInfo("******* VERIFY OTP REQUEST **********");
@@ -220,6 +236,8 @@ namespace MediStock.API.Controllers
                     return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
 
                 string email = jobject["email"]?.ToString()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(email) && jobject.ContainsKey("username"))
+                    email = jobject["username"]?.ToString()?.Trim() ?? "";
                 string otp = jobject["otp"]?.ToString()?.Trim() ?? "";
                 string otpRef = jobject["otp_ref"]?.ToString()?.Trim() ?? "";
 

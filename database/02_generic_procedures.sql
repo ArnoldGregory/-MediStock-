@@ -219,6 +219,20 @@ BEGIN
               AND stock_qty <= reorder_level
             ORDER BY stock_qty ASC;
 
+        WHEN 'menu_access' THEN
+            SELECT id, role_id, main_menu_name, sub_menu_name, page_url,
+                   can_access, menu_order, sub_menu_order
+            FROM menu_access
+            WHERE role_id = CAST(p_param1 AS UNSIGNED) AND can_access = 1
+            ORDER BY menu_order, sub_menu_order;
+
+        WHEN 'audit_trail' THEN
+            SELECT id, user_name, action_type, action_description,
+                   page_accessed, client_ip_address, created_on
+            FROM audit_trail
+            ORDER BY created_on DESC
+            LIMIT CAST(COALESCE(NULLIF(p_param2, ''), '50') AS UNSIGNED);
+
         ELSE
             SELECT 'Unknown module' AS error;
     END CASE;
