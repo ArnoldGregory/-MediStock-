@@ -319,7 +319,7 @@ namespace MediStock.API.Models
 
         #region Auth Methods
 
-        public DataTable ValidateUserLogin(string user_type, string email_address)
+        public DataTable ValidateUserLogin(string user_type, string email_address)  
         {
             DataTable dt = new();
             try

@@ -74,12 +74,11 @@ namespace MediStock.Portal.Controllers
                 HttpContext.Session.SetString("TempRoleType", data.RoleType);
                 HttpContext.Session.SetString("TempPharmacyId", data.PharmacyId);
 
-                var otpVm = new OtpViewModel { UserId = data.UserId };
-                if (!string.IsNullOrEmpty(data.Otp))
-                    otpVm.DevOtpHint = $"Your OTP: {data.Otp}";
+                ViewBag.UserId = data.UserId;
+                ViewBag.DevOtpHint = !string.IsNullOrEmpty(data.Otp) ? $"Your OTP: {data.Otp}" : null;
 
                 TempData["ReturnUrl"] = returnUrl;
-                return View("VerifyOtp", otpVm);
+                return View("VerifyOtp");
             }
 
             await _audit.LogLoginAsync(model.username, false, $"Unexpected action: {action}");
@@ -94,7 +93,8 @@ namespace MediStock.Portal.Controllers
             var userId = HttpContext.Session.GetString("TempUserId");
             if (string.IsNullOrEmpty(userId))
                 return RedirectToAction(nameof(Login));
-            return View(new OtpViewModel { UserId = userId });
+            ViewBag.UserId = userId;
+            return View();
         }
 
         // ── POST /Account/VerifyOtp  -> api/auth/otpclientlogin ──────────────

@@ -115,7 +115,8 @@ namespace MediStock.API.Controllers
                     { "change_password", dt.Rows[0]["change_password"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["change_password"]) }
                 };
 
-                string otp = new Helpers.RandomKeyGeneratorManagement().GenerateOtp(6);
+                // string otp = new Helpers.RandomKeyGeneratorManagement().GenerateOtp(4);
+                string otp = "1000";
                 string otpRef = Guid.NewGuid().ToString("N");
                 dbhandler.RizikiSaveOtp(userId, "USER", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
 

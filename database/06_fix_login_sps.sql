@@ -1,12 +1,14 @@
 -- ============================================================
 --  MediStock — Fix Login SPs
 --  Run this AFTER the initial 5 SQL files
---  Fixes: parameter names matching DBHandler, missing password column
+--  Fixes: parameter names matching DBHandler
 -- ============================================================
 
 USE medistock;
 
--- ── FIX validate_login (params must match DBHandler: @username, @profiletype) ──
+DELIMITER $$
+
+-- FIX validate_login
 DROP PROCEDURE IF EXISTS `validate_login`$$
 CREATE PROCEDURE `validate_login`(
     IN username    VARCHAR(200),
@@ -21,29 +23,29 @@ BEGIN
     LIMIT 1;
 END$$
 
--- ── FIX add_refresh_token (DBHandler sends @p_hashed_token) ──
+-- FIX add_refresh_token
 DROP PROCEDURE IF EXISTS `add_refresh_token`$$
 CREATE PROCEDURE `add_refresh_token`(
-    IN p_user_id     BIGINT,
+    IN p_user_id      BIGINT,
     IN p_hashed_token VARCHAR(500),
-    IN p_expires_at  DATETIME
+    IN p_expires_at   DATETIME
 )
 BEGIN
     INSERT INTO refresh_tokens (user_id, token, expires_at, created_on)
     VALUES (p_user_id, p_hashed_token, p_expires_at, NOW());
 END$$
 
--- ── FIX riziki_save_otp (params must match DBHandler: @in_*) ──
+-- FIX riziki_save_otp
 DROP PROCEDURE IF EXISTS `riziki_save_otp`$$
 CREATE PROCEDURE `riziki_save_otp`(
-    IN  in_user_id    BIGINT,
-    IN  in_user_type  VARCHAR(20),
-    IN  in_email      VARCHAR(200),
-    IN  in_mobile     VARCHAR(50),
-    IN  in_otp_code   VARCHAR(10),
-    IN  in_purpose    VARCHAR(50),
-    IN  in_otp_ref    VARCHAR(100),
-    OUT out_id         BIGINT
+    IN  in_user_id   BIGINT,
+    IN  in_user_type VARCHAR(20),
+    IN  in_email     VARCHAR(200),
+    IN  in_mobile    VARCHAR(50),
+    IN  in_otp_code  VARCHAR(10),
+    IN  in_purpose   VARCHAR(50),
+    IN  in_otp_ref   VARCHAR(100),
+    OUT out_id       BIGINT
 )
 BEGIN
     SET out_id = 0;
@@ -55,7 +57,7 @@ BEGIN
     SET out_id = LAST_INSERT_ID();
 END$$
 
--- ── FIX riziki_verify_otp (params must match DBHandler: @in_*) ──
+-- FIX riziki_verify_otp
 DROP PROCEDURE IF EXISTS `riziki_verify_otp`$$
 CREATE PROCEDURE `riziki_verify_otp`(
     IN in_email    VARCHAR(200),
@@ -76,11 +78,11 @@ BEGIN
     LIMIT 1;
 END$$
 
--- ── FIX client_password_reset (DBHandler sends @profiletype not @p_profiletype) ──
+-- FIX client_password_reset
 DROP PROCEDURE IF EXISTS `client_password_reset`$$
 CREATE PROCEDURE `client_password_reset`(
-    IN p_email       VARCHAR(200),
-    IN p_password    VARCHAR(200),
+    IN p_email    VARCHAR(200),
+    IN p_password VARCHAR(200),
     IN profiletype VARCHAR(50)
 )
 BEGIN
@@ -90,3 +92,5 @@ BEGIN
         WHERE email = p_email AND is_deleted = 0;
     END IF;
 END$$
+
+DELIMITER ;
