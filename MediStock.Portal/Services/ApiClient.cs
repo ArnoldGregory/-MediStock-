@@ -172,10 +172,17 @@ namespace MediStock.Portal.Services
         private async Task<ApiResult<T>> RawPostAsync<T>(
             string clientName, string endpoint, object body, string? token)
         {
-            var client = BuildClient(clientName, token);
-            var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
-            var response = await client.PostAsync(endpoint, content);
-            return await ParseAsync<T>(response);
+            try
+            {
+                var client = BuildClient(clientName, token);
+                var content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+                var response = await client.PostAsync(endpoint, content);
+                return await ParseAsync<T>(response);
+            }
+            catch (Exception ex)
+            {
+                return ApiResult<T>.Fail($"API connection failed: {ex.Message}", 0);
+            }
         }
 
         private HttpClient BuildClient(string name, string? token)
