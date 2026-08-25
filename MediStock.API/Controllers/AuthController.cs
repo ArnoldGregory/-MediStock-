@@ -51,6 +51,7 @@ namespace MediStock.API.Controllers
                 if (dt.Rows.Count == 0)
                 {
                     _logger.LogInfo($"Login failed: User not found for email: {email}");
+                    CaptureAuditTrail(email, "Invalid Login", "User not found");
                     return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
                     {
                         success = false,
@@ -68,6 +69,7 @@ namespace MediStock.API.Controllers
                 if (password != decryptedPassword)
                 {
                     _logger.LogInfo($"Login failed: Wrong password for email: {email}");
+                    CaptureAuditTrail(email, "Invalid Login", "Wrong password");
                     return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
                     {
                         success = false,
@@ -76,20 +78,27 @@ namespace MediStock.API.Controllers
                 }
 
                 int locked = dt.Rows[0]["locked"] == DBNull.Value ? 0 : Convert.ToInt16(dt.Rows[0]["locked"]);
-                bool isActive = dt.Rows[0]["is_active"] == DBNull.Value ? true : Convert.ToBoolean(dt.Rows[0]["is_active"]);
-
-                if (!isActive)
-                    return StatusCode(StatusCodes.Status403Forbidden, new ApiResponse<object> { success = false, message = "Account is deactivated" });
 
                 if (locked == 1)
                     return StatusCode(StatusCodes.Status403Forbidden, new ApiResponse<object> { success = false, message = "Account is locked" });
 
+                CaptureAuditTrail(email, "Login Attempt", "OTP sent to user: " + email);
+
                 long userId = Convert.ToInt64(dt.Rows[0]["id"]);
                 Int64 pharmacyId = dt.Rows[0]["pharmacy_id"] != DBNull.Value ? Convert.ToInt64(dt.Rows[0]["pharmacy_id"]) : 0;
-                string roleType = dt.Rows[0]["role_type"]?.ToString() ?? "PHARMACY";
+                int roleId = dt.Rows[0]["role_id"] != DBNull.Value ? Convert.ToInt32(dt.Rows[0]["role_id"]) : 3;
                 string name = dt.Rows[0]["first_name"]?.ToString() ?? "";
                 string userEmail = dt.Rows[0]["email"]?.ToString() ?? "";
-                int roleId = dt.Rows[0]["role_id"] != DBNull.Value ? Convert.ToInt32(dt.Rows[0]["role_id"]) : 3;
+
+                string roleType = roleId switch
+                {
+                    1 => "SuperAdmin",
+                    2 => "Admin",
+                    3 => "Pharmacist",
+                    4 => "Staff",
+                    5 => "Cashier",
+                    _ => "Staff"
+                };
 
                 _logger.LogInfo($"Login: userId={userId} pharmacyId={pharmacyId} roleId={roleId}");
 
@@ -106,24 +115,30 @@ namespace MediStock.API.Controllers
                     { "change_password", dt.Rows[0]["change_password"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["change_password"]) }
                 };
 
+                string otp = new Helpers.RandomKeyGeneratorManagement().GenerateOtp(6);
+                string otpRef = Guid.NewGuid().ToString("N");
+                dbhandler.RizikiSaveOtp(userId, "USER", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
+
                 var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
-                string accessToken = jwtUtils.GenerateAccessToken(userJobject);
+                string tempToken = jwtUtils.GenerateAccessToken(new JObject
+                {
+                    { "user_id", userId.ToString() },
+                    { "email", userEmail },
+                    { "role_id", roleId.ToString() },
+                    { "pharmacy_id", pharmacyId.ToString() }
+                });
 
-                string refreshToken = jwtUtils.GenerateRefreshToken();
-                DateTime expiresAt = DateTime.UtcNow.AddDays(_config.GetValue<int>("Jwt:RefreshTokenExpiryDays", 14));
+                userJobject.Add("accessToken", tempToken);
+                userJobject.Add("refreshToken", "");
+                userJobject.Add("otp", otp);
+                userJobject.Add("otp_ref", otpRef);
 
-                string hashedRefresh = BCrypt.Net.BCrypt.HashPassword(refreshToken);
-                dbhandler.AddRefreshToken(userId, hashedRefresh, expiresAt);
-
-                userJobject.Add("accessToken", accessToken);
-                userJobject.Add("refreshToken", refreshToken);
-
-                _logger.LogInfo("RESPONSE: Login successful");
+                _logger.LogInfo($"RESPONSE: OTP sent for {email}, otp_ref={otpRef}");
                 return Ok(new ApiResponse<JObject>
                 {
                     success = true,
-                    message = "Login successful",
-                    action = "Dashboard",
+                    message = "OTP sent to your device",
+                    action = "VerifyOTP",
                     data = userJobject
                 });
             }
@@ -229,6 +244,7 @@ namespace MediStock.API.Controllers
         public IActionResult VerifyOTP([FromBody] JObject jobject)
         {
             _logger.LogInfo("******* VERIFY OTP REQUEST **********");
+            _logger.LogInfo(jobject.ToString());
 
             try
             {
@@ -248,11 +264,66 @@ namespace MediStock.API.Controllers
                 if (dt.Rows.Count == 0)
                     return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
 
-                _logger.LogInfo($"VerifyOTP: OTP verified for {email}");
-                return Ok(new ApiResponse<object>
+                DataTable dtUser = dbhandler.ValidateUserLogin("PHARMACY", email);
+                if (dtUser.Rows.Count == 0)
+                    dtUser = dbhandler.ValidateUserLogin("USER", email);
+
+                if (dtUser.Rows.Count == 0)
+                    return BadRequest(new ApiResponse<object> { success = false, message = "User not found" });
+
+                long userId = Convert.ToInt64(dtUser.Rows[0]["id"]);
+                Int64 pharmacyId = dtUser.Rows[0]["pharmacy_id"] != DBNull.Value ? Convert.ToInt64(dtUser.Rows[0]["pharmacy_id"]) : 0;
+                int roleId = dtUser.Rows[0]["role_id"] != DBNull.Value ? Convert.ToInt32(dtUser.Rows[0]["role_id"]) : 3;
+                string name = dtUser.Rows[0]["first_name"]?.ToString() ?? "";
+                string userEmail = dtUser.Rows[0]["email"]?.ToString() ?? "";
+                string mobile = dtUser.Rows[0]["mobile"]?.ToString() ?? "";
+                string avatar = dtUser.Rows[0]["avatar"]?.ToString() ?? "user-default.svg";
+
+                string roleType = roleId switch
+                {
+                    1 => "SuperAdmin",
+                    2 => "Admin",
+                    3 => "Pharmacist",
+                    4 => "Staff",
+                    5 => "Cashier",
+                    _ => "Staff"
+                };
+
+                bool changePassword = dtUser.Rows[0]["change_password"] != DBNull.Value && Convert.ToBoolean(dtUser.Rows[0]["change_password"]);
+
+                JObject userJobject = new JObject
+                {
+                    { "userid", userId.ToString() },
+                    { "email", userEmail },
+                    { "role_type", roleType },
+                    { "name", name },
+                    { "mobile", mobile },
+                    { "profile_id", roleId.ToString() },
+                    { "pharmacy_id", pharmacyId.ToString() },
+                    { "avatar", avatar }
+                };
+
+                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
+                string accessToken = jwtUtils.GenerateAccessToken(userJobject);
+                string refreshToken = jwtUtils.GenerateRefreshToken();
+                DateTime expiresAt = DateTime.UtcNow.AddDays(_config.GetValue<int>("Jwt:RefreshTokenExpiryDays", 14));
+
+                string hashedRefresh = BCrypt.Net.BCrypt.HashPassword(refreshToken);
+                dbhandler.AddRefreshToken(userId, hashedRefresh, expiresAt);
+
+                CaptureAuditTrail(email, "OTP Verified", "Login complete for user: " + email);
+
+                userJobject.Add("accessToken", accessToken);
+                userJobject.Add("refreshToken", refreshToken);
+                userJobject.Add("change_password", changePassword);
+
+                _logger.LogInfo($"RESPONSE: OTP verified for {email}, login complete");
+                return Ok(new ApiResponse<JObject>
                 {
                     success = true,
-                    message = "OTP verified successfully"
+                    message = "OTP verified - login complete",
+                    action = changePassword ? "ChangePassword" : "Dashboard",
+                    data = userJobject
                 });
             }
             catch (Exception ex)
@@ -554,6 +625,28 @@ namespace MediStock.API.Controllers
         {
             var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
             return claim != null ? Convert.ToInt32(claim.Value) : 0;
+        }
+
+        private void CaptureAuditTrail(string email, string actionType, string description)
+        {
+            try
+            {
+                var model = new AuditTrailModel
+                {
+                    user_name = email,
+                    action_type = actionType,
+                    action_description = description,
+                    page_accessed = HttpContext.Request.Path,
+                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    session_id = HttpContext.Session.Id,
+                    created_on = DateTime.UtcNow
+                };
+                dbhandler.AddAuditTrail(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("CaptureAuditTrail: " + ex.Message);
+            }
         }
     }
 }
