@@ -6,8 +6,9 @@
 <html>
 <head>
     <meta charset="utf-8" />
-    <title>MediStock Portal — Login</title>
+    <title>MediStock — Sign In</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="MediStock Pharmaceutical Inventory Management System" />
     <link rel="shortcut icon" type="image/png" href="~/assets/static/img/favicon.ico" />
 
     <link href="~/assets/static/plugins/jquery-ui/themes/base/minified/jquery-ui.min.css" rel="stylesheet" />
@@ -17,21 +18,66 @@
     <link href="~/assets/static/css/style.min.css" rel="stylesheet" />
     <link href="~/assets/static/css/style-responsive.min.css" rel="stylesheet" />
     <link href="~/assets/static/css/theme/default.css" rel="stylesheet" id="theme" />
+    <style>
+        .news-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: center;
+        }
+        .login-logo {
+            max-width: 180px;
+            margin-bottom: 8px;
+        }
+        .login-brand-text h1 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin: 10px 0 4px;
+        }
+        .login-brand-text p {
+            color: #999;
+            font-size: 0.85rem;
+            margin-bottom: 25px;
+        }
+        .feature-list {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0 0;
+        }
+        .feature-list li {
+            padding: 6px 0;
+            font-size: 0.82rem;
+            color: #666;
+        }
+        .feature-list li i {
+            color: #2ecc71;
+            margin-right: 8px;
+            width: 16px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body class="pace-top bg-white">
     <div id="page-loader" class="fade in"><span class="spinner"></span></div>
 
     <div id="page-container" class="fade">
         <div class="login login-with-news-feed">
+            <!-- begin left panel — cover image -->
             <div class="news-feed">
                 <div class="news-image">
-                    <img src="~/assets/static/img/login-bg.jpg" data-id="login-cover-image" alt="" style="width:100%;height:100%;object-fit:cover;" />
+                    <img src="~/images/pexels-tara-winstead-7722640.jpg" alt="MediStock" />
                 </div>
             </div>
+            <!-- end left panel -->
+
+            <!-- begin right panel — login form -->
             <div class="right-content">
                 <div class="login-content">
-                    <h1 class="text-center"><strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong></h1>
-                    <p class="text-center text-muted">Pharmaceutical Management System</p>
+                    <div class="login-brand-text text-center">
+                        <h1><strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong></h1>
+                        <p>Pharmaceutical Inventory Management</p>
+                    </div>
+
                     <form asp-controller="Account" asp-action="Login" method="POST" class="margin-bottom-0">
                         @Html.AntiForgeryToken()
                         <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
@@ -49,7 +95,7 @@
 
                         <div class="form-group m-b-15">
                             <label for="pharmacySlug">Pharmacy <span style="color:red;">*</span></label>
-                            <input type="text" id="pharmacySlug" name="pharmacySlug" value="@Model?.pharmacySlug" class="form-control input-lg" placeholder="Pharmacy slug or code" required />
+                            <input type="text" id="pharmacySlug" name="pharmacySlug" value="@Model?.pharmacySlug" class="form-control input-lg" placeholder="Enter pharmacy slug or code" required />
                         </div>
                         <div class="form-group m-b-15">
                             <label for="email">Email Address <span style="color:red;">*</span></label>
@@ -70,13 +116,24 @@
                                 <i class="fa fa-sign-in"></i> Sign In
                             </button>
                         </div>
+
+                        <hr />
+
+                        <ul class="feature-list">
+                            <li><i class="fa fa-check-circle"></i> Real-time inventory tracking</li>
+                            <li><i class="fa fa-check-circle"></i> POS &amp; wholesale management</li>
+                            <li><i class="fa fa-check-circle"></i> DDA &amp; controlled substance compliance</li>
+                            <li><i class="fa fa-check-circle"></i> Supplier &amp; purchase order management</li>
+                        </ul>
+
                         <hr />
                         <p class="text-center">
-                            Copyright &copy; @DateTime.Now.Year MediStock &mdash; Pharmaceutical Management System
+                            Copyright &copy; @DateTime.Now.Year <strong>MediStock</strong> &mdash; Pharmaceutical Management System
                         </p>
                     </form>
                 </div>
             </div>
+            <!-- end right panel -->
         </div>
     </div>
 
@@ -96,7 +153,7 @@
         $(document).on('submit', 'form', function (e) {
             if ($('form')[0].checkValidity()) {
                 if (!e.isDefaultPrevented()) {
-                    $.blockUI({ message: '<h4><img src="/assets/static/img/loading1.gif" /> Please wait...</h4>' });
+                    $.blockUI({ message: '<h4><i class="fa fa-spinner fa-spin"></i> Please wait...</h4>' });
                 }
             }
         });
