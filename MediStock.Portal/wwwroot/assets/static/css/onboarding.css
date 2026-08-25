@@ -1,0 +1,29 @@
+body {
+    background: #d9e0e7;
+    font-size: 12px;
+    font-family: 'Montserrat', 'Lato';
+    color: #707478;
+}
+
+.page-header {
+	top: -1px;
+	left: 0px;
+	width: 1928px;
+	height: 621px;
+	transform: matrix(0, 1, -1, 0, 0, 0);
+	background: transparent url('img/Rectangle 127.png') 0% 0% no-repeat padding-box;
+	opacity: 0.52;
+}
+
+.content {
+	top: 489px;
+	left: 296px;
+	width: 1277px;
+	height: 1659px;
+	transform: matrix(0, 1, -1, 0, 0, 0);
+	border: 1px solid var(--unnamed-color-dedede);
+	background: transparent url('img/Rectangle 126.png') 0% 0% no-repeat padding-box;
+	border: 1px solid #DEDEDE;
+	opacity: 1;
+}
+
