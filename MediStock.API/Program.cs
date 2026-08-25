@@ -1,10 +1,14 @@
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.OpenApi;
+using Newtonsoft.Json;
+using NLog;
+using NLog.Extensions.Logging;
 using MediStock.API.Helpers;
 using MediStock.API.Middlewares;
 using MediStock.API.Models;
-using NLog;
 using NLog.Web;
 
-var logger = LogManager.Setup().LoadConfigurationFromAppConfig().GetCurrentClassLogger();
+var logger = LogManager.Setup().LoadConfigurationFromFile("NLog.config").GetCurrentClassLogger();
 try
 {
     var builder = WebApplication.CreateBuilder(args);
