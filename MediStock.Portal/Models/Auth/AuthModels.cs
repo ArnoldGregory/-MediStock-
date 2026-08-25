@@ -51,9 +51,6 @@ namespace MediStock.Portal.Models.Auth
 
         [JsonPropertyName("otp")]
         public string? Otp { get; set; }
-
-        [JsonPropertyName("otp_ref")]
-        public string? OtpRef { get; set; }
     }
 
     // ── OTP ───────────────────────────────────────────────────────────────────
@@ -64,9 +61,6 @@ namespace MediStock.Portal.Models.Auth
 
         [JsonPropertyName("otp")]
         public string Otp { get; set; } = string.Empty;
-
-        [JsonPropertyName("otp_ref")]
-        public string OtpRef { get; set; } = string.Empty;
     }
 
     public sealed class OtpResponse

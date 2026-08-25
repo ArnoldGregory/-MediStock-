@@ -132,9 +132,8 @@ namespace MediStock.API.Controllers
                 userJobject.Add("accessToken", tempToken);
                 userJobject.Add("refreshToken", "");
                 userJobject.Add("otp", otp);
-                userJobject.Add("otp_ref", otpRef);
 
-                _logger.LogInfo($"RESPONSE: OTP sent for {email}, otp_ref={otpRef}");
+                _logger.LogInfo($"RESPONSE: OTP sent for {email}");
                 return Ok(new ApiResponse<JObject>
                 {
                     success = true,
@@ -252,31 +251,33 @@ namespace MediStock.API.Controllers
                 if (jobject == null)
                     return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
 
-                string email = jobject["email"]?.ToString()?.Trim() ?? "";
-                if (string.IsNullOrEmpty(email) && jobject.ContainsKey("username"))
-                    email = jobject["username"]?.ToString()?.Trim() ?? "";
+                string username = jobject["username"]?.ToString()?.Trim() ?? "";
+                if (string.IsNullOrEmpty(username))
+                    username = jobject["email"]?.ToString()?.Trim() ?? "";
                 string otp = jobject["otp"]?.ToString()?.Trim() ?? "";
-                string otpRef = jobject["otp_ref"]?.ToString()?.Trim() ?? "";
 
-                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(otp))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email and OTP are required" });
+                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(otp))
+                    return BadRequest(new ApiResponse<object> { success = false, message = "OTP and username are required" });
 
-                DataTable dt = dbhandler.RizikiVerifyOtp(email, otp, otpRef, "LOGIN");
-                if (dt.Rows.Count == 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
-
-                DataTable dtUser = dbhandler.ValidateUserLogin("PHARMACY", email);
+                // Step 1: Look up user by username (Riziki pattern)
+                DataTable dtUser = dbhandler.ValidateUserLogin("PHARMACY", username);
                 if (dtUser.Rows.Count == 0)
-                    dtUser = dbhandler.ValidateUserLogin("USER", email);
+                    dtUser = dbhandler.ValidateUserLogin("USER", username);
 
                 if (dtUser.Rows.Count == 0)
                     return BadRequest(new ApiResponse<object> { success = false, message = "User not found" });
+
+                string userEmail = dtUser.Rows[0]["email"]?.ToString() ?? "";
+
+                // Step 2: Verify OTP by email + otp + purpose (no otp_ref)
+                DataTable dt = dbhandler.RizikiVerifyOtp(userEmail, otp, "LOGIN");
+                if (dt.Rows.Count == 0)
+                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
 
                 long userId = Convert.ToInt64(dtUser.Rows[0]["id"]);
                 Int64 pharmacyId = dtUser.Rows[0]["pharmacy_id"] != DBNull.Value ? Convert.ToInt64(dtUser.Rows[0]["pharmacy_id"]) : 0;
                 int roleId = dtUser.Rows[0]["role_id"] != DBNull.Value ? Convert.ToInt32(dtUser.Rows[0]["role_id"]) : 3;
                 string name = dtUser.Rows[0]["first_name"]?.ToString() ?? "";
-                string userEmail = dtUser.Rows[0]["email"]?.ToString() ?? "";
                 string mobile = dtUser.Rows[0]["mobile"]?.ToString() ?? "";
                 string avatar = dtUser.Rows[0]["avatar"]?.ToString() ?? "user-default.svg";
 
@@ -312,13 +313,13 @@ namespace MediStock.API.Controllers
                 string hashedRefresh = BCrypt.Net.BCrypt.HashPassword(refreshToken);
                 dbhandler.AddRefreshToken(userId, hashedRefresh, expiresAt);
 
-                CaptureAuditTrail(email, "OTP Verified", "Login complete for user: " + email);
+                CaptureAuditTrail(userEmail, "OTP Verified", "Login complete for user: " + userEmail);
 
                 userJobject.Add("accessToken", accessToken);
                 userJobject.Add("refreshToken", refreshToken);
                 userJobject.Add("change_password", changePassword);
 
-                _logger.LogInfo($"RESPONSE: OTP verified for {email}, login complete");
+                _logger.LogInfo($"RESPONSE: OTP verified for {userEmail}, login complete");
                 return Ok(new ApiResponse<JObject>
                 {
                     success = true,
@@ -512,13 +513,12 @@ namespace MediStock.API.Controllers
 
                 string email = jobject["email"]?.ToString()?.Trim() ?? "";
                 string otp = jobject["otp"]?.ToString()?.Trim() ?? "";
-                string otpRef = jobject["otp_ref"]?.ToString()?.Trim() ?? "";
                 string newPassword = jobject["new_password"]?.ToString() ?? "";
 
                 if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(otp) || string.IsNullOrEmpty(newPassword))
                     return BadRequest(new ApiResponse<object> { success = false, message = "Email, OTP and new password are required" });
 
-                DataTable dt = dbhandler.RizikiVerifyOtp(email, otp, otpRef, "PASSWORD_RESET");
+                DataTable dt = dbhandler.RizikiVerifyOtp(email, otp, "PASSWORD_RESET");
                 if (dt.Rows.Count == 0)
                     return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
 

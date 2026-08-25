@@ -73,7 +73,6 @@ namespace MediStock.Portal.Controllers
                 HttpContext.Session.SetString("TempMobile", data.Mobile);
                 HttpContext.Session.SetString("TempRoleType", data.RoleType);
                 HttpContext.Session.SetString("TempPharmacyId", data.PharmacyId);
-                HttpContext.Session.SetString("TempOtpRef", data.OtpRef ?? "");
 
                 ViewBag.UserId = data.UserId;
                 ViewBag.DevOtpHint = !string.IsNullOrEmpty(data.Otp) ? $"Your OTP: {data.Otp}" : null;
@@ -110,13 +109,14 @@ namespace MediStock.Portal.Controllers
 
             var result = await _api.AuthPostWithTokenAsync<OtpResponse>(
                 "api/auth/otpclientlogin",
-                new OtpRequest { Username = tempEmail, Otp = model.Otp, OtpRef = HttpContext.Session.GetString("TempOtpRef") ?? "" },
+                new OtpRequest { Username = tempEmail, Otp = model.Otp },
                 _api.GetTempAccessToken());
 
             if (!result.IsSuccess || result.Data is null)
             {
                 await _audit.LogOtpAsync(tempEmail, false, result.Error);
-                model.ErrorMessage = string.IsNullOrEmpty(result.Error) ? "Invalid or expired OTP" : result.Error;
+                var errMsg = string.IsNullOrEmpty(result.Error) ? "Invalid or expired OTP" : result.Error;
+                ViewBag.ErrorMessage = errMsg;
                 return View(model);
             }
 
@@ -155,7 +155,7 @@ namespace MediStock.Portal.Controllers
                 principal,
                 new AuthenticationProperties { IsPersistent = false, ExpiresUtc = DateTimeOffset.UtcNow.AddHours(8) });
 
-            foreach (var k in new[] { "TempUserId", "TempEmail", "TempName", "TempMobile", "TempRoleType", "TempPharmacyId", "TempOtpRef" })
+            foreach (var k in new[] { "TempUserId", "TempEmail", "TempName", "TempMobile", "TempRoleType", "TempPharmacyId" })
                 HttpContext.Session.Remove(k);
 
             await _audit.LogOtpAsync(email, true, $"Logged in as role_id {profileId}");

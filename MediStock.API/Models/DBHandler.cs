@@ -503,7 +503,7 @@ namespace MediStock.API.Models
             return newId;
         }
 
-        public DataTable RizikiVerifyOtp(string email, string otpCode, string otpRef, string purpose)
+        public DataTable RizikiVerifyOtp(string email, string otpCode, string purpose)
         {
             DataTable dt = new();
             try
@@ -515,7 +515,6 @@ namespace MediStock.API.Models
                 cmd.CommandType = CommandType.StoredProcedure;
                 cmd.Parameters.AddWithValue("@in_email", email);
                 cmd.Parameters.AddWithValue("@in_otp_code", otpCode);
-                cmd.Parameters.AddWithValue("@in_otp_ref", otpRef);
                 cmd.Parameters.AddWithValue("@in_purpose", purpose);
                 sd.Fill(dt);
             }
