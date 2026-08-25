@@ -1,0 +1,91 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-prescription"></i> Prescriptions <small>Dispensing</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <div class="panel-heading-btn">
+            <a href="@Url.Action("Prescriptions", "Clinical")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+        </div>
+        <h4 class="panel-title">Prescriptions</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row m-b-10">
+            <div class="col-md-12">
+                <div class="btn-group">
+                    <a href="#" class="btn btn-sm btn-default" onclick="filterRx('all');">All</a>
+                    <a href="#" class="btn btn-sm btn-warning" onclick="filterRx('Pending');">Pending</a>
+                    <a href="#" class="btn btn-sm btn-info" onclick="filterRx('PartiallyDispensed');">Partial</a>
+                    <a href="#" class="btn btn-sm btn-success" onclick="filterRx('Dispensed');">Dispensed</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <table id="prescriptionsTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Rx #</th>
+                            <th>Date</th>
+                            <th>Patient</th>
+                            <th>Doctor</th>
+                            <th>Items</th>
+                            <th>Filled</th>
+                            <th>Status</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var table;
+        $(document).ready(function () { loadPrescriptions(); });
+
+        function loadPrescriptions(status) {
+            if (table) table.destroy();
+            var url = status && status !== 'all' ? '/api/prescriptions?status=' + status : '/api/prescriptions';
+
+            table = $('#prescriptionsTable').DataTable({
+                ajax: { url: url, dataSrc: '' },
+                columns: [
+                    { data: 'prescriptionNumber' },
+                    { data: 'prescriptionDate', render: function (d) { return formatDate(d); } },
+                    { data: 'patientName' },
+                    { data: 'doctorName' },
+                    { data: 'itemCount' },
+                    { data: 'itemsDispensed' },
+                    { data: 'status', render: function (d) {
+                        var cls = { 'Pending': 'label-warning', 'PartiallyDispensed': 'label-info', 'Dispensed': 'label-success', 'Cancelled': 'label-danger' };
+                        return '<span class="label ' + (cls[d] || 'label-default') + '">' + d + '</span>';
+                    }},
+                    { data: null, orderable: false, searchable: false, render: function (d) {
+                        if (d.status !== 'Dispensed' && d.status !== 'Cancelled') {
+                            return '<a href="/Clinical/Dispense/' + d.prescriptionId + '" class="btn btn-xs btn-success"><i class="fa fa-check"></i> Dispense</a>';
+                        }
+                        return '';
+                    }},
+                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Clinical/PrescriptionDetail/' + d.prescriptionId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } }
+                ],
+                order: [[1, 'desc']]
+            });
+        }
+
+        function filterRx(status) { loadPrescriptions(status); }
+        function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'; }
+    </script>
+}

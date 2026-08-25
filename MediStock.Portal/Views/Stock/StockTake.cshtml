@@ -1,0 +1,115 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-clipboard"></i> Stock Take <small>Inventory Count</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <div class="panel-heading-btn">
+            <a href="@Url.Action("StockTake", "Stock")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+        </div>
+        <h4 class="panel-title">Stock Take Sessions</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row m-b-10">
+            <div class="col-md-12">
+                <button class="btn btn-sm btn-success" onclick="startNewSession();">
+                    <i class="fa fa-plus"></i> Start New Stock Take
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <table id="stockTakeTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Session #</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Items Counted</th>
+                            <th>Variance Items</th>
+                            <th>Status</th>
+                            <th>Started By</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var table;
+        $(document).ready(function () {
+            loadSessions();
+        });
+
+        function loadSessions() {
+            table = $('#stockTakeTable').DataTable({
+                ajax: { url: '/api/stock/stocktake', dataSrc: '' },
+                columns: [
+                    { data: 'sessionNumber' },
+                    { data: 'startDate', render: function (d) { return formatDate(d); } },
+                    { data: 'endDate', render: function (d) { return d ? formatDate(d) : '-'; } },
+                    { data: 'itemsCounted' },
+                    { data: 'varianceItems' },
+                    { data: 'status', render: function (d) {
+                        if (d === 'InProgress') return '<span class="label label-warning">In Progress</span>';
+                        if (d === 'Completed') return '<span class="label label-success">Completed</span>';
+                        return '<span class="label label-default">' + d + '</span>';
+                    }},
+                    { data: 'startedByName' },
+                    { data: null, orderable: false, searchable: false, render: function (data) {
+                        if (data.status === 'InProgress') {
+                            return '<a href="/Stock/StockTakeCount/' + data.sessionId + '" class="btn btn-xs btn-success"><i class="fa fa-edit"></i> Count</a>';
+                        }
+                        return '<a href="/Stock/StockTakeDetail/' + data.sessionId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i> View</a>';
+                    }}
+                ],
+                order: [[1, 'desc']]
+            });
+        }
+
+        function startNewSession() {
+            Swal.fire({
+                title: 'Start New Stock Take',
+                text: 'This will start a new physical stock count session. Continue?',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                confirmButtonText: 'Yes, Start'
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '/api/stock/stocktake',
+                        type: 'POST',
+                        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                        success: function (data) {
+                            Swal.fire('Started', 'Stock take session created.', 'success');
+                            table.ajax.reload();
+                            window.location.href = '/Stock/StockTakeCount/' + data.sessionId;
+                        },
+                        error: function () {
+                            Swal.fire('Error', 'Unable to start stock take session.', 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        function formatDate(d) {
+            if (!d) return '-';
+            return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+    </script>
+}

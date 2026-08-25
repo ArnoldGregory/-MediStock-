@@ -1,0 +1,152 @@
+@{
+    ViewData["Title"] = "Patient Detail";
+}
+
+<h1 class="page-header"><i class="fa fa-user"></i> Patient Detail <small id="patientMRN"></small></h1>
+
+<div class="row">
+    <!-- Patient Info Card -->
+    <div class="col-md-4">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-id-card"></i> Patient Information</h4></div>
+            <div class="panel-body" id="patientInfo">
+                <p><i class="fa fa-spinner fa-spin"></i> Loading...</p>
+            </div>
+        </div>
+
+        <!-- Allergies -->
+        <div class="panel panel-danger">
+            <div class="panel-heading" style="background:#c0392b;border-color:#c0392b;"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-exclamation-triangle"></i> Allergies</h4></div>
+            <div class="panel-body" id="allergiesPanel">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Conditions -->
+        <div class="panel panel-warning">
+            <div class="panel-heading" style="background:#f39c12;border-color:#f39c12;"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-stethoscope"></i> Chronic Conditions</h4></div>
+            <div class="panel-body" id="conditionsPanel">
+                <p class="text-muted">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Prescriptions & Activity -->
+    <div class="col-md-8">
+        <!-- Prescriptions -->
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-prescription"></i> Prescription History</h4>
+            </div>
+            <div class="panel-body">
+                <table class="table table-condensed table-striped" id="prescriptionsTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Prescription #</th>
+                            <th>Doctor</th>
+                            <th>Items</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="rxBody"><tr><td colspan="6"><i class="fa fa-spinner fa-spin"></i></td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Visit History -->
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-calendar"></i> Visit History</h4>
+            </div>
+            <div class="panel-body">
+                <table class="table table-condensed table-striped" id="visitsTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Reason</th>
+                            <th>Notes</th>
+                            <th>Dispensed By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="visitsBody"><tr><td colspan="4"><i class="fa fa-spinner fa-spin"></i></td></tr></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var patientId = '@ViewBag.PatientId';
+        $(document).ready(function () {
+            if (patientId) loadPatient();
+        });
+
+        function loadPatient() {
+            $.get('/api/patients/' + patientId, function (data) {
+                $('#patientMRN').text('MRN: ' + data.mrn);
+                var html = '<table class="table table-condensed">';
+                html += '<tr><td><strong>Name</strong></td><td>' + data.fullName + '</td></tr>';
+                html += '<tr><td><strong>Gender</strong></td><td>' + data.gender + '</td></tr>';
+                html += '<tr><td><strong>DOB</strong></td><td>' + formatDate(data.dateOfBirth) + ' (' + data.age + ' years)</td></tr>';
+                html += '<tr><td><strong>Phone</strong></td><td>' + data.phone + '</td></tr>';
+                html += '<tr><td><strong>Email</strong></td><td>' + (data.email || '-') + '</td></tr>';
+                html += '<tr><td><strong>Registered</strong></td><td>' + formatDate(data.createdDate) + '</td></tr>';
+                html += '</table>';
+                $('#patientInfo').html(html);
+
+                $('#allergiesPanel').html(data.allergies ? '<p class="text-danger"><i class="fa fa-exclamation-circle"></i> ' + data.allergies + '</p>' : '<p class="text-success"><i class="fa fa-check-circle"></i> No Known Drug Allergies (NKDA)</p>');
+                $('#conditionsPanel').html(data.chronicConditions ? '<p>' + data.chronicConditions + '</p>' : '<p class="text-muted">None recorded</p>');
+
+                loadPrescriptions();
+                loadVisits();
+            });
+        }
+
+        function loadPrescriptions() {
+            $.get('/api/patients/' + patientId + '/prescriptions', function (data) {
+                var html = '';
+                if (data && data.length) {
+                    $.each(data, function (i, rx) {
+                        var badge = rx.status === 'Dispensed' ? 'label-success' : rx.status === 'Pending' ? 'label-warning' : 'label-default';
+                        html += '<tr>';
+                        html += '<td>' + formatDate(rx.prescriptionDate) + '</td>';
+                        html += '<td>' + rx.prescriptionNumber + '</td>';
+                        html += '<td>' + rx.doctorName + '</td>';
+                        html += '<td>' + rx.itemCount + ' item(s)</td>';
+                        html += '<td><span class="label ' + badge + '">' + rx.status + '</span></td>';
+                        html += '<td><a href="/Clinical/PrescriptionDetail/' + rx.prescriptionId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a></td>';
+                        html += '</tr>';
+                    });
+                } else {
+                    html = '<tr><td colspan="6" class="text-muted">No prescriptions found</td></tr>';
+                }
+                $('#rxBody').html(html);
+            });
+        }
+
+        function loadVisits() {
+            $.get('/api/patients/' + patientId + '/visits', function (data) {
+                var html = '';
+                if (data && data.length) {
+                    $.each(data, function (i, v) {
+                        html += '<tr>';
+                        html += '<td>' + formatDate(v.visitDate) + '</td>';
+                        html += '<td>' + (v.reason || '-') + '</td>';
+                        html += '<td>' + (v.notes || '-') + '</td>';
+                        html += '<td>' + (v.dispensedByName || '-') + '</td>';
+                        html += '</tr>';
+                    });
+                } else {
+                    html = '<tr><td colspan="4" class="text-muted">No visits found</td></tr>';
+                }
+                $('#visitsBody').html(html);
+            });
+        }
+
+        function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'; }
+    </script>
+}

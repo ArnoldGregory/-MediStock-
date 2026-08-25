@@ -1,0 +1,308 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/select2/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+    <style>
+        .pos-container { display: flex; gap: 15px; min-height: 500px; }
+        .pos-products { flex: 1; }
+        .pos-cart { width: 380px; }
+        .cart-table td { padding: 6px 8px; vertical-align: middle; }
+        .cart-total { font-size: 18px; font-weight: bold; }
+        .product-card { cursor: pointer; border: 1px solid #e5e5e5; border-radius: 4px; padding: 10px; margin-bottom: 10px; transition: all 0.2s; }
+        .product-card:hover { border-color: #3498db; background: #f8f9fa; }
+        .product-card .name { font-weight: bold; font-size: 13px; }
+        .product-card .price { color: #28a745; font-weight: bold; }
+        .product-card .stock { font-size: 11px; color: #999; }
+    </style>
+}
+
+<h1 class="page-header"><i class="fa fa-shopping-cart"></i> Point of Sale <small>Sales Terminal</small></h1>
+
+<div class="pos-container">
+    <!-- Left: Product Search & Grid -->
+    <div class="pos-products">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title"><i class="fa fa-search"></i> Products</h4>
+            </div>
+            <div class="panel-body">
+                <div class="form-group">
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="productSearch" placeholder="Search product by name, code, or scan barcode..." autofocus />
+                        <span class="input-group-addon"><i class="fa fa-search"></i></span>
+                    </div>
+                </div>
+                <div id="productGrid" class="row" style="max-height:400px;overflow-y:auto;">
+                    <div class="col-md-12 text-center text-muted">
+                        <i class="fa fa-search fa-3x"></i>
+                        <p>Search for a product to add to cart</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right: Cart -->
+    <div class="pos-cart">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title"><i class="fa fa-shopping-basket"></i> Cart</h4>
+            </div>
+            <div class="panel-body" style="padding:10px;">
+                <div class="form-group">
+                    <label>Customer</label>
+                    <select class="form-control select2" id="posCustomer" style="width:100%;">
+                        <option value="">Walk-In Customer</option>
+                    </select>
+                </div>
+
+                <div style="max-height:250px;overflow-y:auto;">
+                    <table class="table table-condensed cart-table" id="cartTable">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th style="width:60px;">Qty</th>
+                                <th style="width:80px;">Price</th>
+                                <th style="width:80px;">Total</th>
+                                <th style="width:30px;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="cartBody">
+                            <tr><td colspan="5" class="text-center text-muted">Cart is empty</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr style="margin:8px 0;" />
+                <div class="row">
+                    <div class="col-xs-6"><strong>Subtotal:</strong></div>
+                    <div class="col-xs-6 text-right cart-total" id="cartSubtotal">KES 0.00</div>
+                </div>
+                <div class="row">
+                    <div class="col-xs-6"><strong>Discount:</strong></div>
+                    <div class="col-xs-6">
+                        <input type="number" class="form-control input-sm" id="cartDiscount" value="0" min="0" style="text-align:right;" />
+                    </div>
+                </div>
+                <hr style="margin:8px 0;" />
+                <div class="row">
+                    <div class="col-xs-6"><strong style="font-size:18px;">TOTAL:</strong></div>
+                    <div class="col-xs-6 text-right cart-total" id="cartTotal" style="color:#28a745;">KES 0.00</div>
+                </div>
+
+                <div class="form-group m-t-10">
+                    <label>Payment Method</label>
+                    <select class="form-control" id="paymentMethod">
+                        <option value="Cash">Cash</option>
+                        <option value="Mpesa">M-Pesa</option>
+                        <option value="Card">Debit/Credit Card</option>
+                        <option value="Credit">Store Credit</option>
+                    </select>
+                </div>
+                <div class="form-group" id="mpesaRefGroup" style="display:none;">
+                    <label>M-Pesa Reference</label>
+                    <input type="text" class="form-control" id="mpesaRef" placeholder="M-Pesa transaction code" />
+                </div>
+
+                <button class="btn btn-success btn-block btn-lg" id="processSaleBtn" disabled>
+                    <i class="fa fa-check"></i> Process Sale
+                </button>
+                <button class="btn btn-default btn-block btn-sm m-t-5" id="clearCartBtn">
+                    <i class="fa fa-trash"></i> Clear Cart
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var cart = [];
+        var products = [];
+
+        $(document).ready(function () {
+            $('.select2').select2({ width: '100%' });
+            loadCustomers();
+            $('#paymentMethod').on('change', function () {
+                $('#mpesaRefGroup').toggle($(this).val() === 'Mpesa');
+            });
+
+            $('#productSearch').on('keyup', function () {
+                var q = $(this).val().trim();
+                if (q.length >= 2) searchProducts(q);
+            });
+
+            $('#productSearch').on('keypress', function (e) {
+                if (e.which === 13) {
+                    e.preventDefault();
+                    var q = $(this).val().trim();
+                    if (q.length >= 2) searchProducts(q);
+                }
+            });
+
+            $('#clearCartBtn').on('click', clearCart);
+            $('#processSaleBtn').on('click', processSale);
+        });
+
+        function searchProducts(query) {
+            $.get('/api/products/search?q=' + encodeURIComponent(query), function (data) {
+                products = data;
+                renderProductGrid(data);
+            });
+        }
+
+        function renderProductGrid(items) {
+            var html = '';
+            if (!items || items.length === 0) {
+                html = '<div class="col-md-12 text-center text-muted"><p>No products found</p></div>';
+            } else {
+                $.each(items, function (i, p) {
+                    html += '<div class="col-md-4 col-sm-6"><div class="product-card" onclick="addToCart(\'' + p.productId + '\')">';
+                    html += '<div class="name">' + p.productName + '</div>';
+                    html += '<div class="price">KES ' + parseFloat(p.sellingPrice).toFixed(2) + '</div>';
+                    html += '<div class="stock">Stock: ' + p.currentStock + '</div>';
+                    html += '</div></div>';
+                });
+            }
+            $('#productGrid').html(html);
+        }
+
+        function addToCart(productId) {
+            var product = products.find(function (p) { return p.productId === productId; });
+            if (!product) return;
+
+            if (product.currentStock <= 0) {
+                Swal.fire('Out of Stock', product.productName + ' is out of stock.', 'warning');
+                return;
+            }
+
+            var existing = cart.find(function (c) { return c.productId === productId; });
+            if (existing) {
+                if (existing.quantity >= product.currentStock) {
+                    Swal.fire('Insufficient Stock', 'Only ' + product.currentStock + ' units available.', 'warning');
+                    return;
+                }
+                existing.quantity++;
+            } else {
+                cart.push({
+                    productId: product.productId,
+                    productName: product.productName,
+                    sellingPrice: parseFloat(product.sellingPrice),
+                    quantity: 1,
+                    maxStock: product.currentStock
+                });
+            }
+            renderCart();
+        }
+
+        function renderCart() {
+            var html = '';
+            var subtotal = 0;
+
+            if (cart.length === 0) {
+                html = '<tr><td colspan="5" class="text-center text-muted">Cart is empty</td></tr>';
+            } else {
+                $.each(cart, function (i, item) {
+                    var total = item.sellingPrice * item.quantity;
+                    subtotal += total;
+                    html += '<tr>';
+                    html += '<td>' + item.productName + '</td>';
+                    html += '<td><input type="number" class="form-control input-sm" style="width:50px;" value="' + item.quantity + '" min="1" max="' + item.maxStock + '" onchange="updateQty(' + i + ', this.value)" /></td>';
+                    html += '<td>' + parseFloat(item.sellingPrice).toFixed(2) + '</td>';
+                    html += '<td>' + parseFloat(total).toFixed(2) + '</td>';
+                    html += '<td><button class="btn btn-xs btn-danger" onclick="removeFromCart(' + i + ')"><i class="fa fa-times"></i></button></td>';
+                    html += '</tr>';
+                });
+            }
+
+            $('#cartBody').html(html);
+            var discount = parseFloat($('#cartDiscount').val()) || 0;
+            var total = subtotal - discount;
+            $('#cartSubtotal').text('KES ' + subtotal.toFixed(2));
+            $('#cartTotal').text('KES ' + total.toFixed(2));
+            $('#processSaleBtn').prop('disabled', cart.length === 0);
+        }
+
+        function updateQty(index, qty) {
+            qty = parseInt(qty);
+            if (qty <= 0) { removeFromCart(index); return; }
+            if (qty > cart[index].maxStock) {
+                Swal.fire('Insufficient Stock', 'Only ' + cart[index].maxStock + ' units available.', 'warning');
+                qty = cart[index].maxStock;
+            }
+            cart[index].quantity = qty;
+            renderCart();
+        }
+
+        function removeFromCart(index) {
+            cart.splice(index, 1);
+            renderCart();
+        }
+
+        function clearCart() {
+            cart = [];
+            renderCart();
+        }
+
+        function loadCustomers() {
+            $.get('/api/customers', function (data) {
+                var $sel = $('#posCustomer');
+                $.each(data, function (i, c) {
+                    $sel.append('<option value="' + c.customerId + '">' + c.customerName + '</option>');
+                });
+            });
+        }
+
+        function processSale() {
+            if (cart.length === 0) return;
+
+            var discount = parseFloat($('#cartDiscount').val()) || 0;
+            var items = cart.map(function (c) {
+                return { productId: c.productId, quantity: c.quantity, unitPrice: c.sellingPrice };
+            });
+
+            var payload = {
+                customerId: $('#posCustomer').val() || null,
+                paymentMethod: $('#paymentMethod').val(),
+                mpesaReference: $('#mpesaRef').val() || null,
+                discount: discount,
+                items: items
+            };
+
+            Swal.fire({
+                title: 'Confirm Sale',
+                html: '<strong>Total: KES ' + $('#cartTotal').text().replace('KES ', '') + '</strong>',
+                icon: 'question',
+                showCancelButton: true,
+                confirmButtonColor: '#28a745',
+                confirmButtonText: 'Confirm & Pay'
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '/api/sales',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify(payload),
+                        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                        success: function (data) {
+                            Swal.fire({
+                                title: 'Sale Complete!',
+                                html: 'Receipt #: <strong>' + data.receiptNumber + '</strong>',
+                                icon: 'success',
+                                confirmButtonText: 'Print Receipt'
+                            });
+                            clearCart();
+                            $('#productSearch').val('').focus();
+                        },
+                        error: function (xhr) {
+                            Swal.fire('Error', xhr.responseText || 'Unable to process sale.', 'error');
+                        }
+                    });
+                }
+            });
+        }
+
+        $('#cartDiscount').on('change', renderCart);
+    </script>
+}

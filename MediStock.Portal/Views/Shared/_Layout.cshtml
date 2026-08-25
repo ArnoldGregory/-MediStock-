@@ -1,0 +1,160 @@
+@using System.Security.Claims
+@using MediStock.Portal.Services
+@inject MenuService MenuService
+@{
+    var pageAccessed = $"{Context.Request.Path}";
+    var menu = await MenuService.GetMenuAsync(pageAccessed);
+    var name = User.FindFirstValue(ClaimTypes.Name) ?? "";
+    var email = User.FindFirstValue(ClaimTypes.Email) ?? "";
+    var avatar = User.FindFirst("avatar")?.Value ?? "user-default.svg";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>@ViewBag.Title — MediStock</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="description" content="@ViewBag.Description">
+    <link rel="shortcut icon" type="image/png" href="~/assets/static/img/favicon.ico" />
+
+    <link href="~/assets/static/plugins/jquery-ui/themes/base/minified/jquery-ui.min.css" rel="stylesheet">
+    <link href="~/assets/static/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/animate.min.css" rel="stylesheet">
+    <link href="~/assets/static/css/style.min.css" rel="stylesheet">
+    <link href="~/assets/static/css/style-responsive.min.css" rel="stylesheet">
+    <link href="~/assets/static/css/theme/default.css" rel="stylesheet" id="theme">
+
+    @RenderSection("PageStyles", required: false)
+</head>
+<body>
+    <div id="page-container" class="fade in page-sidebar-fixed page-header-fixed">
+
+        <!-- begin #header -->
+        <div id="header" class="header navbar navbar-default navbar-fixed-top">
+            <div class="container-fluid">
+                <div class="navbar-header">
+                    <a href="@Url.Action("Index", "Dashboard")" class="navbar-brand">
+                        <strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong>
+                    </a>
+                    <button type="button" class="navbar-toggle" data-click="sidebar-toggled">
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                        <span class="icon-bar"></span>
+                    </button>
+                </div>
+                <ul class="nav navbar-nav navbar-right">
+                    <li class="dropdown navbar-user">
+                        <a href="javascript:;" class="dropdown-toggle" data-toggle="dropdown">
+                            <img src="~/assets/static/img/profile-pics/@avatar" alt="" onerror="this.onerror=null;this.src='/assets/static/img/profile-pics/user-default.svg';" />
+                            <span class="hidden-xs">@email</span>
+                            <b class="fa fa-chevron-down"></b>
+                        </a>
+                        <ul class="dropdown-menu animated fadeInLeft">
+                            <li class="arrow"></li>
+                            <li><a href="@Url.Action("Profile", "Settings")"><i class="fa fa-user"></i> My Profile</a></li>
+                            <li><a href="@Url.Action("ChangePassword", "Account")"><i class="fa fa-key"></i> Change Password</a></li>
+                            <li class="divider"></li>
+                            <li>
+                                <form asp-controller="Account" asp-action="Logout" method="post" style="margin:0;">
+                                    @Html.AntiForgeryToken()
+                                    <button type="submit" style="background:none;border:none;width:100%;text-align:left;padding:3px 20px;cursor:pointer;"><i class="fa fa-sign-out"></i> Log Out</button>
+                                </form>
+                            </li>
+                        </ul>
+                    </li>
+                </ul>
+            </div>
+        </div>
+        <!-- end #header -->
+        <!-- begin #sidebar -->
+        <div id="sidebar" class="sidebar">
+            <div data-scrollbar="true" data-height="100%">
+                <ul class="nav">
+                    <li class="nav-profile">
+                        <div class="info left-profile-details text-center">Welcome</div>
+                    </li>
+                    <li class="nav-profile">
+                        <div class="left-profile-image">
+                            <div class="image">
+                                <a href="javascript:;"><img src="~/assets/static/img/profile-pics/@avatar" alt="" onerror="this.onerror=null;this.src='/assets/static/img/profile-pics/user-default.svg';" /></a>
+                            </div>
+                        </div>
+                    </li>
+                    <li class="nav-profile">
+                        <div class="info text-center">@name</div>
+                        <br>
+                        <div class="info text-center">
+                            <small>@DateTime.Now.ToString("MMMM d, yyyy")&nbsp;|&nbsp;@String.Format("{0:t}", DateTime.Now)</small>
+                        </div>
+                    </li>
+                </ul>
+
+                @await Html.PartialAsync("_MainMenu", menu)
+            </div>
+        </div>
+        <div class="sidebar-bg"></div>
+        <!-- end #sidebar -->
+        <!-- begin #content -->
+        <div id="content" class="content">
+            <ol class="breadcrumb pull-right">
+                <li><a href="@Url.Action("Index", "Dashboard")">Home</a></li>
+                <li class="active">@ViewBag.Title</li>
+            </ol>
+
+            @await Html.PartialAsync("_Alerts")
+
+            @RenderBody()
+        </div>
+        <!-- end #content -->
+
+        <div id="footer" class="footer">
+            Copyright &copy; @DateTime.Now.Year MediStock &mdash; Pharmaceutical Management System. All rights reserved.
+        </div>
+
+        <a href="#" class="btn btn-icon btn-circle btn-success btn-scroll-to-top fade" data-click="scroll-top">
+            <i class="fa fa-angle-up"></i>
+        </a>
+    </div>
+
+    <!-- BASE JS -->
+    <script src="~/assets/static/plugins/jquery/jquery-1.9.1.min.js"></script>
+    <script src="~/assets/static/plugins/jquery/jquery-migrate-1.1.0.min.js"></script>
+    <script src="~/assets/static/plugins/jquery-ui/ui/minified/jquery-ui.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap/js/bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/slimscroll/jquery.slimscroll.min.js"></script>
+    <script src="~/assets/static/plugins/jquery-cookie/jquery.cookie.js"></script>
+    <script src="~/assets/static/js/apps.min.js"></script>
+    <script src="~/assets/static/js/jquery.blockUI.js"></script>
+    <script src="~/assets/static/js/medistock-utils.js"></script>
+    <script>
+        $(document).ready(function () {
+            if (typeof App !== 'undefined') { App.init(); }
+
+            $('#sidebar').on('click', 'li.has-sub > a', function (e) {
+                e.preventDefault();
+                var $parent = $(this).parent();
+                var $submenu = $parent.children('ul.sub-menu');
+                var isOpen = $parent.hasClass('expand');
+
+                $parent.siblings('.has-sub.expand').removeClass('expand')
+                    .children('ul.sub-menu').stop(true, true).slideUp(150);
+
+                if (isOpen) {
+                    $parent.removeClass('expand');
+                    $submenu.stop(true, true).slideUp(150);
+                } else {
+                    $parent.addClass('expand');
+                    $submenu.stop(true, true).slideDown(150);
+                }
+            });
+
+            $('#sidebar li.has-sub').not('.expand').children('ul.sub-menu').hide();
+            $('#sidebar li.has-sub.active, #sidebar li.has-sub.expand')
+                .addClass('expand').children('ul.sub-menu').show();
+        });
+    </script>
+
+    @RenderSection("PageScripts", required: false)
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "references": {
+    "riziki-api": {
+      "path": "../RizikiAPI/RizikiAPI",
+      "description": "API architecture reference - follow this pattern for controllers, DBHandler, JWT auth"
+    },
+    "riziki-portal": {
+      "path": "../RIZIKI.Portal/RIZIKI.Portal",
+      "description": "Portal architecture reference - BFF proxy, ApiClient, views"
+    },
+    "pharmavault": {
+      "path": "C:\\Users\\omond\\Downloads\\PharmaVault (1)\\PharmaVault",
+      "description": "Domain logic reference - pharmaceutical features, models, SP naming"
+    },
+    "pharmaceutical-4thyear": {
+      "repository": "ArnoldGregory/PHARMACEUTICAL",
+      "description": "4th year project reference"
+    }
+  }
+}

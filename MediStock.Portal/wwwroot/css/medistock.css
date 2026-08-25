@@ -1,0 +1,303 @@
+/* MediStock Portal - Custom Styles */
+
+:root {
+    --ms-primary: #2563eb;
+    --ms-primary-dark: #1d4ed8;
+    --ms-secondary: #64748b;
+    --ms-success: #16a34a;
+    --ms-danger: #dc2626;
+    --ms-warning: #f59e0b;
+    --ms-info: #0ea5e9;
+    --ms-sidebar-bg: #1e293b;
+    --ms-sidebar-width: 260px;
+    --ms-navbar-height: 60px;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f1f5f9;
+    margin: 0;
+    padding: 0;
+}
+
+/* Sidebar */
+.sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: var(--ms-sidebar-width);
+    height: 100vh;
+    background: var(--ms-sidebar-bg);
+    color: #fff;
+    overflow-y: auto;
+    z-index: 1000;
+    transition: width 0.3s;
+}
+
+.sidebar .brand {
+    padding: 15px 20px;
+    font-size: 1.3rem;
+    font-weight: 700;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sidebar .brand i {
+    color: var(--ms-primary);
+    font-size: 1.5rem;
+}
+
+.sidebar .nav-menu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.sidebar .nav-menu .nav-header {
+    padding: 12px 20px 6px;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.4);
+    font-weight: 600;
+}
+
+.sidebar .nav-menu li a {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    color: rgba(255,255,255,0.7);
+    text-decoration: none;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    gap: 10px;
+}
+
+.sidebar .nav-menu li a:hover {
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+}
+
+.sidebar .nav-menu li a.active {
+    background: var(--ms-primary);
+    color: #fff;
+}
+
+.sidebar .nav-menu li a i {
+    width: 20px;
+    text-align: center;
+    font-size: 0.95rem;
+}
+
+/* Main Content */
+.main-content {
+    margin-left: var(--ms-sidebar-width);
+    min-height: 100vh;
+}
+
+/* Navbar */
+.top-navbar {
+    height: var(--ms-navbar-height);
+    background: #fff;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 24px;
+    position: sticky;
+    top: 0;
+    z-index: 999;
+}
+
+.top-navbar .breadcrumb-area {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: var(--ms-secondary);
+}
+
+.top-navbar .user-area {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.top-navbar .user-area .notification-badge {
+    position: relative;
+}
+
+.top-navbar .user-area .notification-badge .badge-count {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--ms-danger);
+    color: #fff;
+    border-radius: 50%;
+    width: 18px;
+    height: 18px;
+    font-size: 0.65rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Content Area */
+.content-wrapper {
+    padding: 24px;
+}
+
+/* Stat Cards */
+.stat-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-left: 4px solid var(--ms-primary);
+    transition: transform 0.2s;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+}
+
+.stat-card .stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+}
+
+.stat-card .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1e293b;
+}
+
+.stat-card .stat-label {
+    font-size: 0.8rem;
+    color: var(--ms-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-card.primary { border-left-color: var(--ms-primary); }
+.stat-card.success { border-left-color: var(--ms-success); }
+.stat-card.warning { border-left-color: var(--ms-warning); }
+.stat-card.danger { border-left-color: var(--ms-danger); }
+.stat-card.info { border-left-color: var(--ms-info); }
+
+/* Tables */
+.table-card {
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    overflow: hidden;
+}
+
+.table-card .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.table-card .card-header h5 {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e293b;
+}
+
+.table-card .card-body {
+    padding: 0;
+}
+
+.table-card .card-body table {
+    margin: 0;
+}
+
+/* Badges */
+.badge-expired { background: #fecaca; color: #991b1b; }
+.badge-expiring { background: #fef3c7; color: #92400e; }
+.badge-active { background: #d1fae5; color: #065f46; }
+.badge-quarantine { background: #e0e7ff; color: #3730a3; }
+
+/* Buttons */
+.btn-medistock {
+    background: var(--ms-primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: background 0.2s;
+}
+
+.btn-medistock:hover {
+    background: var(--ms-primary-dark);
+    color: #fff;
+}
+
+/* Login Page */
+.login-page {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+}
+
+.login-card {
+    background: #fff;
+    border-radius: 16px;
+    padding: 40px;
+    width: 100%;
+    max-width: 420px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.login-card .login-brand {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.login-card .login-brand h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1e293b;
+    margin: 10px 0 5px;
+}
+
+.login-card .login-brand p {
+    color: var(--ms-secondary);
+    font-size: 0.85rem;
+}
+
+/* Footer */
+.footer {
+    padding: 16px 24px;
+    text-align: center;
+    font-size: 0.8rem;
+    color: var(--ms-secondary);
+    border-top: 1px solid #e2e8f0;
+    margin-top: 24px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .sidebar {
+        width: 0;
+        overflow: hidden;
+    }
+    .main-content {
+        margin-left: 0;
+    }
+}

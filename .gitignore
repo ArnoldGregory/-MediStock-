@@ -1,0 +1,51 @@
+## .NET
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+
+## Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+
+## Visual Studio
+.vs/
+*.dbmdl
+*.jfm
+launchSettings.json
+appsettings.Development.json
+
+## Rider
+.idea/
+
+## Logs
+Logs/
+*.log
+
+## OS
+Thumbs.db
+.DS_Store
+desktop.ini
+
+## Secrets
+appsettings.*.json
+!*appsettings.json
+!*appsettings.Development.json

@@ -1,0 +1,48 @@
+@using MediStock.Portal.Services
+@model List<MenuItem>
+@{
+    string ToUrl(string? raw) => string.IsNullOrEmpty(raw) ? "#" : raw.Replace("~", "");
+}
+<ul class="nav">
+    <li class="nav-header">Navigation</li>
+
+    @if (Model != null)
+    {
+        foreach (var m in Model)
+        {
+            if (m.SubMenus != null && m.SubMenus.Count > 0)
+            {
+                <li class="has-sub @m.MenuSelected">
+                    <a href="#">
+                        <b class="fa fa-chevron-down pull-right"></b>
+                        <i class="@m.MenuIcon"></i>
+                        <span>@m.MenuName</span>
+                    </a>
+                    <ul class="sub-menu">
+                        @foreach (var s in m.SubMenus)
+                        {
+                            <li class="@s.SubMenuSelected">
+                                <a href="@ToUrl(s.SubMenuUrl)">@s.SubMenuName</a>
+                            </li>
+                        }
+                    </ul>
+                </li>
+            }
+            else
+            {
+                <li class="@m.MenuSelected">
+                    <a href="@ToUrl(m.MenuUrl)">
+                        <i class="@m.MenuIcon"></i>
+                        <span>@m.MenuName</span>
+                    </a>
+                </li>
+            }
+        }
+    }
+
+    <li>
+        <a href="#" class="sidebar-minify-btn" data-click="sidebar-minify">
+            <i class="fa fa-angle-double-left"></i>
+        </a>
+    </li>
+</ul>

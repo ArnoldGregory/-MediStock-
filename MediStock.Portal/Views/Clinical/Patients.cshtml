@@ -1,0 +1,191 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-heartbeat"></i> Patients <small>Clinical Records</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <div class="panel-heading-btn">
+            <a href="@Url.Action("Patients", "Clinical")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+        </div>
+        <h4 class="panel-title">Patient Register</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row m-b-10">
+            <div class="col-md-12">
+                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#patientModal" onclick="resetForm();">
+                    <i class="fa fa-plus"></i> Add Patient
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <table id="patientsTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>MRN</th>
+                            <th>Full Name</th>
+                            <th>Gender</th>
+                            <th>DOB</th>
+                            <th>Phone</th>
+                            <th>Allergies</th>
+                            <th>Last Visit</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Patient Modal -->
+<div class="modal fade" id="patientModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form asp-controller="Clinical" asp-action="SavePatient" method="POST" id="patientForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="patientId" name="patientId" value="" />
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    <h4 class="modal-title" id="modalLabel"><i class="fa fa-user-plus"></i> Add Patient</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>First Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="firstName" name="firstName" required />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Middle Name</label>
+                                <input type="text" class="form-control" id="middleName" name="middleName" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>Surname <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="surname" name="surname" required />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Gender <span class="text-danger">*</span></label>
+                                <select class="form-control" id="gender" name="gender" required>
+                                    <option value="">-- Select --</option>
+                                    <option value="Male">Male</option>
+                                    <option value="Female">Female</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Date of Birth <span class="text-danger">*</span></label>
+                                <input type="date" class="form-control" id="dateOfBirth" name="dateOfBirth" required />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Phone <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="phone" name="phone" required />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" class="form-control" id="email" name="email" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Known Allergies</label>
+                        <textarea class="form-control" id="allergies" name="allergies" rows="2" placeholder="List any known drug or substance allergies"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Chronic Conditions</label>
+                        <textarea class="form-control" id="conditions" name="chronicConditions" rows="2" placeholder="e.g. Diabetes, Hypertension"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save Patient</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var table;
+        $(document).ready(function () { loadPatients(); });
+
+        function loadPatients() {
+            table = $('#patientsTable').DataTable({
+                ajax: { url: '/api/patients', dataSrc: '' },
+                columns: [
+                    { data: 'mrn' },
+                    { data: 'fullName' },
+                    { data: 'gender', render: function (d) { return d === 'Male' ? '<i class="fa fa-mars"></i> M' : '<i class="fa fa-venus"></i> F'; } },
+                    { data: 'dateOfBirth', render: function (d) { return d ? formatDate(d) : '-'; } },
+                    { data: 'phone' },
+                    { data: 'allergies', render: function (d) { return d ? '<span class="label label-warning">Yes</span>' : '<span class="label label-success">NKDA</span>'; } },
+                    { data: 'lastVisitDate', render: function (d) { return d ? formatDate(d) : 'Never'; } },
+                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Clinical/PatientDetail/' + d.patientId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a> <button class="btn btn-xs btn-primary" onclick="editPatient(\'' + d.patientId + '\')"><i class="fa fa-edit"></i></button>'; } },
+                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Clinical/Prescriptions?patientId=' + d.patientId + '" class="btn btn-xs btn-success"><i class="fa fa-prescription"></i> Rx</a>'; } }
+                ],
+                order: [[1, 'asc']]
+            });
+        }
+
+        function resetForm() {
+            $('#patientForm')[0].reset();
+            $('#patientId').val('');
+            $('#modalLabel').html('<i class="fa fa-user-plus"></i> Add Patient');
+        }
+
+        function editPatient(id) {
+            $.get('/api/patients/' + id, function (data) {
+                $('#patientId').val(data.patientId);
+                $('#firstName').val(data.firstName);
+                $('#middleName').val(data.middleName);
+                $('#surname').val(data.surname);
+                $('#gender').val(data.gender);
+                $('#dateOfBirth').val(data.dateOfBirth ? data.dateOfBirth.split('T')[0] : '');
+                $('#phone').val(data.phone);
+                $('#email').val(data.email);
+                $('#allergies').val(data.allergies);
+                $('#conditions').val(data.chronicConditions);
+                $('#modalLabel').html('<i class="fa fa-edit"></i> Edit Patient');
+                $('#patientModal').modal('show');
+            });
+        }
+
+        function formatDate(d) { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+
+        $('#patientForm').on('submit', function (e) {
+            e.preventDefault();
+            var id = $('#patientId').val();
+            $.ajax({
+                url: id ? '/api/patients/' + id : '/api/patients',
+                type: id ? 'PUT' : 'POST',
+                data: $(this).serialize(),
+                success: function () { Swal.fire('Saved', 'Patient saved.', 'success'); $('#patientModal').modal('hide'); table.ajax.reload(); },
+                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error'); }
+            });
+        });
+    </script>
+}

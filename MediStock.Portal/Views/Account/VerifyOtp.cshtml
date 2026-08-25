@@ -1,0 +1,111 @@
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Verify OTP — MediStock</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="shortcut icon" type="image/png" href="~/assets/static/img/favicon.ico" />
+
+    <link href="~/assets/static/plugins/jquery-ui/themes/base/minified/jquery-ui.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/animate.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/style.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/style-responsive.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/theme/default.css" rel="stylesheet" id="theme" />
+    <style>
+        .otp-input { width: 50px; height: 55px; text-align: center; font-size: 24px; font-weight: bold; margin: 0 5px; border: 2px solid #ddd; border-radius: 6px; transition: border-color 0.3s; }
+        .otp-input:focus { border-color: #3498db; outline: none; box-shadow: 0 0 5px rgba(52,152,219,0.3); }
+    </style>
+</head>
+<body class="pace-top bg-white">
+    <div id="page-loader" class="fade in"><span class="spinner"></span></div>
+
+    <div id="page-container" class="fade">
+        <div class="login login-with-news-feed">
+            <div class="news-feed">
+                <div class="news-image">
+                    <img src="~/assets/static/img/login-bg.jpg" alt="" style="width:100%;height:100%;object-fit:cover;" />
+                </div>
+            </div>
+            <div class="right-content">
+                <div class="login-content">
+                    <h1 class="text-center"><strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong></h1>
+                    <p class="text-center text-muted">Two-Factor Authentication</p>
+                    <hr />
+
+                    @if (!string.IsNullOrEmpty(ViewBag.ErrorMessage as string))
+                    {
+                        <div class="alert alert-danger">@ViewBag.ErrorMessage</div>
+                    }
+
+                    <form asp-controller="Account" asp-action="VerifyOtp" method="POST">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="userId" value="@ViewBag.UserId" />
+
+                        <div class="text-center m-b-20">
+                            <i class="fa fa-shield fa-3x text-primary"></i>
+                            <p class="m-t-10 text-muted">Enter the 6-digit code sent to your email</p>
+                        </div>
+
+                        <div class="text-center m-b-20">
+                            <input type="text" maxlength="1" class="otp-input" id="otp1" data-next="otp2" autofocus />
+                            <input type="text" maxlength="1" class="otp-input" id="otp2" data-next="otp3" />
+                            <input type="text" maxlength="1" class="otp-input" id="otp3" data-next="otp4" />
+                            <input type="text" maxlength="1" class="otp-input" id="otp4" data-next="otp5" />
+                            <input type="text" maxlength="1" class="otp-input" id="otp5" data-next="otp6" />
+                            <input type="text" maxlength="1" class="otp-input" id="otp6" />
+                        </div>
+
+                        <input type="hidden" name="otpCode" id="otpCode" />
+
+                        <div class="login-buttons">
+                            <button type="submit" class="btn btn-primary btn-block btn-sm">
+                                <i class="fa fa-check"></i> Verify
+                            </button>
+                            <br />
+                            <a href="@Url.Action("Login", "Account")" class="text-muted"><i class="fa fa-arrow-left"></i> Back to Login</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="~/assets/static/plugins/jquery/jquery-1.9.1.min.js"></script>
+    <script src="~/assets/static/plugins/jquery/jquery-migrate-1.1.0.min.js"></script>
+    <script src="~/assets/static/plugins/jquery-ui/ui/minified/jquery-ui.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap/js/bootstrap.min.js"></script>
+    <script src="~/assets/static/js/apps.min.js"></script>
+    <script src="~/assets/static/js/jquery.blockUI.js"></script>
+    <script>
+        $(document).ready(function () {
+            App.init();
+            $('#page-loader').addClass('hide');
+
+            $('.otp-input').on('keyup', function () {
+                var val = $(this).val();
+                if (val.length === 1) {
+                    var next = $(this).data('next');
+                    if (next) $('#' + next).focus();
+                }
+            });
+            $('.otp-input').on('keydown', function (e) {
+                if (e.keyCode === 8 && !$(this).val()) {
+                    var prev = $(this).attr('id');
+                    var idx = parseInt(prev.replace('otp', '')) - 1;
+                    if (idx > 0) { $('#otp' + idx).focus().val(''); }
+                }
+            });
+            $('form').on('submit', function () {
+                var code = '';
+                for (var i = 1; i <= 6; i++) { code += $('#otp' + i).val(); }
+                $('#otpCode').val(code);
+            });
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,171 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/bootstrap-datepicker/css/bootstrap-datepicker.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-bar-chart"></i> Sales Report <small>Analytics</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <h4 class="panel-title"><i class="fa fa-filter"></i> Report Filters</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>From</label>
+                    <input type="text" class="form-control date-picker" id="dateFrom" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>To</label>
+                    <input type="text" class="form-control date-picker" id="dateTo" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>Category</label>
+                    <select class="form-control" id="reportCategory">
+                        <option value="">All Categories</option>
+                    </select>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button class="btn btn-primary" onclick="generateReport();"><i class="fa fa-cog"></i> Generate</button>
+                        <button class="btn btn-default" onclick="printReport();"><i class="fa fa-print"></i> Print</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row" id="summaryCards" style="display:none;">
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-green">
+            <div class="stats-icon"><i class="fa fa-money"></i></div>
+            <div class="stats-info"><h4>TOTAL SALES</h4><p id="rptTotalSales">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-blue">
+            <div class="stats-icon"><i class="fa fa-shopping-cart"></i></div>
+            <div class="stats-info"><h4>TRANSACTIONS</h4><p id="rptTransactions">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-orange">
+            <div class="stats-icon"><i class="fa fa-calculator"></i></div>
+            <div class="stats-info"><h4>AVG TRANSACTION</h4><p id="rptAvgTxn">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-purple">
+            <div class="stats-icon"><i class="fa fa-tag"></i></div>
+            <div class="stats-info"><h4>DISCOUNTS GIVEN</h4><p id="rptDiscounts">-</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- Chart -->
+<div class="row m-t-20" id="chartRow" style="display:none;">
+    <div class="col-md-8">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-chart-line m-r-5"></i> Sales Trend</h4></div>
+            <div class="panel-body"><div id="salesTrendChart" style="height:300px;"></div></div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-pie-chart m-r-5"></i> Payment Methods</h4></div>
+            <div class="panel-body"><div id="paymentPieChart" style="height:300px;"></div></div>
+        </div>
+    </div>
+</div>
+
+<!-- Details Table -->
+<div class="row m-t-20" id="detailRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-table m-r-5"></i> Sales Details</h4></div>
+            <div class="panel-body">
+                <table class="table table-striped table-condensed" id="salesDetailTable">
+                    <thead>
+                        <tr>
+                            <th>Receipt #</th>
+                            <th>Date</th>
+                            <th>Customer</th>
+                            <th>Items</th>
+                            <th>Subtotal</th>
+                            <th>Discount</th>
+                            <th>Total</th>
+                            <th>Payment</th>
+                            <th>Sold By</th>
+                        </tr>
+                    </thead>
+                    <tbody id="salesDetailBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'dd M yyyy' });
+            loadCategories();
+        });
+
+        function loadCategories() {
+            $.get('/api/categories', function (data) {
+                var $sel = $('#reportCategory');
+                $.each(data, function (i, c) { $sel.append('<option value="' + c.categoryId + '">' + c.categoryName + '</option>'); });
+            });
+        }
+
+        function generateReport() {
+            var from = $('#dateFrom').val();
+            var to = $('#dateTo').val();
+            var cat = $('#reportCategory').val();
+            var url = '/api/reports/sales?';
+            if (from) url += 'from=' + encodeURIComponent(from) + '&';
+            if (to) url += 'to=' + encodeURIComponent(to) + '&';
+            if (cat) url += 'category=' + cat;
+
+            $.get(url, function (data) {
+                $('#summaryCards, #chartRow, #detailRow').show();
+                $('#rptTotalSales').text('KES ' + parseFloat(data.summary.totalSales).toFixed(2));
+                $('#rptTransactions').text(data.summary.transactionCount);
+                $('#rptAvgTxn').text('KES ' + parseFloat(data.summary.avgTransaction).toFixed(2));
+                $('#rptDiscounts').text('KES ' + parseFloat(data.summary.totalDiscounts).toFixed(2));
+
+                var html = '';
+                $.each(data.details, function (i, r) {
+                    html += '<tr>';
+                    html += '<td>' + r.receiptNumber + '</td>';
+                    html += '<td>' + formatDate(r.saleDate) + '</td>';
+                    html += '<td>' + (r.customerName || 'Walk-In') + '</td>';
+                    html += '<td>' + r.totalItems + '</td>';
+                    html += '<td>KES ' + parseFloat(r.subtotal).toFixed(2) + '</td>';
+                    html += '<td>KES ' + parseFloat(r.discount).toFixed(2) + '</td>';
+                    html += '<td><strong>KES ' + parseFloat(r.totalAmount).toFixed(2) + '</strong></td>';
+                    html += '<td>' + r.paymentMethod + '</td>';
+                    html += '<td>' + r.soldByName + '</td>';
+                    html += '</tr>';
+                });
+                $('#salesDetailBody').html(html || '<tr><td colspan="9" class="text-center text-muted">No data</td></tr>');
+            });
+        }
+
+        function printReport() { window.print(); }
+        function formatDate(d) { return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-'; }
+    </script>
+}

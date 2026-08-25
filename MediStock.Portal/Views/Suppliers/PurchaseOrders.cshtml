@@ -1,0 +1,224 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/select2/dist/css/select2.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-datepicker/css/bootstrap-datepicker.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-file-text-o"></i> Purchase Orders <small>Procurement</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <div class="panel-heading-btn">
+            <a href="@Url.Action("PurchaseOrders", "Suppliers")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+        </div>
+        <h4 class="panel-title">Purchase Orders</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row m-b-10">
+            <div class="col-md-12">
+                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#poModal" onclick="resetPOForm();">
+                    <i class="fa fa-plus"></i> Create Purchase Order
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <table id="poTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>PO Number</th>
+                            <th>Date</th>
+                            <th>Supplier</th>
+                            <th>Items</th>
+                            <th>Total Amount</th>
+                            <th>Status</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create PO Modal -->
+<div class="modal fade" id="poModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <form asp-controller="Suppliers" asp-action="CreatePO" method="POST" id="poForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    <h4 class="modal-title"><i class="fa fa-file-text-o"></i> Create Purchase Order</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Supplier <span class="text-danger">*</span></label>
+                                <select class="form-control select2" id="poSupplier" name="supplierId" required>
+                                    <option value="">-- Select Supplier --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Expected Delivery Date</label>
+                                <input type="text" class="form-control date-picker" id="expectedDate" name="expectedDeliveryDate" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row m-b-10">
+                        <div class="col-md-12">
+                            <button type="button" class="btn btn-xs btn-info" onclick="addPOLine();"><i class="fa fa-plus"></i> Add Item</button>
+                        </div>
+                    </div>
+                    <table class="table table-condensed" id="poLines">
+                        <thead>
+                            <tr>
+                                <th style="width:45%;">Product</th>
+                                <th style="width:20%;">Quantity</th>
+                                <th style="width:25%;">Unit Cost</th>
+                                <th style="width:10%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><select class="form-control input-sm po-product" required><option value="">-- Select --</option></select></td>
+                                <td><input type="number" class="form-control input-sm po-qty" min="1" required /></td>
+                                <td><input type="number" class="form-control input-sm po-cost" step="0.01" min="0" required /></td>
+                                <td><button type="button" class="btn btn-xs btn-danger" onclick="$(this).closest('tr').remove();"><i class="fa fa-times"></i></button></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea class="form-control" name="notes" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Create PO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script>
+        var poTable;
+        $(document).ready(function () {
+            $('.select2').select2({ width: '100%' });
+            $('.date-picker').datepicker({ autoclose: true, format: 'dd M yyyy' });
+            loadPOs();
+            loadSuppliersForPO();
+            loadProductsForPO();
+        });
+
+        function loadPOs() {
+            poTable = $('#poTable').DataTable({
+                ajax: { url: '/api/purchase-orders', dataSrc: '' },
+                columns: [
+                    { data: 'poNumber' },
+                    { data: 'orderDate', render: function (d) { return formatDate(d); } },
+                    { data: 'supplierName' },
+                    { data: 'totalItems' },
+                    { data: 'totalAmount', render: function (d) { return 'KES ' + parseFloat(d).toFixed(2); } },
+                    { data: 'status', render: function (d) {
+                        var cls = { 'Draft': 'label-default', 'Sent': 'label-info', 'Partial': 'label-warning', 'Received': 'label-success', 'Cancelled': 'label-danger' };
+                        return '<span class="label ' + (cls[d] || 'label-default') + '">' + d + '</span>';
+                    }},
+                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Suppliers/PODetail/' + d.poId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } },
+                    { data: null, orderable: false, searchable: false, render: function (d) {
+                        if (d.status === 'Draft' || d.status === 'Sent') {
+                            return '<a href="/Suppliers/ReceiveStock/' + d.poId + '" class="btn btn-xs btn-success"><i class="fa fa-truck"></i> Receive</a>';
+                        }
+                        return '';
+                    }}
+                ],
+                order: [[1, 'desc']]
+            });
+        }
+
+        function loadSuppliersForPO() {
+            $.get('/api/suppliers', function (data) {
+                var $sel = $('#poSupplier');
+                $.each(data, function (i, s) { $sel.append('<option value="' + s.supplierId + '">' + s.supplierName + '</option>'); });
+            });
+        }
+
+        function loadProductsForPO() {
+            $.get('/api/products', function (data) {
+                window._poProducts = data;
+            });
+        }
+
+        function addPOLine() {
+            var html = '<tr>';
+            html += '<td><select class="form-control input-sm po-product" required><option value="">-- Select --</option>';
+            $.each(window._poProducts || [], function (i, p) {
+                html += '<option value="' + p.productId + '">' + p.productName + '</option>';
+            });
+            html += '</select></td>';
+            html += '<td><input type="number" class="form-control input-sm po-qty" min="1" required /></td>';
+            html += '<td><input type="number" class="form-control input-sm po-cost" step="0.01" min="0" required /></td>';
+            html += '<td><button type="button" class="btn btn-xs btn-danger" onclick="$(this).closest(\'tr\').remove();"><i class="fa fa-times"></i></button></td>';
+            html += '</tr>';
+            $('#poLines tbody').append(html);
+        }
+
+        function resetPOForm() {
+            $('#poForm')[0].reset();
+            $('#poLines tbody').empty();
+            addPOLine();
+            $('.select2').val(null).trigger('change');
+        }
+
+        function formatDate(d) {
+            return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+        }
+
+        $('#poForm').on('submit', function (e) {
+            e.preventDefault();
+            var lines = [];
+            $('#poLines tbody tr').each(function () {
+                var pid = $(this).find('.po-product').val();
+                var qty = $(this).find('.po-qty').val();
+                var cost = $(this).find('.po-cost').val();
+                if (pid && qty && cost) {
+                    lines.push({ productId: pid, quantity: parseInt(qty), unitCost: parseFloat(cost) });
+                }
+            });
+            var payload = {
+                supplierId: $('#poSupplier').val(),
+                expectedDeliveryDate: $('#expectedDate').val(),
+                notes: $('textarea[name="notes"]').val(),
+                lines: lines
+            };
+            $.ajax({
+                url: '/api/purchase-orders',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    Swal.fire('Created', 'Purchase order created.', 'success');
+                    $('#poModal').modal('hide');
+                    poTable.ajax.reload();
+                },
+                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to create PO.', 'error'); }
+            });
+        });
+    </script>
+}

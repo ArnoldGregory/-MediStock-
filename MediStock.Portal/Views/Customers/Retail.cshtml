@@ -1,0 +1,169 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-user"></i> Retail Customers <small>Walk-In & Registered</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <div class="panel-heading-btn">
+            <a href="@Url.Action("Retail", "Customers")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+        </div>
+        <h4 class="panel-title">Retail Customers</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row m-b-10">
+            <div class="col-md-12">
+                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#customerModal" onclick="resetCustomerForm();">
+                    <i class="fa fa-plus"></i> Add Customer
+                </button>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-12">
+                <table id="customersTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Phone</th>
+                            <th>Email</th>
+                            <th>Total Purchases</th>
+                            <th>Last Visit</th>
+                            <th>Status</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Customer Modal -->
+<div class="modal fade" id="customerModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form asp-controller="Customers" asp-action="Save" method="POST" id="customerForm">
+                @Html.AntiForgeryToken()
+                <input type="hidden" id="customerId" name="customerId" value="" />
+                <input type="hidden" id="customerType" name="customerType" value="Retail" />
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    <h4 class="modal-title" id="customerModalLabel"><i class="fa fa-user"></i> Add Retail Customer</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Full Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="customerName" name="customerName" required />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Phone <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" id="phone" name="phone" required />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" class="form-control" id="email" name="email" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>ID Number</label>
+                                <input type="text" class="form-control" id="idNumber" name="idNumber" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Address</label>
+                        <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var table;
+        $(document).ready(function () { loadCustomers(); });
+
+        function loadCustomers() {
+            table = $('#customersTable').DataTable({
+                ajax: { url: '/api/customers?type=Retail', dataSrc: '' },
+                columns: [
+                    { data: 'customerName' },
+                    { data: 'phone' },
+                    { data: 'email', defaultContent: '-' },
+                    { data: 'totalPurchases', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'lastVisitDate', render: function (d) { return d ? formatDate(d) : '-'; } },
+                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
+                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-primary" onclick="editCustomer(\'' + data.customerId + '\')"><i class="fa fa-edit"></i></button>'; } },
+                    { data: null, orderable: false, searchable: false, render: function (data) { return '<a href="/Customers/Detail/' + data.customerId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } }
+                ],
+                order: [[0, 'asc']]
+            });
+        }
+
+        function resetCustomerForm() {
+            $('#customerForm')[0].reset();
+            $('#customerId').val('');
+            $('#customerModalLabel').html('<i class="fa fa-user"></i> Add Retail Customer');
+        }
+
+        function editCustomer(id) {
+            $.get('/api/customers/' + id, function (data) {
+                $('#customerId').val(data.customerId);
+                $('#customerName').val(data.customerName);
+                $('#phone').val(data.phone);
+                $('#email').val(data.email);
+                $('#idNumber').val(data.idNumber);
+                $('#address').val(data.address);
+                $('#customerModalLabel').html('<i class="fa fa-edit"></i> Edit Customer');
+                $('#customerModal').modal('show');
+            });
+        }
+
+        function formatDate(d) {
+            return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        $('#customerForm').on('submit', function (e) {
+            e.preventDefault();
+            var formData = $(this).serialize();
+            var id = $('#customerId').val();
+            $.ajax({
+                url: id ? '/api/customers/' + id : '/api/customers',
+                type: id ? 'PUT' : 'POST',
+                data: formData,
+                success: function () {
+                    Swal.fire('Saved', 'Customer saved.', 'success');
+                    $('#customerModal').modal('hide');
+                    table.ajax.reload();
+                },
+                error: function (xhr) {
+                    Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error');
+                }
+            });
+        });
+    </script>
+}

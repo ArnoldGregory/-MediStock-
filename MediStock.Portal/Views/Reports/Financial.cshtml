@@ -1,0 +1,104 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/bootstrap-datepicker/css/bootstrap-datepicker.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-line-chart"></i> Financial Report <small>Profit & Loss</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <h4 class="panel-title"><i class="fa fa-filter"></i> Report Period</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>From</label>
+                    <input type="text" class="form-control date-picker" id="dateFrom" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>To</label>
+                    <input type="text" class="form-control date-picker" id="dateTo" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button class="btn btn-primary" onclick="generateReport();"><i class="fa fa-cog"></i> Generate</button>
+                        <button class="btn btn-default" onclick="window.print();"><i class="fa fa-print"></i> Print</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- P&L Statement -->
+<div class="row" id="plSection" style="display:none;">
+    <div class="col-md-8 col-md-offset-2">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-file-text-o m-r-5"></i> Income Statement</h4></div>
+            <div class="panel-body" id="plContent">
+                <table class="table table-condensed" id="plTable">
+                    <tbody id="plBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row m-t-20" id="finCharts" style="display:none;">
+    <div class="col-md-6">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-chart-pie m-r-5"></i> Revenue vs Expenses</h4></div>
+            <div class="panel-body"><div id="revenueExpenseChart" style="height:300px;"></div></div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-chart-bar m-r-5"></i> Expense Breakdown</h4></div>
+            <div class="panel-body"><div id="expenseBreakdownChart" style="height:300px;"></div></div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'dd M yyyy' });
+        });
+
+        function generateReport() {
+            var from = $('#dateFrom').val();
+            var to = $('#dateTo').val();
+            var url = '/api/reports/financial?';
+            if (from) url += 'from=' + encodeURIComponent(from) + '&';
+            if (to) url += 'to=' + encodeURIComponent(to);
+
+            $.get(url, function (data) {
+                $('#plSection, #finCharts').show();
+
+                var html = '';
+                html += '<tr class="active"><td><strong>REVENUE</strong></td><td></td></tr>';
+                html += '<tr><td>&nbsp;&nbsp;Total Sales</td><td class="text-right">KES ' + num(data.totalSales) + '</td></tr>';
+                html += '<tr><td>&nbsp;&nbsp;Cost of Goods Sold</td><td class="text-right text-danger">(KES ' + num(data.cogs) + ')</td></tr>';
+                html += '<tr class="success"><td><strong>Gross Profit</strong></td><td class="text-right"><strong>KES ' + num(data.grossProfit) + '</strong></td></tr>';
+                html += '<tr class="active"><td><strong>OPERATING EXPENSES</strong></td><td></td></tr>';
+                if (data.expenseBreakdown) {
+                    $.each(data.expenseBreakdown, function (i, e) {
+                        html += '<tr><td>&nbsp;&nbsp;' + e.category + '</td><td class="text-right">(KES ' + num(e.amount) + ')</td></tr>';
+                    });
+                }
+                html += '<tr><td>&nbsp;&nbsp;Total Expenses</td><td class="text-right text-danger">(KES ' + num(data.totalExpenses) + ')</td></tr>';
+                html += '<tr class="info"><td><strong>NET PROFIT / (LOSS)</strong></td><td class="text-right"><strong style="font-size:18px;">KES ' + num(data.netProfit) + '</strong></td></tr>';
+                $('#plBody').html(html);
+            });
+        }
+
+        function num(v) { return parseFloat(v || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+    </script>
+}

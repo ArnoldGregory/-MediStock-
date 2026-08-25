@@ -1,0 +1,105 @@
+@model MediStock.Portal.Models.Auth.LoginViewModel
+@{
+    Layout = null;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>MediStock Portal — Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <link rel="shortcut icon" type="image/png" href="~/assets/static/img/favicon.ico" />
+
+    <link href="~/assets/static/plugins/jquery-ui/themes/base/minified/jquery-ui.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/font-awesome/css/font-awesome.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/animate.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/style.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/style-responsive.min.css" rel="stylesheet" />
+    <link href="~/assets/static/css/theme/default.css" rel="stylesheet" id="theme" />
+</head>
+<body class="pace-top bg-white">
+    <div id="page-loader" class="fade in"><span class="spinner"></span></div>
+
+    <div id="page-container" class="fade">
+        <div class="login login-with-news-feed">
+            <div class="news-feed">
+                <div class="news-image">
+                    <img src="~/assets/static/img/login-bg.jpg" data-id="login-cover-image" alt="" style="width:100%;height:100%;object-fit:cover;" />
+                </div>
+            </div>
+            <div class="right-content">
+                <div class="login-content">
+                    <h1 class="text-center"><strong style="color:#2ecc71;">Medi</strong><strong style="color:#3498db;">Stock</strong></h1>
+                    <p class="text-center text-muted">Pharmaceutical Management System</p>
+                    <form asp-controller="Account" asp-action="Login" method="POST" class="margin-bottom-0">
+                        @Html.AntiForgeryToken()
+                        <input type="hidden" name="returnUrl" value="@ViewBag.ReturnUrl" />
+
+                        <div class="row" id="errors">
+                            @if (!string.IsNullOrEmpty(ViewBag.ExpiredMessage as string))
+                            {
+                                <div class="alert alert-info">@ViewBag.ExpiredMessage</div>
+                            }
+                            @if (!string.IsNullOrEmpty(Model.errormessage))
+                            {
+                                <div class="alert alert-danger">@Model.errormessage</div>
+                            }
+                        </div>
+
+                        <div class="form-group m-b-15">
+                            <label for="pharmacySlug">Pharmacy <span style="color:red;">*</span></label>
+                            <input type="text" id="pharmacySlug" name="pharmacySlug" value="@Model?.pharmacySlug" class="form-control input-lg" placeholder="Pharmacy slug or code" required />
+                        </div>
+                        <div class="form-group m-b-15">
+                            <label for="email">Email Address <span style="color:red;">*</span></label>
+                            <input type="text" id="email" name="username" value="@Model?.username" class="form-control input-lg" placeholder="Email Address" required />
+                        </div>
+                        <div class="form-group has-feedback">
+                            <label for="password">Password <span style="color:red;">*</span></label>
+                            <input type="password" id="password" name="password" class="form-control input-lg" placeholder="Password" required />
+                        </div>
+
+                        <div class="checkbox m-b-30"></div>
+
+                        <div class="login-buttons">
+                            <div class="form-group">
+                                <a href="@Url.Action("ResetPassword", "Account")" title="Forgot your password?">Forgot your password?</a>
+                            </div>
+                            <button id="login" name="login" type="submit" class="btn btn-primary btn-block btn-sm">
+                                <i class="fa fa-sign-in"></i> Sign In
+                            </button>
+                        </div>
+                        <hr />
+                        <p class="text-center">
+                            Copyright &copy; @DateTime.Now.Year MediStock &mdash; Pharmaceutical Management System
+                        </p>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="~/assets/static/plugins/jquery/jquery-1.9.1.min.js"></script>
+    <script src="~/assets/static/plugins/jquery/jquery-migrate-1.1.0.min.js"></script>
+    <script src="~/assets/static/plugins/jquery-ui/ui/minified/jquery-ui.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap/js/bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/slimscroll/jquery.slimscroll.min.js"></script>
+    <script src="~/assets/static/plugins/jquery-cookie/jquery.cookie.js"></script>
+    <script src="~/assets/static/js/apps.min.js"></script>
+    <script src="~/assets/static/js/jquery.blockUI.js"></script>
+    <script>
+        $(document).ready(function () {
+            App.init();
+            $('#page-loader').addClass('hide');
+        });
+        $(document).on('submit', 'form', function (e) {
+            if ($('form')[0].checkValidity()) {
+                if (!e.isDefaultPrevented()) {
+                    $.blockUI({ message: '<h4><img src="/assets/static/img/loading1.gif" /> Please wait...</h4>' });
+                }
+            }
+        });
+    </script>
+</body>
+</html>

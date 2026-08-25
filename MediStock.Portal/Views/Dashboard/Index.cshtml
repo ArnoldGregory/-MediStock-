@@ -1,0 +1,179 @@
+@{
+    ViewData["Title"] = "Dashboard";
+    ViewBag.MenuLayout = "Side";
+}
+
+<h1 class="page-header"><i class="fa fa-dashboard"></i> Dashboard <small>Overview</small></h1>
+
+<!-- ── Row 1: Stat cards ──────────────────────────────────────── -->
+<div class="row">
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-green">
+            <div class="stats-icon"><i class="fa fa-pills"></i></div>
+            <div class="stats-info">
+                <h4>TOTAL PRODUCTS</h4>
+                <p id="statProducts"><i class="fa fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="stats-link"><a href="/Products/Index">View Detail <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-blue">
+            <div class="stats-icon"><i class="fa fa-shopping-cart"></i></div>
+            <div class="stats-info">
+                <h4>TODAY'S SALES</h4>
+                <p id="statTodaySales"><i class="fa fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="stats-link"><a href="/Sales/POS">View POS <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-orange">
+            <div class="stats-icon"><i class="fa fa-users"></i></div>
+            <div class="stats-info">
+                <h4>CUSTOMERS</h4>
+                <p id="statCustomers"><i class="fa fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="stats-link"><a href="/Customers/Retail">View Detail <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-red">
+            <div class="stats-icon"><i class="fa fa-exclamation-triangle"></i></div>
+            <div class="stats-info">
+                <h4>LOW STOCK ALERTS</h4>
+                <p id="statLowStock"><i class="fa fa-spinner fa-spin"></i></p>
+            </div>
+            <div class="stats-link"><a href="/Stock/Batches">View Detail <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Row 2: Sales Chart (8) + Top Products (4) ─── -->
+<div class="row m-t-20">
+    <div class="col-md-8">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;">
+                    <i class="fa fa-chart-area m-r-5"></i> Sales Trend
+                    <small style="color:#adb5bd;">— last 7 days</small>
+                </h4>
+            </div>
+            <div class="panel-body p-t-0">
+                <div id="salesChart" style="height:300px;"><i class="fa fa-spinner fa-spin"></i> Loading chart...</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;">
+                    <i class="fa fa-trophy m-r-5"></i> Top Products
+                </h4>
+            </div>
+            <div class="panel-body p-t-0" id="topProductsList">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── Row 3: Expiry Alerts (6) + Recent Activity (6) ─── -->
+<div class="row m-t-20">
+    <div class="col-md-6">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;">
+                    <i class="fa fa-clock-o m-r-5"></i> Expiring Soon
+                </h4>
+            </div>
+            <div class="panel-body p-t-0" id="expiringProducts">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;">
+                    <i class="fa fa-list m-r-5"></i> Recent Activity
+                </h4>
+            </div>
+            <div class="panel-body p-t-0" id="recentActivity">
+                <i class="fa fa-spinner fa-spin"></i> Loading...
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script>
+        $(document).ready(function () {
+            loadDashboardStats();
+        });
+
+        function loadDashboardStats() {
+            $.get('/api/dashboard/stats', function (data) {
+                $('#statProducts').text(data.totalProducts || 0);
+                $('#statTodaySales').text('KES ' + numberWithCommas(data.todaySales || 0));
+                $('#statCustomers').text(data.totalCustomers || 0);
+                $('#statLowStock').text(data.lowStockAlerts || 0);
+            }).fail(function () {
+                $('#statProducts').text('0');
+                $('#statTodaySales').text('KES 0');
+                $('#statCustomers').text('0');
+                $('#statLowStock').text('0');
+            });
+
+            $.get('/api/dashboard/top-products', function (data) {
+                var html = '<table class="table table-condensed"><tbody>';
+                if (data && data.length) {
+                    $.each(data, function (i, item) {
+                        html += '<tr><td>' + item.name + '</td><td class="text-right">' + item.quantitySold + ' sold</td></tr>';
+                    });
+                } else {
+                    html += '<tr><td class="text-muted">No data available</td></tr>';
+                }
+                html += '</tbody></table>';
+                $('#topProductsList').html(html);
+            }).fail(function () {
+                $('#topProductsList').html('<p class="text-muted">Unable to load data</p>');
+            });
+
+            $.get('/api/dashboard/expiring-soon', function (data) {
+                var html = '<table class="table table-condensed"><tbody>';
+                if (data && data.length) {
+                    $.each(data, function (i, item) {
+                        var badge = item.daysLeft <= 30 ? 'label-danger' : (item.daysLeft <= 90 ? 'label-warning' : 'label-info');
+                        html += '<tr><td>' + item.productName + '</td><td>' + item.batchNo + '</td><td><span class="label ' + badge + '">' + item.expiryDate + '</span></td></tr>';
+                    });
+                } else {
+                    html += '<tr><td class="text-muted">No products expiring soon</td></tr>';
+                }
+                html += '</tbody></table>';
+                $('#expiringProducts').html(html);
+            }).fail(function () {
+                $('#expiringProducts').html('<p class="text-muted">Unable to load data</p>');
+            });
+
+            $.get('/api/dashboard/recent-activity', function (data) {
+                var html = '<ul class="list-group">';
+                if (data && data.length) {
+                    $.each(data, function (i, item) {
+                        html += '<li class="list-group-item"><small class="text-muted pull-right">' + item.timeAgo + '</small>' + item.description + '</li>';
+                    });
+                } else {
+                    html += '<li class="list-group-item text-muted">No recent activity</li>';
+                }
+                html += '</ul>';
+                $('#recentActivity').html(html);
+            }).fail(function () {
+                $('#recentActivity').html('<p class="text-muted">Unable to load data</p>');
+            });
+        }
+
+        function numberWithCommas(x) {
+            return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+        }
+    </script>
+}
