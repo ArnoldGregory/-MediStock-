@@ -104,9 +104,11 @@ namespace MediStock.API.Controllers
 
                 var userJobject = new JObject
                 {
+                    { "user_id", userId.ToString() },
                     { "userid", userId.ToString() },
                     { "email", userEmail },
                     { "role_type", roleType },
+                    { "role_id", roleId.ToString() },
                     { "profile_id", roleId.ToString() },
                     { "pharmacy_id", pharmacyId.ToString() },
                     { "name", name },
@@ -295,9 +297,11 @@ namespace MediStock.API.Controllers
 
                 JObject userJobject = new JObject
                 {
+                    { "user_id", userId.ToString() },
                     { "userid", userId.ToString() },
                     { "email", userEmail },
                     { "role_type", roleType },
+                    { "role_id", roleId.ToString() },
                     { "name", name },
                     { "mobile", mobile },
                     { "profile_id", roleId.ToString() },
