@@ -2,7 +2,6 @@ namespace MediStock.Portal.Models.Auth
 {
     public sealed class LoginViewModel
     {
-        public string pharmacySlug { get; set; } = string.Empty;
         public string username { get; set; } = string.Empty;
         public string password { get; set; } = string.Empty;
         public string? errormessage { get; set; }

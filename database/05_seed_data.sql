@@ -12,5 +12,6 @@ VALUES (1, 'Demo Pharmacy', 'demo', '+254700000000', 'admin@demo pharmacy.co.ke'
 
 -- ── SUPER ADMIN USER ──
 -- Password: password (encrypted with Rijndael/AES — same key as CryptoHelper.cs)
+-- Super Admin: pharmacy_id = 0 means cross-tenant (can access all pharmacies)
 INSERT IGNORE INTO pharmacy_users (id, pharmacy_id, role_id, first_name, middle_name, last_name, email, mobile, password, avatar, locked, change_password, is_deleted, created_on)
-VALUES (1, 1, 1, 'Arnold', 'Gregory', 'Omondi', 'omondiarnold06@gmail.com', '+254700000000', 'tTAwzY33mxj3Ie0XEmq4xQ==', 'user-default.svg', 0, 0, 0, NOW());
+VALUES (1, 0, 1, 'Arnold', 'Gregory', 'Omondi', 'omondiarnold06@gmail.com', '+254700000000', 'tTAwzY33mxj3Ie0XEmq4xQ==', 'user-default.svg', 0, 0, 0, NOW());
