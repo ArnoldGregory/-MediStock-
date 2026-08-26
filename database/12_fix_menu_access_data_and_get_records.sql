@@ -1,8 +1,7 @@
 -- Fix 1: Add Access Control and Audit Trail to menu_access_data
 INSERT IGNORE INTO menu_access_data (id, main_menu_name, sub_menu_name, menu_icon, menu_order, sub_menu_order, page_url, menu_type)
 VALUES
-  (26, 'Admin', 'Access Control', 'fa-shield', 90, 2, '~/Admin/AccessControl', 'ALL'),
-  (27, 'Admin', 'Audit Trail', 'fa-list-alt', 90, 3, '~/Admin/AuditTrail', 'ALL');
+  (26, 'Admin', 'Access Control', 'fa-shield', 90, 2, '~/Admin/AccessControl', 'ALL');
 
 -- Fix 2: Recreate get_records SP with 'menus' case added
 DROP PROCEDURE IF EXISTS get_records;
