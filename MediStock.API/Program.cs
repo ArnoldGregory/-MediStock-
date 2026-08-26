@@ -1,8 +1,11 @@
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
 using Newtonsoft.Json;
 using NLog;
 using NLog.Extensions.Logging;
+using System.Text;
 using MediStock.API.Helpers;
 using MediStock.API.Middlewares;
 using MediStock.API.Models;
@@ -16,6 +19,26 @@ try
     builder.Logging.ClearProviders();
     builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
     builder.Host.UseNLog();
+
+    var jwtKey = builder.Configuration["Jwt:Key"]!;
+    var jwtIssuer = builder.Configuration["Jwt:Issuer"]!;
+
+    builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+        .AddJwtBearer(options =>
+        {
+            options.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+                ValidateIssuer = true,
+                ValidIssuer = jwtIssuer,
+                ValidateAudience = false,
+                ValidateLifetime = true,
+                ClockSkew = TimeSpan.Zero
+            };
+        });
+
+    builder.Services.AddAuthorization();
 
     builder.Services.AddControllers()
         .AddNewtonsoftJson(options =>
@@ -50,6 +73,9 @@ try
     app.UseCors("AllowAll");
 
     app.UseMiddleware<JwtMiddleware>();
+
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     app.MapControllers();
 
