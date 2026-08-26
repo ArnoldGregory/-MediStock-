@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MediStock.API.Helpers;
 using MediStock.API.Models;
 using System.Data;
 
@@ -10,9 +11,11 @@ namespace MediStock.API.Controllers
     public class MenuController : ControllerBase
     {
         private readonly DBHandler dbhandler;
+        private readonly ILoggerManager _logger;
 
-        public MenuController(IConfiguration config)
+        public MenuController(IConfiguration config, ILoggerManager logger)
         {
+            _logger = logger;
             dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
         }
 
@@ -20,16 +23,27 @@ namespace MediStock.API.Controllers
         [HttpGet]
         public IActionResult GetMenu([FromQuery] string pageaccessed = "")
         {
+            _logger.LogInfo("******* GET MENU REQUEST **********");
+
             if (!int.TryParse(HttpContext.Items["profile_id"]?.ToString(), out int profileId) || profileId == 0)
+            {
+                _logger.LogError("GetMenu: Invalid or missing profile_id in token");
                 return Unauthorized(new { success = false, message = "Invalid or missing profile_id in token" });
+            }
 
             if (!int.TryParse(HttpContext.Items["user_id"]?.ToString(), out int userId) || userId == 0)
+            {
+                _logger.LogError("GetMenu: Invalid or missing user_id in token");
                 return Unauthorized(new { success = false, message = "Invalid or missing user_id in token" });
+            }
 
             var roleType = HttpContext.Items["role_type"]?.ToString() ?? "CLIENT";
+            _logger.LogInfo($"GetMenu: profileId={profileId}, roleType={roleType}, pageaccessed={pageaccessed}");
 
-            MenuHandler handler = new(dbhandler);
+            MenuHandler handler = new(dbhandler, _logger);
             IList<MenuModel> menuList = handler.GetMenu(profileId, pageaccessed);
+
+            _logger.LogInfo($"GetMenu: returned {menuList.Count} main menus");
 
             return Ok(new
             {
@@ -67,17 +81,20 @@ namespace MediStock.API.Controllers
     public class MenuHandler
     {
         private readonly DBHandler dbhandler;
+        private readonly ILoggerManager _logger;
 
-        public MenuHandler(DBHandler mydbhandler)
+        public MenuHandler(DBHandler mydbhandler, ILoggerManager logger)
         {
             dbhandler = mydbhandler;
+            _logger = logger;
         }
 
         public IList<MenuModel> GetMenu(int profileId, string pageaccessed)
         {
-            // Step 1: Get main menus
             DataTable mainData = dbhandler.GetMenu(profileId, "main", "");
             List<MenuModel> menuList = new();
+
+            _logger.LogInfo($"MenuHandler.GetMenu: main menus returned {mainData.Rows.Count} rows");
 
             if (mainData.Rows.Count > 0)
             {
@@ -94,9 +111,10 @@ namespace MediStock.API.Controllers
                         menu_icon = menuIcon
                     };
 
-                    // Step 2: Get sub-menus for this main menu
                     DataTable subData = dbhandler.GetMenu(profileId, "sub", mainMenuName);
                     List<SubMenuModel> subList = new();
+
+                    _logger.LogInfo($"MenuHandler.GetMenu: '{mainMenuName}' has {subData.Rows.Count} sub-menus");
 
                     if (subData.Rows.Count > 0)
                     {
@@ -122,7 +140,6 @@ namespace MediStock.API.Controllers
                     }
                     else
                     {
-                        // Step 3: Standalone menu — get its page_url
                         menu.menu_url = dbhandler.GetScalarItem(
                             $"call get_menu({profileId}, 'page_url', '{mainMenuName.Replace("'", "''")}')");
 
