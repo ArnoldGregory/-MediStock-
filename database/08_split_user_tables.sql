@@ -175,7 +175,7 @@ BEGIN
 END$$
 
 -- ============================================================
--- 8. CREATE get_menu SP (Riziki pattern — called 3 times)
+-- 8. CREATE get_menu SP (GROUP BY pattern — works with existing data)
 -- ============================================================
 DROP PROCEDURE IF EXISTS `get_menu`$$
 CREATE PROCEDURE `get_menu`(
