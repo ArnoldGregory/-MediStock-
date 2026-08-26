@@ -79,6 +79,7 @@ namespace MediStock.API.Controllers
                 if (ok && model.id > 0)
                 {
                     _logger.LogInfo($"AddExpense: expenseId={model.id}");
+                    CaptureAuditTrail(GetCallerEmail(), "Add Expense", $"Added expense: {model.description}");
                     return Ok(new ApiResponse<object>
                     {
                         success = true,
@@ -107,6 +108,7 @@ namespace MediStock.API.Controllers
                 if (ok)
                 {
                     _logger.LogInfo($"DeleteExpense: expenseId={id}");
+                    CaptureAuditTrail(GetCallerEmail(), "Delete Expense", $"Deleted expense {id}");
                     return Ok(new ApiResponse<object>
                     {
                         success = true,
@@ -162,6 +164,7 @@ namespace MediStock.API.Controllers
                 Int64 id = dt.Rows.Count > 0 ? Convert.ToInt64(dt.Rows[0]["id"]) : 0;
 
                 _logger.LogInfo($"AddExpenseCategory: categoryId={id}");
+                CaptureAuditTrail(GetCallerEmail(), "Add Expense Category", $"Added expense category: {model.name}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -173,6 +176,29 @@ namespace MediStock.API.Controllers
             {
                 _logger.LogError("AddExpenseCategory: " + ex.Message + " - " + ex.StackTrace);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
+            }
+        }
+
+        [NonAction]
+        private void CaptureAuditTrail(string email, string actionType, string description)
+        {
+            try
+            {
+                var model = new AuditTrailModel
+                {
+                    user_name = email,
+                    action_type = actionType,
+                    action_description = description,
+                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    session_id = HttpContext.Session?.Id ?? "",
+                    created_on = DateTime.UtcNow
+                };
+                dbhandler.AddAuditTrail(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("CaptureAuditTrail: " + ex.Message);
             }
         }
 

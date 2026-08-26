@@ -48,9 +48,9 @@
 <div class="modal fade" id="userModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <form asp-controller="Admin" asp-action="SaveUser" method="POST" id="userForm">
+            <form id="userForm">
                 @Html.AntiForgeryToken()
-                <input type="hidden" id="userId" name="userId" value="" />
+                <input type="hidden" id="userId" value="" />
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                     <h4 class="modal-title" id="modalLabel"><i class="fa fa-user-plus"></i> Add User</h4>
@@ -60,29 +60,29 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="firstName" name="firstName" required />
+                                <input type="text" class="form-control" id="firstName" required />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Last Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="lastName" name="lastName" required />
+                                <input type="text" class="form-control" id="lastName" required />
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Email <span class="text-danger">*</span></label>
-                        <input type="email" class="form-control" id="email" name="email" required />
+                        <input type="email" class="form-control" id="email" required />
                     </div>
                     <div class="form-group">
                         <label>Phone</label>
-                        <input type="text" class="form-control" id="phone" name="phone" />
+                        <input type="text" class="form-control" id="phone" />
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Role <span class="text-danger">*</span></label>
-                                <select class="form-control select2" id="roleId" name="roleId" required>
+                                <select class="form-control select2" id="roleId" required>
                                     <option value="">-- Select --</option>
                                 </select>
                             </div>
@@ -90,14 +90,14 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Password</label>
-                                <input type="password" class="form-control" id="password" name="password" placeholder="Leave blank to keep current" minlength="6" />
+                                <input type="password" class="form-control" id="password" placeholder="Leave blank to keep current" minlength="6" />
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save User</button>
+                    <button type="submit" class="btn btn-success" id="btnSave"><i class="fa fa-save"></i> Save User</button>
                 </div>
             </form>
         </div>
@@ -132,6 +132,8 @@
     <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
     <script>
         var table;
+        var rolesMap = {};
+
         $(document).ready(function () {
             $('.select2').select2({ width: '100%' });
             loadRoles();
@@ -140,25 +142,82 @@
 
         function loadUsers() {
             table = $('#usersTable').DataTable({
-                ajax: { url: '/api/admin/users', dataSrc: '' },
+                ajax: {
+                    url: '/api/admin/users',
+                    dataSrc: function (json) {
+                        return json.data || json;
+                    }
+                },
                 columns: [
-                    { data: 'fullName' },
+                    {
+                        data: null,
+                        render: function (d) {
+                            return (d.first_name || d.firstName || '') + ' ' + (d.last_name || d.lastName || '');
+                        }
+                    },
                     { data: 'email' },
-                    { data: 'roleName' },
-                    { data: 'phone', defaultContent: '-' },
-                    { data: 'lastLoginDate', render: function (d) { return d ? formatDate(d) : 'Never'; } },
-                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<button class="btn btn-xs btn-primary" onclick="editUser(\'' + d.userId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<button class="btn btn-xs btn-danger" onclick="deleteUser(\'' + d.userId + '\',\'' + d.fullName + '\')"><i class="fa fa-trash"></i></button>'; } }
+                    {
+                        data: null,
+                        render: function (d) {
+                            var roleId = d.role_id || d.roleId || 0;
+                            return rolesMap[roleId] || 'Role ' + roleId;
+                        }
+                    },
+                    {
+                        data: null,
+                        render: function (d) {
+                            return d.phone || d.mobile || '-';
+                        }
+                    },
+                    {
+                        data: 'lastLoginDate',
+                        render: function (d) {
+                            return d ? formatDate(d) : 'Never';
+                        }
+                    },
+                    {
+                        data: 'isActive',
+                        render: function (d) {
+                            var active = d === true || d === 1 || d === '1';
+                            return active
+                                ? '<span class="label label-success">Active</span>'
+                                : '<span class="label label-default">Inactive</span>';
+                        }
+                    },
+                    {
+                        data: null,
+                        orderable: false,
+                        searchable: false,
+                        render: function (d) {
+                            var id = d.id || d.userId;
+                            return '<button class="btn btn-xs btn-primary" onclick="editUser(' + id + ')"><i class="fa fa-edit"></i></button>';
+                        }
+                    },
+                    {
+                        data: null,
+                        orderable: false,
+                        searchable: false,
+                        render: function (d) {
+                            var id = d.id || d.userId;
+                            var name = (d.first_name || d.firstName || '') + ' ' + (d.last_name || d.lastName || '');
+                            return '<button class="btn btn-xs btn-danger" onclick="deleteUser(' + id + ',\'' + name.replace(/'/g, "\\'") + '\')"><i class="fa fa-trash"></i></button>';
+                        }
+                    }
                 ],
                 order: [[0, 'asc']]
             });
         }
 
         function loadRoles() {
-            $.get('/api/admin/roles', function (data) {
+            $.get('/api/admin/roles', function (res) {
+                var data = res.data || res;
                 var $sel = $('#roleId');
-                $.each(data, function (i, r) { $sel.append('<option value="' + r.roleId + '">' + r.roleName + '</option>'); });
+                $.each(data, function (i, r) {
+                    var id = r.roleId || r.role_id || r.id;
+                    var name = r.roleName || r.role_name || r.name;
+                    rolesMap[id] = name;
+                    $sel.append('<option value="' + id + '">' + name + '</option>');
+                });
             });
         }
 
@@ -171,13 +230,15 @@
         }
 
         function editUser(id) {
-            $.get('/api/admin/users/' + id, function (data) {
-                $('#userId').val(data.userId);
-                $('#firstName').val(data.firstName);
-                $('#lastName').val(data.lastName);
+            $.get('/api/admin/users/' + id, function (res) {
+                var data = res.data || res;
+                $('#userId').val(data.id || data.userId);
+                $('#firstName').val(data.first_name || data.firstName);
+                $('#lastName').val(data.last_name || data.lastName);
                 $('#email').val(data.email);
-                $('#phone').val(data.phone);
-                $('#roleId').val(data.roleId).trigger('change');
+                $('#phone').val(data.phone || data.mobile);
+                var roleId = data.role_id || data.roleId;
+                $('#roleId').val(roleId).trigger('change');
                 $('#password').removeAttr('required').attr('placeholder', 'Leave blank to keep current');
                 $('#modalLabel').html('<i class="fa fa-edit"></i> Edit User');
                 $('#userModal').modal('show');
@@ -191,24 +252,53 @@
                     url: '/api/admin/users/' + id,
                     type: 'DELETE',
                     headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                    success: function () { Swal.fire('Deleted', 'User deleted.', 'success'); table.ajax.reload(); $('#deleteModal').modal('hide'); },
-                    error: function () { Swal.fire('Error', 'Unable to delete.', 'error'); }
+                    success: function () {
+                        Swal.fire('Deleted', 'User deleted.', 'success');
+                        table.ajax.reload();
+                        $('#deleteModal').modal('hide');
+                    },
+                    error: function () {
+                        Swal.fire('Error', 'Unable to delete.', 'error');
+                    }
                 });
             });
             $('#deleteModal').modal('show');
         }
 
-        function formatDate(d) { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+        function formatDate(d) {
+            return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
 
         $('#userForm').on('submit', function (e) {
             e.preventDefault();
             var id = $('#userId').val();
+            var payload = {
+                firstName: $('#firstName').val(),
+                lastName: $('#lastName').val(),
+                email: $('#email').val(),
+                phone: $('#phone').val(),
+                roleId: parseInt($('#roleId').val()) || 3,
+                password: $('#password').val() || 'password'
+            };
+
+            btnLoad('#btnSave', 'Saving...');
+
             $.ajax({
                 url: id ? '/api/admin/users/' + id : '/api/admin/users',
                 type: id ? 'PUT' : 'POST',
-                data: $(this).serialize(),
-                success: function () { Swal.fire('Saved', 'User saved.', 'success'); $('#userModal').modal('hide'); table.ajax.reload(); },
-                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error'); }
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    Swal.fire('Saved', 'User saved.', 'success');
+                    $('#userModal').modal('hide');
+                    table.ajax.reload();
+                    btnStop('#btnSave');
+                },
+                error: function (xhr) {
+                    Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error');
+                    btnStop('#btnSave');
+                }
             });
         });
     </script>

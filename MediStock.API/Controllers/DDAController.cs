@@ -85,6 +85,7 @@ namespace MediStock.API.Controllers
                 if (ok && model.id > 0)
                 {
                     _logger.LogInfo($"AddDDAEntry: ddaId={model.id}");
+                    CaptureAuditTrail(GetCallerEmail(), "Add DDA Entry", $"Added DDA entry {model.id} ({model.entry_type})");
                     return Ok(new ApiResponse<object>
                     {
                         success = true,
@@ -98,6 +99,29 @@ namespace MediStock.API.Controllers
             {
                 _logger.LogError("AddDDAEntry: " + ex.Message + " - " + ex.StackTrace);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
+            }
+        }
+
+        [NonAction]
+        private void CaptureAuditTrail(string email, string actionType, string description)
+        {
+            try
+            {
+                var model = new AuditTrailModel
+                {
+                    user_name = email,
+                    action_type = actionType,
+                    action_description = description,
+                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    session_id = HttpContext.Session?.Id ?? "",
+                    created_on = DateTime.UtcNow
+                };
+                dbhandler.AddAuditTrail(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("CaptureAuditTrail: " + ex.Message);
             }
         }
 

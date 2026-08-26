@@ -105,6 +105,7 @@ namespace MediStock.API.Controllers
                     return BadRequest(new ApiResponse<object> { success = false, message = "Sale created but failed to add items" });
 
                 _logger.LogInfo($"CreateSale: saleId={model.id}");
+                CaptureAuditTrail(GetCallerEmail(), "Create Sale", $"Created sale {model.id}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -135,6 +136,29 @@ namespace MediStock.API.Controllers
             {
                 _logger.LogError("GetProductsForPOS: " + ex.Message + " - " + ex.StackTrace);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
+            }
+        }
+
+        [NonAction]
+        private void CaptureAuditTrail(string email, string actionType, string description)
+        {
+            try
+            {
+                var model = new AuditTrailModel
+                {
+                    user_name = email,
+                    action_type = actionType,
+                    action_description = description,
+                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    session_id = HttpContext.Session?.Id ?? "",
+                    created_on = DateTime.UtcNow
+                };
+                dbhandler.AddAuditTrail(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("CaptureAuditTrail: " + ex.Message);
             }
         }
 

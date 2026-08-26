@@ -120,9 +120,6 @@
                     $('#statTodaySales').text('KES ' + numberWithCommas(d.today_sales || 0));
                     $('#statCustomers').text(d.total_customers || 0);
                     $('#statLowStock').text(d.low_stock_count || 0);
-                    $('#statMonthSales').text('KES ' + numberWithCommas(d.month_sales || 0));
-                    $('#statExpiring').text(d.expiring_soon_count || 0);
-                    $('#statInventoryValue').text('KES ' + numberWithCommas(d.total_inventory_value || 0));
                 }
             }).fail(function () {
                 $('#statProducts').text('0');
@@ -135,14 +132,6 @@
                 if (data) {
                     if (data.totalProducts !== undefined) $('#statProducts').text(data.totalProducts);
                     if (data.todaySales !== undefined) $('#statTodaySales').text('KES ' + numberWithCommas(data.todaySales));
-                }
-            });
-
-            $.get('/Dashboard/Summary', function (resp) {
-                if (resp && resp.data) {
-                    var d = resp.data;
-                    $('#statMonthSales').text('KES ' + numberWithCommas(d.month_sales || 0));
-                    $('#statExpiring').text(d.expiring_soon_count || 0);
                 }
             });
 

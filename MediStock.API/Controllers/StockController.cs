@@ -86,6 +86,7 @@ namespace MediStock.API.Controllers
                 Int64 id = dtId.Rows.Count > 0 ? Convert.ToInt64(dtId.Rows[0]["id"]) : 0;
 
                 _logger.LogInfo($"AddBatch: batchId={id}");
+                CaptureAuditTrail(GetCallerEmail(), "Add Batch", $"Added batch {id} for product {model.product_id}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -127,6 +128,7 @@ namespace MediStock.API.Controllers
                 Int64 id = dtAdj.Rows.Count > 0 ? Convert.ToInt64(dtAdj.Rows[0]["id"]) : 0;
 
                 _logger.LogInfo($"AddStockAdjustment: adjustmentId={id}");
+                CaptureAuditTrail(GetCallerEmail(), "Stock Adjustment", $"Recorded adjustment {id} ({model.adjustment_type})");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -184,6 +186,7 @@ namespace MediStock.API.Controllers
                 Int64 id = dt.Rows.Count > 0 ? Convert.ToInt64(dt.Rows[0]["id"]) : 0;
 
                 _logger.LogInfo($"AddStockTakeSession: sessionId={id}");
+                CaptureAuditTrail(GetCallerEmail(), "Stock Take Session", $"Created stock take session: {model.session_name}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -222,6 +225,7 @@ namespace MediStock.API.Controllers
                 Int64 id = dt.Rows.Count > 0 ? Convert.ToInt64(dt.Rows[0]["id"]) : 0;
 
                 _logger.LogInfo($"AddStockTakeItem: itemId={id}");
+                CaptureAuditTrail(GetCallerEmail(), "Stock Take Item", $"Recorded stock take item {id} for session {model.session_id}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -249,6 +253,7 @@ namespace MediStock.API.Controllers
                 dbhandler.ExecuteNonQuery(sql);
 
                 _logger.LogInfo($"CommitStockTake: sessionId={sessionId}");
+                CaptureAuditTrail(GetCallerEmail(), "Commit Stock Take", $"Committed stock take session {sessionId}");
                 return Ok(new ApiResponse<object>
                 {
                     success = true,
@@ -259,6 +264,29 @@ namespace MediStock.API.Controllers
             {
                 _logger.LogError("CommitStockTake: " + ex.Message + " - " + ex.StackTrace);
                 return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
+            }
+        }
+
+        [NonAction]
+        private void CaptureAuditTrail(string email, string actionType, string description)
+        {
+            try
+            {
+                var model = new AuditTrailModel
+                {
+                    user_name = email,
+                    action_type = actionType,
+                    action_description = description,
+                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    session_id = HttpContext.Session?.Id ?? "",
+                    created_on = DateTime.UtcNow
+                };
+                dbhandler.AddAuditTrail(model);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError("CaptureAuditTrail: " + ex.Message);
             }
         }
 

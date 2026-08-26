@@ -1291,6 +1291,49 @@ namespace MediStock.API.Models
             return dt;
         }
 
+        public DataTable GetExternalUsersByPharmacy(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                connect.Open();
+                using MySqlCommand cmd = new MySqlCommand(
+                    "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, is_active, avatar, " +
+                    "CONCAT(first_name, ' ', last_name) AS fullName, last_login_date " +
+                    "FROM p_external_portal_user WHERE pharmacy_id = @pid AND is_deleted = 0", connect);
+                cmd.Parameters.AddWithValue("@pid", pharmacyId);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetExternalUsersByPharmacy: " + ex.Message + " - " + ex.StackTrace);
+            }
+            return dt;
+        }
+
+        public DataTable GetExternalUserById(Int64 id)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                connect.Open();
+                using MySqlCommand cmd = new MySqlCommand(
+                    "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, is_active, avatar " +
+                    "FROM p_external_portal_user WHERE id = @id AND is_deleted = 0", connect);
+                cmd.Parameters.AddWithValue("@id", id);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetExternalUserById: " + ex.Message + " - " + ex.StackTrace);
+            }
+            return dt;
+        }
+
         public bool AdminUpdateUser(Int64 id, string? firstName, string? lastName,
             string? email, string? mobile, int? roleId, bool isActive)
         {

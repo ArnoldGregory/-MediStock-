@@ -60,6 +60,7 @@
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
     <script>
+        var ddaTable;
         $(document).ready(function () {
             $('.date-picker').datepicker({ autoclose: true, format: 'dd M yyyy' });
             loadRegister();
@@ -72,7 +73,8 @@
             if (from) url += 'from=' + encodeURIComponent(from) + '&';
             if (to) url += 'to=' + encodeURIComponent(to);
 
-            $('#ddaTable').DataTable({
+            if (ddaTable) ddaTable.destroy();
+            ddaTable = $('#ddaTable').DataTable({
                 ajax: { url: url, dataSrc: '' },
                 columns: [
                     { data: 'transactionDate', render: function (d) { return formatDate(d); } },
