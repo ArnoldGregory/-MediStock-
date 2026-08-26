@@ -39,6 +39,7 @@ namespace MediStock.API.Helpers
                     new Claim("user_id",     jobject["user_id"]!.ToString()),
                     new Claim("email",       jobject["email"]!.ToString()),
                     new Claim("role_id",     jobject["role_id"]!.ToString()),
+                    new Claim("profile_id",  jobject["role_id"]!.ToString()),
                 };
 
                 SecurityTokenDescriptor tokenDescriptor = new()

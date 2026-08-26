@@ -44,9 +44,9 @@ namespace MediStock.API.Controllers
                 if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
                     return BadRequest(new ApiResponse<object> { success = false, message = "Email and password are required" });
 
-                DataTable dt = dbhandler.ValidateUserLogin("PHARMACY", email);
+                DataTable dt = dbhandler.ValidateUserLogin("ADMIN", email);
                 if (dt.Rows.Count == 0)
-                    dt = dbhandler.ValidateUserLogin("USER", email);
+                    dt = dbhandler.ValidateUserLogin("CLIENT", email);
 
                 if (dt.Rows.Count == 0)
                 {
@@ -120,7 +120,7 @@ namespace MediStock.API.Controllers
                 // string otp = new Helpers.RandomKeyGeneratorManagement().GenerateOtp(4);
                 string otp = "1000";
                 string otpRef = Guid.NewGuid().ToString("N");
-                dbhandler.RizikiSaveOtp(userId, "USER", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
+                dbhandler.RizikiSaveOtp(userId, "CLIENT", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
 
                 var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
                 string tempToken = jwtUtils.GenerateAccessToken(new JObject
@@ -262,9 +262,9 @@ namespace MediStock.API.Controllers
                     return BadRequest(new ApiResponse<object> { success = false, message = "OTP and username are required" });
 
                 // Step 1: Look up user by username (Riziki pattern)
-                DataTable dtUser = dbhandler.ValidateUserLogin("PHARMACY", username);
+                DataTable dtUser = dbhandler.ValidateUserLogin("ADMIN", username);
                 if (dtUser.Rows.Count == 0)
-                    dtUser = dbhandler.ValidateUserLogin("USER", username);
+                    dtUser = dbhandler.ValidateUserLogin("CLIENT", username);
 
                 if (dtUser.Rows.Count == 0)
                     return BadRequest(new ApiResponse<object> { success = false, message = "User not found" });
@@ -371,9 +371,9 @@ namespace MediStock.API.Controllers
                 string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 dbhandler.RevokeRefreshToken(refreshToken, ipAddress);
 
-                DataTable dt = dbhandler.ValidateUserLogin("PHARMACY", email);
+                DataTable dt = dbhandler.ValidateUserLogin("ADMIN", email);
                 if (dt.Rows.Count == 0)
-                    dt = dbhandler.ValidateUserLogin("USER", email);
+                    dt = dbhandler.ValidateUserLogin("CLIENT", email);
 
                 if (dt.Rows.Count == 0)
                     return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
@@ -471,9 +471,9 @@ namespace MediStock.API.Controllers
 
                 string email = jobject["email"]!.ToString().Trim();
 
-                DataTable dt = dbhandler.ValidateUserLogin("PHARMACY", email);
+                DataTable dt = dbhandler.ValidateUserLogin("ADMIN", email);
                 if (dt.Rows.Count == 0)
-                    dt = dbhandler.ValidateUserLogin("USER", email);
+                    dt = dbhandler.ValidateUserLogin("CLIENT", email);
 
                 if (dt.Rows.Count == 0)
                     return NotFound(new ApiResponse<object> { success = false, message = "No account found with that email" });
@@ -483,7 +483,7 @@ namespace MediStock.API.Controllers
                 long userId = Convert.ToInt64(dt.Rows[0]["id"]);
                 string? mobile = dt.Rows[0]["mobile"]?.ToString();
 
-                dbhandler.RizikiSaveOtp(userId, "USER", email, mobile, otp, "PASSWORD_RESET", otpRef);
+                dbhandler.RizikiSaveOtp(userId, "CLIENT", email, mobile, otp, "PASSWORD_RESET", otpRef);
 
                 _logger.LogInfo($"ForgotPassword: OTP generated for {email}");
                 return Ok(new ApiResponse<object>
@@ -527,7 +527,7 @@ namespace MediStock.API.Controllers
                     return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
 
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-                bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, "PHARMACY");
+                bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, "ADMIN");
 
                 if (!reset)
                     return BadRequest(new ApiResponse<object> { success = false, message = "Failed to reset password" });
@@ -588,8 +588,8 @@ namespace MediStock.API.Controllers
                 if (string.IsNullOrEmpty(email))
                     return BadRequest(new ApiResponse<object> { success = false, message = "Email is required" });
 
-                DataTable dt1 = dbhandler.ValidateUserLogin("PHARMACY", email.Trim());
-                DataTable dt2 = dbhandler.ValidateUserLogin("USER", email.Trim());
+                DataTable dt1 = dbhandler.ValidateUserLogin("ADMIN", email.Trim());
+                DataTable dt2 = dbhandler.ValidateUserLogin("CLIENT", email.Trim());
                 bool available = dt1.Rows.Count == 0 && dt2.Rows.Count == 0;
 
                 return Ok(new ApiResponse<object>

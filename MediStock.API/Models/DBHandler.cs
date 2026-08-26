@@ -1225,26 +1225,24 @@ namespace MediStock.API.Models
 
         #region Menu Methods
 
-        public DataTable GetMenuRecords(int roleId)
+        public DataTable GetMenu(int profileId, string type, string menuName)
         {
             DataTable dt = new DataTable();
             try
             {
                 using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new MySqlCommand("get_records", connect);
+                using MySqlCommand cmd = new MySqlCommand("get_menu", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@module", "menu_access");
-                cmd.Parameters.AddWithValue("@param1", roleId.ToString());
-                cmd.Parameters.AddWithValue("@param2", "");
-                cmd.Parameters.AddWithValue("@param3", "");
-                cmd.Parameters.AddWithValue("@param4", "");
+                cmd.Parameters.AddWithValue("@p_profile_id", profileId);
+                cmd.Parameters.AddWithValue("@p_type", type);
+                cmd.Parameters.AddWithValue("@p_menu_name", menuName);
                 sd.Fill(dt);
             }
             catch (Exception ex)
             {
-                logger.Error("GetMenuRecords: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                logger.Error("GetMenu: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
             }
             return dt;
         }

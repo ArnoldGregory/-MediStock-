@@ -57,7 +57,7 @@ namespace MediStock.Portal.Services
 
                 var json = await resp.Content.ReadAsStringAsync();
                 var env = JsonSerializer.Deserialize<MenuEnvelope>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                return env?.Data?.Menu ?? new List<MenuItem>();
+                return env?.Menu ?? new List<MenuItem>();
             }
             catch
             {
@@ -69,12 +69,7 @@ namespace MediStock.Portal.Services
     public class MenuEnvelope
     {
         public bool Success { get; set; }
-        public MenuDataEnvelope? Data { get; set; }
-    }
-
-    public class MenuDataEnvelope
-    {
-        public List<MenuItem> Menu { get; set; } = new();
+        public List<MenuItem>? Menu { get; set; }
     }
 
     public class MenuItem

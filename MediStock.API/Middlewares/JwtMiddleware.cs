@@ -19,7 +19,6 @@ namespace MediStock.API.Middlewares
 
         public async Task InvokeAsync(HttpContext context)
         {
-            // Public routes that don't require auth
             var path = context.Request.Path.Value?.ToLower() ?? "";
             var publicRoutes = new[]
             {
@@ -67,6 +66,9 @@ namespace MediStock.API.Middlewares
 
                     var principal = tokenHandler.ValidateToken(token, validationParams, out var validatedToken);
                     context.User = principal;
+
+                    // Riziki pattern: extract claims to HttpContext.Items
+                    ExtractClaimsToContext(context, token);
                 }
                 catch (SecurityTokenExpiredException)
                 {
@@ -81,6 +83,50 @@ namespace MediStock.API.Middlewares
             }
 
             await _next(context);
+        }
+
+        /// <summary>
+        /// Reads JWT claims and stores them in HttpContext.Items
+        /// so any controller can access them via HttpContext.Items["user_id"] etc.
+        /// </summary>
+        private void ExtractClaimsToContext(HttpContext context, string token)
+        {
+            try
+            {
+                JwtSecurityTokenHandler handler = new();
+                JwtSecurityToken jwtToken = handler.ReadJwtToken(token);
+
+                string? userId = jwtToken.Claims.FirstOrDefault(c => c.Type == "user_id")?.Value;
+                string? profileId = jwtToken.Claims.FirstOrDefault(c => c.Type == "role_id")?.Value
+                                 ?? jwtToken.Claims.FirstOrDefault(c => c.Type == "profile_id")?.Value;
+                string? email = jwtToken.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+                string? pharmacyId = jwtToken.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value;
+
+                // Derive role_type from profile_id (role_id)
+                string roleType = "CLIENT";
+                if (int.TryParse(profileId, out int rid))
+                {
+                    roleType = rid switch
+                    {
+                        1 => "SuperAdmin",
+                        2 => "Admin",
+                        3 => "Pharmacist",
+                        4 => "Staff",
+                        5 => "Cashier",
+                        _ => "CLIENT"
+                    };
+                }
+
+                if (!string.IsNullOrEmpty(userId)) context.Items["user_id"] = userId;
+                if (!string.IsNullOrEmpty(profileId)) context.Items["profile_id"] = profileId;
+                if (!string.IsNullOrEmpty(email)) context.Items["email"] = email;
+                if (!string.IsNullOrEmpty(pharmacyId)) context.Items["pharmacy_id"] = pharmacyId;
+                if (!string.IsNullOrEmpty(roleType)) context.Items["role_type"] = roleType;
+            }
+            catch (Exception)
+            {
+                // silently fail — context items stay unset
+            }
         }
     }
 }
