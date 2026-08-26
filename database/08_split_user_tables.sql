@@ -130,23 +130,23 @@ UPDATE menu_access SET menu_icon = 'fa-user-secret'     WHERE main_menu_name = '
 -- ============================================================
 DROP PROCEDURE IF EXISTS `validate_login`$$
 CREATE PROCEDURE `validate_login`(
-    IN p_username    VARCHAR(200),
-    IN p_profiletype VARCHAR(50)
+    IN username    VARCHAR(200),
+    IN profiletype VARCHAR(50)
 )
 BEGIN
-    IF p_profiletype = 'ADMIN' THEN
+    IF profiletype = 'ADMIN' THEN
         SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
                email, mobile, password, avatar, locked, approved,
                is_deleted, created_by, created_on
         FROM portal_users
-        WHERE email = p_username AND is_deleted = 0
+        WHERE email = username AND is_deleted = 0
         LIMIT 1;
     ELSE
         SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
                email, mobile, password, avatar, locked, change_password,
                failed_login_attempts, is_deleted, created_by, created_on
         FROM p_external_portal_user
-        WHERE email = p_username AND is_deleted = 0
+        WHERE email = username AND is_deleted = 0
         LIMIT 1;
     END IF;
 END$$
@@ -158,16 +158,16 @@ DROP PROCEDURE IF EXISTS `client_password_reset`$$
 CREATE PROCEDURE `client_password_reset`(
     IN p_email     VARCHAR(200),
     IN p_password  VARCHAR(200),
-    IN p_profiletype VARCHAR(50)
+    IN profiletype VARCHAR(50)
 )
 BEGIN
-    IF p_profiletype = 'ADMIN' OR p_profiletype IS NULL THEN
+    IF profiletype = 'ADMIN' OR profiletype IS NULL THEN
         UPDATE portal_users
         SET password = p_password
         WHERE email = p_email AND is_deleted = 0;
     END IF;
 
-    IF p_profiletype = 'CLIENT' OR p_profiletype IS NULL THEN
+    IF profiletype = 'CLIENT' OR profiletype IS NULL THEN
         UPDATE p_external_portal_user
         SET password = p_password, change_password = 0, failed_login_attempts = 0
         WHERE email = p_email AND is_deleted = 0;

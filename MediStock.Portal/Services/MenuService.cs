@@ -1,92 +1,75 @@
 // ============================================================
 //  MediStock.Portal — MenuService
-//  Place in: Services/MenuService.cs
-//  Builds sidebar menu based on user role claims.
+//  Matches Riziki pattern exactly.
 // ============================================================
 
 using System.Net.Http.Headers;
-using System.Security.Claims;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace MediStock.Portal.Services
 {
     public sealed class MenuService
     {
-        private readonly IHttpClientFactory _http;
+        private readonly IHttpClientFactory _factory;
         private readonly ApiClient _api;
-        private readonly IHttpContextAccessor _ctx;
 
-        public MenuService(IHttpClientFactory http, ApiClient api, IHttpContextAccessor ctx)
+        private static readonly JsonSerializerOptions _json = new()
         {
-            _http = http;
+            PropertyNameCaseInsensitive = true
+        };
+
+        public MenuService(IHttpClientFactory factory, ApiClient api)
+        {
+            _factory = factory;
             _api = api;
-            _ctx = ctx;
         }
 
-        public string GetUserRole()
-        {
-            return _ctx.HttpContext?.User?.FindFirst(ClaimTypes.Role)?.Value ?? "";
-        }
-
-        public string GetPharmacyId()
-        {
-            return _ctx.HttpContext?.User?.FindFirst("pharmacy_id")?.Value ?? "0";
-        }
-
-        public string GetUserName()
-        {
-            return _ctx.HttpContext?.User?.FindFirstValue(ClaimTypes.Name) ?? "";
-        }
-
-        public string GetUserEmail()
-        {
-            return _ctx.HttpContext?.User?.FindFirstValue(ClaimTypes.Email) ?? "";
-        }
-
-        public async Task<List<MenuItem>> GetMenuAsync(string pageAccessed)
+        public async Task<List<MenuItem>> GetMenuAsync(string pageAccessed = "")
         {
             try
             {
                 var token = _api.GetAccessToken();
-                var client = _http.CreateClient("MainApi");
-                if (!string.IsNullOrEmpty(token))
-                    client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                if (string.IsNullOrEmpty(token)) return new();
+
+                var client = _factory.CreateClient("MainApi");
+                client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                 var resp = await client.GetAsync($"api/menus?pageaccessed={Uri.EscapeDataString(pageAccessed)}");
-                if (!resp.IsSuccessStatusCode) return new List<MenuItem>();
+                if (!resp.IsSuccessStatusCode) return new();
 
-                var json = await resp.Content.ReadAsStringAsync();
-                var env = JsonSerializer.Deserialize<MenuEnvelope>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                return env?.Menu ?? new List<MenuItem>();
+                var raw = await resp.Content.ReadAsStringAsync();
+                var env = JsonSerializer.Deserialize<MenuEnvelope>(raw, _json);
+                return env?.Menu ?? new();
             }
             catch
             {
-                return new List<MenuItem>();
+                return new();
             }
         }
     }
 
-    public class MenuEnvelope
+    public sealed class MenuEnvelope
     {
-        public bool Success { get; set; }
-        public List<MenuItem>? Menu { get; set; }
+        [JsonPropertyName("success")] public bool Success { get; set; }
+        [JsonPropertyName("menu")] public List<MenuItem>? Menu { get; set; }
     }
 
-    public class MenuItem
+    public sealed class MenuItem
     {
-        public int MenuOrder { get; set; }
-        public string MenuName { get; set; } = "";
-        public string MenuIcon { get; set; } = "";
-        public string MenuUrl { get; set; } = "";
-        public string MenuSelected { get; set; } = "";
-        public List<SubMenuItem> SubMenus { get; set; } = new();
+        [JsonPropertyName("menu_order")] public int MenuOrder { get; set; }
+        [JsonPropertyName("menu_name")] public string? MenuName { get; set; }
+        [JsonPropertyName("menu_icon")] public string? MenuIcon { get; set; }
+        [JsonPropertyName("menu_url")] public string? MenuUrl { get; set; }
+        [JsonPropertyName("menu_selected")] public string? MenuSelected { get; set; }
+        [JsonPropertyName("sub_menus")] public List<SubMenuItem>? SubMenus { get; set; }
     }
 
-    public class SubMenuItem
+    public sealed class SubMenuItem
     {
-        public int SubMenuOrder { get; set; }
-        public string SubMenuName { get; set; } = "";
-        public string SubMenuUrl { get; set; } = "";
-        public string SubMenuSelected { get; set; } = "";
+        [JsonPropertyName("sub_menu_order")] public int SubMenuOrder { get; set; }
+        [JsonPropertyName("sub_menu_name")] public string? SubMenuName { get; set; }
+        [JsonPropertyName("sub_menu_url")] public string? SubMenuUrl { get; set; }
+        [JsonPropertyName("sub_menu_selected")] public string? SubMenuSelected { get; set; }
     }
 }
