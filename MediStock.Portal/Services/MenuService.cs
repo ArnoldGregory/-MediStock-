@@ -1,6 +1,5 @@
 // ============================================================
 //  MediStock.Portal — MenuService
-//  Matches Riziki pattern exactly.
 // ============================================================
 
 using System.Net.Http.Headers;
@@ -13,16 +12,18 @@ namespace MediStock.Portal.Services
     {
         private readonly IHttpClientFactory _factory;
         private readonly ApiClient _api;
+        private readonly ILogger<MenuService> _log;
 
         private static readonly JsonSerializerOptions _json = new()
         {
             PropertyNameCaseInsensitive = true
         };
 
-        public MenuService(IHttpClientFactory factory, ApiClient api)
+        public MenuService(IHttpClientFactory factory, ApiClient api, ILogger<MenuService> log)
         {
             _factory = factory;
             _api = api;
+            _log = log;
         }
 
         public async Task<List<MenuItem>> GetMenuAsync(string pageAccessed = "")
@@ -30,20 +31,44 @@ namespace MediStock.Portal.Services
             try
             {
                 var token = _api.GetAccessToken();
-                if (string.IsNullOrEmpty(token)) return new();
+                if (string.IsNullOrEmpty(token))
+                {
+                    _log.LogWarning("GetMenuAsync: No access token in session");
+                    return new();
+                }
+
+                _log.LogInformation("GetMenuAsync: Calling api/menus with token={tokenPrefix}...", token[..Math.Min(20, token.Length)]);
 
                 var client = _factory.CreateClient("MainApi");
                 client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                 var resp = await client.GetAsync($"api/menus?pageaccessed={Uri.EscapeDataString(pageAccessed)}");
-                if (!resp.IsSuccessStatusCode) return new();
+
+                _log.LogInformation("GetMenuAsync: API responded with {statusCode}", resp.StatusCode);
+
+                if (!resp.IsSuccessStatusCode)
+                {
+                    var body = await resp.Content.ReadAsStringAsync();
+                    _log.LogWarning("GetMenuAsync: API returned {statusCode}: {body}", resp.StatusCode, body[..Math.Min(500, body.Length)]);
+                    return new();
+                }
 
                 var raw = await resp.Content.ReadAsStringAsync();
+                _log.LogInformation("GetMenuAsync: Raw response length={len}", raw.Length);
+
                 var env = JsonSerializer.Deserialize<MenuEnvelope>(raw, _json);
-                return env?.Menu ?? new();
+                if (env?.Menu is null)
+                {
+                    _log.LogWarning("GetMenuAsync: Deserialized envelope is null or Menu is null. Raw={raw}", raw[..Math.Min(500, raw.Length)]);
+                    return new();
+                }
+
+                _log.LogInformation("GetMenuAsync: Got {count} menus", env.Menu.Count);
+                return env.Menu;
             }
-            catch
+            catch (Exception ex)
             {
+                _log.LogError(ex, "GetMenuAsync: Exception");
                 return new();
             }
         }
