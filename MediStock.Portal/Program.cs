@@ -38,9 +38,9 @@ try
     });
 
     builder.Services.AddHttpContextAccessor();
-    builder.Services.AddSingleton<MediStock.Portal.Services.ApiClient>();
-    builder.Services.AddSingleton<MediStock.Portal.Services.MenuService>();
-    builder.Services.AddSingleton<MediStock.Portal.Services.AuditService>();
+    builder.Services.AddScoped<MediStock.Portal.Services.ApiClient>();
+    builder.Services.AddScoped<MediStock.Portal.Services.MenuService>();
+    builder.Services.AddScoped<MediStock.Portal.Services.AuditService>();
 
     builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
         .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, opt =>

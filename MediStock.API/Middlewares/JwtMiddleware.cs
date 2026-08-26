@@ -58,8 +58,7 @@ namespace MediStock.API.Middlewares
                         IssuerSigningKey = key,
                         ValidateIssuer = true,
                         ValidIssuer = _config["Jwt:Issuer"],
-                        ValidateAudience = true,
-                        ValidAudience = _config["Jwt:Audience"],
+                        ValidateAudience = false,
                         ValidateLifetime = true,
                         ClockSkew = TimeSpan.Zero
                     };
