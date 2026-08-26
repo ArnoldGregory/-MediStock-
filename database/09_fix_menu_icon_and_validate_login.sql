@@ -36,7 +36,7 @@ BEGIN
                0 AS change_password, 0 AS failed_login_attempts,
                is_deleted, created_by, created_on
         FROM portal_users
-        WHERE email = p_username AND is_deleted = 0
+        WHERE email = username AND is_deleted = 0
         LIMIT 1;
     ELSE
         SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
