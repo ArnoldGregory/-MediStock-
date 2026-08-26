@@ -1,0 +1,284 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/select2/dist/css/select2.min.css" rel="stylesheet" />
+}
+
+<div style="display:none;">@Html.AntiForgeryToken()</div>
+
+<h1 class="page-header"><i class="fa fa-shield"></i> Access Control <small>Role & Menu Management</small></h1>
+
+<div class="row">
+    <!-- Roles Panel -->
+    <div class="col-md-4">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-users m-r-5"></i> Roles</h4>
+            </div>
+            <div class="panel-body">
+                <button class="btn btn-sm btn-success m-b-10" onclick="resetRoleForm();"><i class="fa fa-plus"></i> Add Role</button>
+                <table id="rolesTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Role</th>
+                            <th>Description</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Menu Access Panel -->
+    <div class="col-md-8">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-bars m-r-5"></i> Menu Access</h4>
+            </div>
+            <div class="panel-body">
+                <div class="row m-b-10">
+                    <div class="col-md-6">
+                        <label>Select Role</label>
+                        <select class="form-control select2" id="menuRoleSelect">
+                            <option value="">-- Select Role --</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6" style="padding-top:25px;">
+                        <button class="btn btn-primary" id="btnLoadMenus" onclick="loadMenuAccess();"><i class="fa fa-refresh"></i> Load Menus</button>
+                        <button class="btn btn-success" id="btnSaveAccess" onclick="saveMenuAccess();" style="display:none;"><i class="fa fa-save"></i> Save Access</button>
+                    </div>
+                </div>
+                <div id="menuAccessPanel" style="display:none;">
+                    <table class="table table-striped table-hover table-bordered table-condensed">
+                        <thead>
+                            <tr>
+                                <th><input type="checkbox" id="selectAll" onclick="toggleAll();" /></th>
+                                <th>Menu</th>
+                                <th>Sub Menu</th>
+                                <th>URL</th>
+                                <th>Order</th>
+                            </tr>
+                        </thead>
+                        <tbody id="menuAccessBody"></tbody>
+                    </table>
+                </div>
+                <div id="noRoleSelected" class="text-muted text-center" style="padding:40px;">
+                    <i class="fa fa-arrow-left fa-3x"></i>
+                    <p class="m-t-10">Select a role to manage menu access</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add/Edit Role Modal -->
+<div class="modal fade" id="roleModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form id="roleForm">
+                <input type="hidden" id="roleId" value="" />
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                    <h4 class="modal-title" id="roleModalLabel"><i class="fa fa-plus"></i> Add Role</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Role Name <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="roleName" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea class="form-control" id="roleDescription" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                    <button type="submit" class="btn btn-success" id="btnSaveRole"><i class="fa fa-save"></i> Save</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
+    <script>
+        var rolesTable;
+        var allMenus = [];
+        var currentMenuAccess = [];
+
+        $(document).ready(function () {
+            $('.select2').select2({ width: '100%' });
+            loadRoles();
+        });
+
+        function loadRoles() {
+            $.get('/Admin/GetRolesList', function (data) {
+                var list = data.data || data;
+                var $sel = $('#menuRoleSelect');
+                $sel.find('option:gt(0)').remove();
+                $.each(list, function (i, r) {
+                    $sel.append('<option value="' + r.id + '">' + r.role_name + '</option>');
+                });
+
+                if (rolesTable) rolesTable.destroy();
+                rolesTable = $('#rolesTable').DataTable({
+                    data: list,
+                    columns: [
+                        { data: 'role_name' },
+                        { data: 'description', defaultContent: '-' },
+                        {
+                            data: null,
+                            orderable: false,
+                            render: function (d) {
+                                return '<button class="btn btn-xs btn-primary" onclick="editRole(' + d.id + ',\'' + (d.role_name || '').replace(/'/g, "\\'") + '\',\'' + (d.description || '').replace(/'/g, "\\'") + '\')"><i class="fa fa-edit"></i></button> ' +
+                                    '<button class="btn btn-xs btn-danger" onclick="deleteRole(' + d.id + ')"><i class="fa fa-trash"></i></button>';
+                            }
+                        }
+                    ],
+                    order: [[0, 'asc']],
+                    pageLength: 10
+                });
+            });
+        }
+
+        function resetRoleForm() {
+            $('#roleForm')[0].reset();
+            $('#roleId').val('');
+            $('#roleModalLabel').html('<i class="fa fa-plus"></i> Add Role');
+            $('#roleModal').modal('show');
+        }
+
+        function editRole(id, name, desc) {
+            $('#roleId').val(id);
+            $('#roleName').val(name);
+            $('#roleDescription').val(desc);
+            $('#roleModalLabel').html('<i class="fa fa-edit"></i> Edit Role');
+            $('#roleModal').modal('show');
+        }
+
+        function deleteRole(id) {
+            Swal.fire({
+                title: 'Delete Role?',
+                text: 'This action cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#dc2626',
+                confirmButtonText: 'Yes, delete!'
+            }).then(function (result) {
+                if (result.isConfirmed) {
+                    $.ajax({
+                        url: '/api/access/roles/' + id,
+                        type: 'DELETE',
+                        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                        success: function () {
+                            Swal.fire('Deleted', 'Role deleted.', 'success');
+                            loadRoles();
+                        },
+                        error: function () { Swal.fire('Error', 'Failed to delete role.', 'error'); }
+                    });
+                }
+            });
+        }
+
+        $('#roleForm').on('submit', function (e) {
+            e.preventDefault();
+            var id = $('#roleId').val();
+            var payload = {
+                id: id ? parseInt(id) : 0,
+                role_name: $('#roleName').val(),
+                description: $('#roleDescription').val()
+            };
+
+            btnLoad('#btnSaveRole', 'Saving...');
+            $.ajax({
+                url: id ? '/api/access/roles/' + id : '/api/access/roles',
+                type: id ? 'PUT' : 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    Swal.fire('Saved', 'Role saved.', 'success');
+                    $('#roleModal').modal('hide');
+                    loadRoles();
+                    btnStop('#btnSaveRole');
+                },
+                error: function (xhr) {
+                    Swal.fire('Error', xhr.responseText || 'Failed.', 'error');
+                    btnStop('#btnSaveRole');
+                }
+            });
+        });
+
+        function loadMenuAccess() {
+            var roleId = $('#menuRoleSelect').val();
+            if (!roleId) { Swal.fire('Info', 'Select a role first.', 'info'); return; }
+
+            pageBlock('Loading menus...');
+            $.get('/Admin/GetMenus', function (menusRes) {
+                allMenus = menusRes.data || menusRes;
+                $.get('/Admin/GetMenuAccess?roleId=' + roleId, function (accessRes) {
+                    currentMenuAccess = accessRes.data || accessRes;
+                    var accessIds = {};
+                    $.each(currentMenuAccess, function (i, a) { accessIds[a.menu_id] = true; });
+
+                    var tbody = $('#menuAccessBody');
+                    tbody.empty();
+                    $.each(allMenus, function (i, m) {
+                        var checked = accessIds[m.id] ? 'checked' : '';
+                        tbody.append(
+                            '<tr>' +
+                            '<td><input type="checkbox" class="menu-cb" value="' + m.id + '" ' + checked + ' /></td>' +
+                            '<td>' + (m.main_menu_name || '-') + '</td>' +
+                            '<td>' + (m.sub_menu_name || '-') + '</td>' +
+                            '<td><small>' + (m.page_url || '-') + '</small></td>' +
+                            '<td>' + (m.menu_order || 0) + '</td>' +
+                            '</tr>'
+                        );
+                    });
+
+                    $('#menuAccessPanel').show();
+                    $('#noRoleSelected').hide();
+                    $('#btnSaveAccess').show();
+                    pageUnblock();
+                });
+            });
+        }
+
+        function toggleAll() {
+            var checked = $('#selectAll').is(':checked');
+            $('.menu-cb').prop('checked', checked);
+        }
+
+        function saveMenuAccess() {
+            var roleId = $('#menuRoleSelect').val();
+            if (!roleId) return;
+
+            var menuIds = [];
+            $('.menu-cb:checked').each(function () { menuIds.push(parseInt($(this).val())); });
+
+            btnLoad('#btnSaveAccess', 'Saving...');
+            $.ajax({
+                url: '/Admin/SaveMenuAccess',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ role_id: parseInt(roleId), menu_ids: menuIds }),
+                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
+                success: function () {
+                    Swal.fire('Saved', 'Menu access updated.', 'success');
+                    btnStop('#btnSaveAccess');
+                },
+                error: function (xhr) {
+                    Swal.fire('Error', xhr.responseText || 'Failed.', 'error');
+                    btnStop('#btnSaveAccess');
+                }
+            });
+        }
+    </script>
+}

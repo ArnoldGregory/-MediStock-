@@ -32,7 +32,9 @@ VALUES
 (1, 'DDA',           'Report',           '~/DDA/Report',               1, 75, 2),
 (1, 'Settings',      'Profile',          '~/Settings/Profile',         1, 80, 1),
 (1, 'Settings',      'Pharmacy',         '~/Settings/Pharmacy',        1, 80, 2),
-(1, 'Admin',         'Users',            '~/Admin/Users',              1, 90, 1);
+(1, 'Admin',         'Users',            '~/Admin/Users',              1, 90, 1),
+(1, 'Admin',         'Access Control',   '~/Admin/AccessControl',      1, 90, 2),
+(1, 'Admin',         'Audit Trail',      '~/Admin/AuditTrail',         1, 90, 3);
 
 -- ── ADMIN (role_id = 2) ──
 INSERT IGNORE INTO menu_access (role_id, main_menu_name, sub_menu_name, page_url, can_access, menu_order, sub_menu_order)
@@ -61,7 +63,9 @@ VALUES
 (2, 'DDA',           'Report',           '~/DDA/Report',               1, 75, 2),
 (2, 'Settings',      'Profile',          '~/Settings/Profile',         1, 80, 1),
 (2, 'Settings',      'Pharmacy',         '~/Settings/Pharmacy',        1, 80, 2),
-(2, 'Admin',         'Users',            '~/Admin/Users',              1, 90, 1);
+(2, 'Admin',         'Users',            '~/Admin/Users',              1, 90, 1),
+(2, 'Admin',         'Access Control',   '~/Admin/AccessControl',      1, 90, 2),
+(2, 'Admin',         'Audit Trail',      '~/Admin/AuditTrail',         1, 90, 3);
 
 -- ── PHARMACIST (role_id = 3) ──
 INSERT IGNORE INTO menu_access (role_id, main_menu_name, sub_menu_name, page_url, can_access, menu_order, sub_menu_order)
