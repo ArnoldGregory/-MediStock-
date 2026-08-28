@@ -2,128 +2,145 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using Newtonsoft.Json.Linq;
 using System.Data;
 
 namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/reports")]
-    public class ReportsController : ControllerBase
+    public class ReportsController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly IConfiguration _config;
-        private readonly ILoggerManager _logger;
 
-        public ReportsController(IConfiguration config, ILoggerManager logger)
+        public ReportsController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
-            _config = config;
-            _logger = logger;
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         [Authorize]
         [HttpGet("sales")]
-        public IActionResult GetSalesReport([FromQuery] string? from_date, [FromQuery] string? to_date)
+        public ActionResult GetSalesReport([FromQuery] string? from_date, [FromQuery] string? to_date)
         {
-            _logger.LogInfo("******* GET SALES REPORT REQUEST **********");
+            iloggermanager.LogInfo("******* GET SALES REPORT REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 string p1 = pharmacyId.ToString();
                 string p2 = from_date ?? "";
                 string p3 = to_date ?? "";
                 DataTable dt = dbhandler.GetRecords("report_sales", p1, p2, p3);
-                _logger.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
-                return Ok(new ApiResponse<DataTable> { success = true, data = dt });
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetSalesReport: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetSalesReport: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("stock")]
-        public IActionResult GetStockReport()
+        public ActionResult GetStockReport()
         {
-            _logger.LogInfo("******* GET STOCK REPORT REQUEST **********");
+            iloggermanager.LogInfo("******* GET STOCK REPORT REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetRecords("report_stock", pharmacyId.ToString());
-                _logger.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
-                return Ok(new ApiResponse<DataTable> { success = true, data = dt });
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetStockReport: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetStockReport: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("financial")]
-        public IActionResult GetFinancialReport([FromQuery] string? from_date, [FromQuery] string? to_date)
+        public ActionResult GetFinancialReport([FromQuery] string? from_date, [FromQuery] string? to_date)
         {
-            _logger.LogInfo("******* GET FINANCIAL REPORT REQUEST **********");
+            iloggermanager.LogInfo("******* GET FINANCIAL REPORT REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 string p1 = pharmacyId.ToString();
                 string p2 = from_date ?? "";
                 string p3 = to_date ?? "";
                 DataTable dt = dbhandler.GetRecords("report_financial", p1, p2, p3);
-                _logger.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
-                return Ok(new ApiResponse<DataTable> { success = true, data = dt });
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetFinancialReport: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetFinancialReport: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("margins")]
-        public IActionResult GetProductMargins()
+        public ActionResult GetProductMargins()
         {
-            _logger.LogInfo("******* GET PRODUCT MARGINS REQUEST **********");
+            iloggermanager.LogInfo("******* GET PRODUCT MARGINS REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetRecords("report_product_margins", pharmacyId.ToString());
-                _logger.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
-                return Ok(new ApiResponse<DataTable> { success = true, data = dt });
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
+            catch (Exception ex) { iloggermanager.LogError("GetProductMargins: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [NonAction]
+        private List<Dictionary<string, object>> ToRows(DataTable dt)
+        {
+            var rows = new List<Dictionary<string, object>>();
+            foreach (DataRow dr in dt.Rows)
             {
-                _logger.LogError("GetProductMargins: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
+                var row = new Dictionary<string, object>();
+                foreach (DataColumn col in dt.Columns) row[col.ColumnName] = dr[col];
+                rows.Add(row);
             }
+            return rows;
         }
 
-        private Int64 GetCallerPharmacyId()
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
         {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
         }
 
-        private Int64 GetCallerUserId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "user_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
+        [NonAction]
+        private ActionResult Bad(string msg) =>
+            StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
 
-        private string GetCallerEmail()
-        {
-            return HttpContext.User.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "";
-        }
+        [NonAction]
+        private ActionResult Forbidden(string msg) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
-        private int GetCallerRoleId()
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
+
+        [NonAction]
+        public bool CaptureAuditTrail(string user, string action_type, string action_description)
         {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
-            return claim != null ? Convert.ToInt32(claim.Value) : 0;
+            AuditTrailModel audittrailmodel = new()
+            {
+                user_name = user,
+                action_type = action_type,
+                action_description = action_description,
+                page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                session_id = "TODO"
+            };
+            return dbhandler.AddAuditTrail(audittrailmodel);
         }
     }
 }

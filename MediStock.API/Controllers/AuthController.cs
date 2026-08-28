@@ -10,26 +10,28 @@ namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/auth")]
-    public class AuthController : ControllerBase
+    public class AuthController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly IConfiguration _config;
-        private readonly ILoggerManager _logger;
 
-        public AuthController(IConfiguration config, ILoggerManager logger)
+        public AuthController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
-            _config = config;
-            _logger = logger;
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         [AllowAnonymous]
         [HttpPost("login")]
         [HttpPost("clientlogin")]
-        public IActionResult Login([FromBody] JObject jobject)
+        public ActionResult Login([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* LOGIN REQUEST **********");
-            _logger.LogInfo(jobject.ToString());
+            iloggermanager.LogInfo("******* LOGIN REQUEST **********");
+            iloggermanager.LogInfo(jobject.ToString());
 
             try
             {
@@ -41,8 +43,7 @@ namespace MediStock.API.Controllers
 
                 string password = jobject["password"]?.ToString() ?? "";
 
-                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email and password are required" });
+                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password)) return Bad("Email and password are required");
 
                 DataTable dt = dbhandler.ValidateUserLogin("ADMIN", email);
                 if (dt.Rows.Count == 0)
@@ -50,13 +51,9 @@ namespace MediStock.API.Controllers
 
                 if (dt.Rows.Count == 0)
                 {
-                    _logger.LogInfo($"Login failed: User not found for email: {email}");
+                    iloggermanager.LogInfo($"Login failed: User not found for email: {email}");
                     CaptureAuditTrail(email, "Invalid Login", "User not found");
-                    return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
-                    {
-                        success = false,
-                        message = "Invalid credentials"
-                    });
+                    return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "Invalid credentials", action = "", data = new JObject() });
                 }
 
                 string? storedPassword = dt.Rows[0]["password"]?.ToString() ?? "";
@@ -68,19 +65,15 @@ namespace MediStock.API.Controllers
 
                 if (password != decryptedPassword)
                 {
-                    _logger.LogInfo($"Login failed: Wrong password for email: {email}");
+                    iloggermanager.LogInfo($"Login failed: Wrong password for email: {email}");
                     CaptureAuditTrail(email, "Invalid Login", "Wrong password");
-                    return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
-                    {
-                        success = false,
-                        message = "Invalid credentials"
-                    });
+                    return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "Invalid credentials", action = "", data = new JObject() });
                 }
 
                 int locked = dt.Rows[0]["locked"] == DBNull.Value ? 0 : Convert.ToInt16(dt.Rows[0]["locked"]);
 
                 if (locked == 1)
-                    return StatusCode(StatusCodes.Status403Forbidden, new ApiResponse<object> { success = false, message = "Account is locked" });
+                    return StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = "Account is locked", action = "", data = new JObject() });
 
                 CaptureAuditTrail(email, "Login Attempt", "OTP sent to user: " + email);
 
@@ -100,7 +93,7 @@ namespace MediStock.API.Controllers
                     _ => "Staff"
                 };
 
-                _logger.LogInfo($"Login: userId={userId} pharmacyId={pharmacyId} roleId={roleId}");
+                iloggermanager.LogInfo($"Login: userId={userId} pharmacyId={pharmacyId} roleId={roleId}");
 
                 var userJobject = new JObject
                 {
@@ -117,12 +110,11 @@ namespace MediStock.API.Controllers
                     { "change_password", dt.Rows[0]["change_password"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["change_password"]) }
                 };
 
-                // string otp = new Helpers.RandomKeyGeneratorManagement().GenerateOtp(4);
                 string otp = "1000";
                 string otpRef = Guid.NewGuid().ToString("N");
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
 
-                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
+                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(iloggermanager, iconfiguration);
                 string tempToken = jwtUtils.GenerateAccessToken(new JObject
                 {
                     { "user_id", userId.ToString() },
@@ -135,36 +127,25 @@ namespace MediStock.API.Controllers
                 userJobject.Add("refreshToken", "");
                 userJobject.Add("otp", otp);
 
-                _logger.LogInfo($"RESPONSE: OTP sent for {email}");
-                return Ok(new ApiResponse<JObject>
-                {
-                    success = true,
-                    message = "OTP sent to your device",
-                    action = "VerifyOTP",
-                    data = userJobject
-                });
+                iloggermanager.LogInfo($"RESPONSE: OTP sent for {email}");
+                return Ok(new { success = true, message = "OTP sent to your device", action = "VerifyOTP", data = userJobject });
             }
             catch (Exception ex)
             {
-                _logger.LogError("Login: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "An error occurred while processing your request"
-                });
+                iloggermanager.LogError("Login: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "An error occurred while processing your request", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpPost("register")]
-        public IActionResult Register([FromBody] JObject jobject)
+        public ActionResult Register([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* REGISTER REQUEST **********");
+            iloggermanager.LogInfo("******* REGISTER REQUEST **********");
 
             try
             {
-                if (jobject == null)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
+                if (jobject == null) return Bad("Invalid request");
 
                 string pharmacyName = jobject["pharmacy_name"]?.ToString()?.Trim() ?? "";
                 string slug = jobject["slug"]?.ToString()?.Trim() ?? "";
@@ -178,14 +159,12 @@ namespace MediStock.API.Controllers
                 string password = jobject["password"]?.ToString() ?? "";
                 string? phone = jobject["phone"]?.ToString()?.Trim();
 
-                if (string.IsNullOrEmpty(pharmacyName) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Pharmacy name, email and password are required" });
+                if (string.IsNullOrEmpty(pharmacyName) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password)) return Bad("Pharmacy name, email and password are required");
 
                 if (!string.IsNullOrEmpty(slug))
                 {
                     DataTable existingSlug = dbhandler.GetPharmacyIdBySlug(slug);
-                    if (existingSlug.Rows.Count > 0)
-                        return BadRequest(new ApiResponse<object> { success = false, message = "Slug already taken" });
+                    if (existingSlug.Rows.Count > 0) return Bad("Slug already taken");
                 }
 
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
@@ -202,8 +181,7 @@ namespace MediStock.API.Controllers
                 };
 
                 bool pharmacyCreated = dbhandler.AddPharmacy(pharmacy);
-                if (!pharmacyCreated || pharmacy.id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Failed to create pharmacy" });
+                if (!pharmacyCreated || pharmacy.id <= 0) return Bad("Failed to create pharmacy");
 
                 var user = new PharmacyUserModel
                 {
@@ -218,63 +196,47 @@ namespace MediStock.API.Controllers
                 };
 
                 bool userCreated = dbhandler.AddUser(user);
-                if (!userCreated)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Pharmacy created but failed to create admin user" });
+                if (!userCreated) return Bad("Pharmacy created but failed to create admin user");
 
-                _logger.LogInfo($"Register: pharmacyId={pharmacy.id} userId={user.id}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Registration successful. You can now log in.",
-                    action = "login"
-                });
+                iloggermanager.LogInfo($"Register: pharmacyId={pharmacy.id} userId={user.id}");
+                return Ok(new { success = true, message = "Registration successful. You can now log in.", action = "login", data = (object?)null });
             }
             catch (Exception ex)
             {
-                _logger.LogError("Register: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Registration failed. Please try again."
-                });
+                iloggermanager.LogError("Register: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Registration failed. Please try again.", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpPost("verify-otp")]
         [HttpPost("otpclientlogin")]
-        public IActionResult VerifyOTP([FromBody] JObject jobject)
+        public ActionResult VerifyOTP([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* VERIFY OTP REQUEST **********");
-            _logger.LogInfo(jobject.ToString());
+            iloggermanager.LogInfo("******* VERIFY OTP REQUEST **********");
+            iloggermanager.LogInfo(jobject.ToString());
 
             try
             {
-                if (jobject == null)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
+                if (jobject == null) return Bad("Invalid request");
 
                 string username = jobject["username"]?.ToString()?.Trim() ?? "";
                 if (string.IsNullOrEmpty(username))
                     username = jobject["email"]?.ToString()?.Trim() ?? "";
                 string otp = jobject["otp"]?.ToString()?.Trim() ?? "";
 
-                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(otp))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "OTP and username are required" });
+                if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(otp)) return Bad("OTP and username are required");
 
-                // Step 1: Look up user by username (Riziki pattern)
                 DataTable dtUser = dbhandler.ValidateUserLogin("ADMIN", username);
                 if (dtUser.Rows.Count == 0)
                     dtUser = dbhandler.ValidateUserLogin("CLIENT", username);
 
-                if (dtUser.Rows.Count == 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "User not found" });
+                if (dtUser.Rows.Count == 0) return Bad("User not found");
 
                 string userEmail = dtUser.Rows[0]["email"]?.ToString() ?? "";
 
-                // Step 2: Verify OTP by email + otp + purpose (no otp_ref)
                 DataTable dt = dbhandler.RizikiVerifyOtp(userEmail, otp, "LOGIN");
-                if (dt.Rows.Count == 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
+                if (dt.Rows.Count == 0) return Bad("Invalid or expired OTP");
 
                 long userId = Convert.ToInt64(dtUser.Rows[0]["id"]);
                 Int64 pharmacyId = dtUser.Rows[0]["pharmacy_id"] != DBNull.Value ? Convert.ToInt64(dtUser.Rows[0]["pharmacy_id"]) : 0;
@@ -309,10 +271,10 @@ namespace MediStock.API.Controllers
                     { "avatar", avatar }
                 };
 
-                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
+                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(iloggermanager, iconfiguration);
                 string accessToken = jwtUtils.GenerateAccessToken(userJobject);
                 string refreshToken = jwtUtils.GenerateRefreshToken();
-                DateTime expiresAt = DateTime.UtcNow.AddDays(_config.GetValue<int>("Jwt:RefreshTokenExpiryDays", 14));
+                DateTime expiresAt = DateTime.UtcNow.AddDays(iconfiguration.GetValue<int>("Jwt:RefreshTokenExpiryDays", 14));
 
                 string hashedRefresh = BCrypt.Net.BCrypt.HashPassword(refreshToken);
                 dbhandler.AddRefreshToken(userId, hashedRefresh, expiresAt);
@@ -323,50 +285,34 @@ namespace MediStock.API.Controllers
                 userJobject.Add("refreshToken", refreshToken);
                 userJobject.Add("change_password", changePassword);
 
-                _logger.LogInfo($"RESPONSE: OTP verified for {userEmail}, login complete");
-                return Ok(new ApiResponse<JObject>
-                {
-                    success = true,
-                    message = "OTP verified - login complete",
-                    action = changePassword ? "ChangePassword" : "Dashboard",
-                    data = userJobject
-                });
+                iloggermanager.LogInfo($"RESPONSE: OTP verified for {userEmail}, login complete");
+                return Ok(new { success = true, message = "OTP verified - login complete", action = changePassword ? "ChangePassword" : "Dashboard", data = userJobject });
             }
             catch (Exception ex)
             {
-                _logger.LogError("VerifyOTP: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "OTP verification failed"
-                });
+                iloggermanager.LogError("VerifyOTP: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "OTP verification failed", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpPost("refresh")]
-        public IActionResult RefreshToken([FromBody] JObject jobject)
+        public ActionResult RefreshToken([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* REFRESH TOKEN REQUEST **********");
+            iloggermanager.LogInfo("******* REFRESH TOKEN REQUEST **********");
 
             try
             {
-                if (jobject == null)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
+                if (jobject == null) return Bad("Invalid request");
 
                 string refreshToken = jobject["refreshToken"]?.ToString() ?? "";
                 string email = jobject["email"]?.ToString() ?? "";
 
-                if (string.IsNullOrEmpty(refreshToken) || string.IsNullOrEmpty(email))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Refresh token and email are required" });
+                if (string.IsNullOrEmpty(refreshToken) || string.IsNullOrEmpty(email)) return Bad("Refresh token and email are required");
 
                 long userId = dbhandler.GetUserIdFromRefreshToken(refreshToken);
                 if (userId == 0)
-                    return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
-                    {
-                        success = false,
-                        message = "Invalid or expired refresh token"
-                    });
+                    return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "Invalid or expired refresh token", action = "", data = new JObject() });
 
                 string ipAddress = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
                 dbhandler.RevokeRefreshToken(refreshToken, ipAddress);
@@ -376,11 +322,7 @@ namespace MediStock.API.Controllers
                     dt = dbhandler.ValidateUserLogin("CLIENT", email);
 
                 if (dt.Rows.Count == 0)
-                    return StatusCode(StatusCodes.Status401Unauthorized, new ApiResponse<object>
-                    {
-                        success = false,
-                        message = "User not found"
-                    });
+                    return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "User not found", action = "", data = new JObject() });
 
                 string userEmail = dt.Rows[0]["email"]?.ToString() ?? "";
                 int roleId = dt.Rows[0]["role_id"] != DBNull.Value ? Convert.ToInt32(dt.Rows[0]["role_id"]) : 3;
@@ -394,10 +336,10 @@ namespace MediStock.API.Controllers
                     { "pharmacy_id", pharmacyId.ToString() }
                 };
 
-                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(_logger, _config);
+                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(iloggermanager, iconfiguration);
                 string newAccessToken = jwtUtils.GenerateAccessToken(userJobject);
                 string newRefreshToken = jwtUtils.GenerateRefreshToken();
-                DateTime newExpires = DateTime.UtcNow.AddDays(_config.GetValue<int>("Jwt:RefreshTokenExpiryDays", 14));
+                DateTime newExpires = DateTime.UtcNow.AddDays(iconfiguration.GetValue<int>("Jwt:RefreshTokenExpiryDays", 14));
 
                 string hashedRefresh = BCrypt.Net.BCrypt.HashPassword(newRefreshToken);
                 dbhandler.AddRefreshToken(userId, hashedRefresh, newExpires);
@@ -405,69 +347,49 @@ namespace MediStock.API.Controllers
                 userJobject.Add("accessToken", newAccessToken);
                 userJobject.Add("refreshToken", newRefreshToken);
 
-                _logger.LogInfo("RESPONSE: Token refreshed");
-                return Ok(new ApiResponse<JObject>
-                {
-                    success = true,
-                    message = "Token refreshed successfully",
-                    action = "TokenRefreshed",
-                    data = userJobject
-                });
+                iloggermanager.LogInfo("RESPONSE: Token refreshed");
+                return Ok(new { success = true, message = "Token refreshed successfully", action = "TokenRefreshed", data = userJobject });
             }
             catch (Exception ex)
             {
-                _logger.LogError("RefreshToken: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Server error during token refresh"
-                });
+                iloggermanager.LogError("RefreshToken: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error during token refresh", action = "", data = new JObject() });
             }
         }
 
         [Authorize]
         [HttpPost("logout")]
-        public IActionResult Logout([FromBody] JObject jobject)
+        public ActionResult Logout([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* LOGOUT REQUEST **********");
+            iloggermanager.LogInfo("******* LOGOUT REQUEST **********");
 
             try
             {
-                long userId = GetCallerUserId();
-                if (userId == 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid user" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (userId == 0) return Bad("Invalid user");
 
                 bool revoked = dbhandler.RevokeAllUserRefreshTokens(userId);
 
-                _logger.LogInfo($"Logout: userId={userId} revoked={revoked}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Logged out from all devices",
-                    action = "Logout"
-                });
+                iloggermanager.LogInfo($"Logout: userId={userId} revoked={revoked}");
+                return Ok(new { success = true, message = "Logged out from all devices", action = "Logout", data = (object?)null });
             }
             catch (Exception ex)
             {
-                _logger.LogError("Logout: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Server error during logout"
-                });
+                iloggermanager.LogError("Logout: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error during logout", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpPost("forgot-password")]
-        public IActionResult ForgotPassword([FromBody] JObject jobject)
+        public ActionResult ForgotPassword([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* FORGOT PASSWORD REQUEST **********");
+            iloggermanager.LogInfo("******* FORGOT PASSWORD REQUEST **********");
 
             try
             {
-                if (jobject == null || !jobject.ContainsKey("email"))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email is required" });
+                if (jobject == null || !jobject.ContainsKey("email")) return Bad("Email is required");
 
                 string email = jobject["email"]!.ToString().Trim();
 
@@ -476,7 +398,7 @@ namespace MediStock.API.Controllers
                     dt = dbhandler.ValidateUserLogin("CLIENT", email);
 
                 if (dt.Rows.Count == 0)
-                    return NotFound(new ApiResponse<object> { success = false, message = "No account found with that email" });
+                    return StatusCode(StatusCodes.Status404NotFound, new { success = false, message = "No account found with that email", action = "", data = new JObject() });
 
                 string otp = new Random().Next(100000, 999999).ToString();
                 string otpRef = Guid.NewGuid().ToString("N");
@@ -485,173 +407,125 @@ namespace MediStock.API.Controllers
 
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", email, mobile, otp, "PASSWORD_RESET", otpRef);
 
-                _logger.LogInfo($"ForgotPassword: OTP generated for {email}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "OTP sent to your email",
-                    data = new JObject { { "otp_ref", otpRef } }
-                });
+                iloggermanager.LogInfo($"ForgotPassword: OTP generated for {email}");
+                return Ok(new { success = true, message = "OTP sent to your email", action = "", data = new JObject { { "otp_ref", otpRef } } });
             }
             catch (Exception ex)
             {
-                _logger.LogError("ForgotPassword: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Failed to process forgot password request"
-                });
+                iloggermanager.LogError("ForgotPassword: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Failed to process forgot password request", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpPost("reset-password")]
-        public IActionResult ResetPassword([FromBody] JObject jobject)
+        public ActionResult ResetPassword([FromBody] JObject jobject)
         {
-            _logger.LogInfo("******* RESET PASSWORD REQUEST **********");
+            iloggermanager.LogInfo("******* RESET PASSWORD REQUEST **********");
 
             try
             {
-                if (jobject == null)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
+                if (jobject == null) return Bad("Invalid request");
 
                 string email = jobject["email"]?.ToString()?.Trim() ?? "";
                 string otp = jobject["otp"]?.ToString()?.Trim() ?? "";
                 string newPassword = jobject["new_password"]?.ToString() ?? "";
 
-                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(otp) || string.IsNullOrEmpty(newPassword))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email, OTP and new password are required" });
+                if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(otp) || string.IsNullOrEmpty(newPassword)) return Bad("Email, OTP and new password are required");
 
                 DataTable dt = dbhandler.RizikiVerifyOtp(email, otp, "PASSWORD_RESET");
-                if (dt.Rows.Count == 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid or expired OTP" });
+                if (dt.Rows.Count == 0) return Bad("Invalid or expired OTP");
 
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
                 bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, "ADMIN");
 
-                if (!reset)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Failed to reset password" });
+                if (!reset) return Bad("Failed to reset password");
 
-                _logger.LogInfo($"ResetPassword: Password reset for {email}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Password reset successfully. You can now log in with your new password."
-                });
+                iloggermanager.LogInfo($"ResetPassword: Password reset for {email}");
+                return Ok(new { success = true, message = "Password reset successfully. You can now log in with your new password.", action = "", data = (object?)null });
             }
             catch (Exception ex)
             {
-                _logger.LogError("ResetPassword: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Password reset failed"
-                });
+                iloggermanager.LogError("ResetPassword: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Password reset failed", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpGet("check-slug")]
-        public IActionResult CheckSlug([FromQuery] string slug)
+        public ActionResult CheckSlug([FromQuery] string slug)
         {
             try
             {
-                if (string.IsNullOrEmpty(slug))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Slug is required" });
+                if (string.IsNullOrEmpty(slug)) return Bad("Slug is required");
 
                 DataTable dt = dbhandler.GetPharmacyIdBySlug(slug.Trim().ToLower());
                 bool available = dt.Rows.Count == 0;
 
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    data = new JObject { { "available", available } }
-                });
+                return Ok(new { success = true, message = "Success", action = "", data = new JObject { { "available", available } } });
             }
             catch (Exception ex)
             {
-                _logger.LogError("CheckSlug: " + ex.Message);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Server error"
-                });
+                iloggermanager.LogError("CheckSlug: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
             }
         }
 
         [AllowAnonymous]
         [HttpGet("check-email")]
-        public IActionResult CheckEmail([FromQuery] string email)
+        public ActionResult CheckEmail([FromQuery] string email)
         {
             try
             {
-                if (string.IsNullOrEmpty(email))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email is required" });
+                if (string.IsNullOrEmpty(email)) return Bad("Email is required");
 
                 DataTable dt1 = dbhandler.ValidateUserLogin("ADMIN", email.Trim());
                 DataTable dt2 = dbhandler.ValidateUserLogin("CLIENT", email.Trim());
                 bool available = dt1.Rows.Count == 0 && dt2.Rows.Count == 0;
 
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    data = new JObject { { "available", available } }
-                });
+                return Ok(new { success = true, message = "Success", action = "", data = new JObject { { "available", available } } });
             }
             catch (Exception ex)
             {
-                _logger.LogError("CheckEmail: " + ex.Message);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object>
-                {
-                    success = false,
-                    message = "Server error"
-                });
+                iloggermanager.LogError("CheckEmail: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
             }
         }
 
-        private Int64 GetCallerPharmacyId()
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
         {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
         }
 
-        private Int64 GetCallerUserId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "user_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
+        [NonAction]
+        private ActionResult Bad(string msg) =>
+            StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
 
-        private string GetCallerEmail()
-        {
-            return HttpContext.User.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "";
-        }
+        [NonAction]
+        private ActionResult Forbidden(string msg) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
-        private int GetCallerRoleId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
-            return claim != null ? Convert.ToInt32(claim.Value) : 0;
-        }
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
 
-        private void CaptureAuditTrail(string email, string actionType, string description)
+        [NonAction]
+        public bool CaptureAuditTrail(string user, string action_type, string action_description)
         {
-            try
+            AuditTrailModel audittrailmodel = new()
             {
-                var model = new AuditTrailModel
-                {
-                    user_name = email,
-                    action_type = actionType,
-                    action_description = description,
-                    page_accessed = HttpContext.Request.Path,
-                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    session_id = HttpContext.Session.Id,
-                    created_on = DateTime.UtcNow
-                };
-                dbhandler.AddAuditTrail(model);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("CaptureAuditTrail: " + ex.Message);
-            }
+                user_name = user,
+                action_type = action_type,
+                action_description = action_description,
+                page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                session_id = "TODO"
+            };
+            return dbhandler.AddAuditTrail(audittrailmodel);
         }
     }
 }

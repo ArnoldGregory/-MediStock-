@@ -61,6 +61,11 @@ try
     });
 
     builder.Services.AddSingleton<ILoggerManager, LoggerManager>();
+    builder.Services.AddScoped(sp =>
+    {
+        var config = sp.GetRequiredService<IConfiguration>();
+        return new DBHandler(config.GetConnectionString("DefaultConnection")!);
+    });
 
     var app = builder.Build();
 

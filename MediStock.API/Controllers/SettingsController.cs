@@ -2,58 +2,56 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using Newtonsoft.Json.Linq;
 using System.Data;
 
 namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/settings")]
-    public class SettingsController : ControllerBase
+    public class SettingsController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly IConfiguration _config;
-        private readonly ILoggerManager _logger;
 
-        public SettingsController(IConfiguration config, ILoggerManager logger)
+        public SettingsController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
-            _config = config;
-            _logger = logger;
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         [Authorize]
         [HttpGet]
-        public IActionResult GetSettings()
+        public ActionResult GetSettings()
         {
-            _logger.LogInfo("******* GET SETTINGS REQUEST **********");
+            iloggermanager.LogInfo("******* GET SETTINGS REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetRecords("pharmacy_settings", pharmacyId.ToString());
-                _logger.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
                 if (dt.Rows.Count == 0)
-                    return Ok(new ApiResponse<object> { success = true, data = new { } });
-                return Ok(new ApiResponse<DataTable> { success = true, data = dt });
+                    return Ok(new { success = true, message = "Success", action = "", data = new JObject() });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetSettings: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetSettings: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpPost("profile")]
-        public IActionResult UpdatePharmacyProfile([FromBody] PharmacyModel model)
+        public ActionResult UpdatePharmacyProfile([FromBody] PharmacyModel model)
         {
-            _logger.LogInfo("******* UPDATE PHARMACY PROFILE REQUEST **********");
+            iloggermanager.LogInfo("******* UPDATE PHARMACY PROFILE REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
-                var userId = GetCallerUserId();
-
-                if (model == null || string.IsNullOrEmpty(model.name))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Pharmacy name is required" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (model == null || string.IsNullOrEmpty(model.name)) return Bad("Pharmacy name is required");
 
                 string sql = $"UPDATE pharmacies SET " +
                     $"name='{model.name.Replace("'", "''")}', " +
@@ -68,39 +66,30 @@ namespace MediStock.API.Controllers
 
                 dbhandler.ExecuteNonQuery(sql);
 
-                _logger.LogInfo($"UpdatePharmacyProfile: pharmacyId={pharmacyId}");
-                CaptureAuditTrail(GetCallerEmail(), "Update Pharmacy Profile", $"Updated pharmacy profile {pharmacyId}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Pharmacy profile updated successfully"
-                });
+                iloggermanager.LogInfo($"UpdatePharmacyProfile: pharmacyId={pharmacyId}");
+                CaptureAuditTrail(userId.ToString(), "Update Pharmacy Profile", $"Updated pharmacy profile {pharmacyId}");
+                return Ok(new { success = true, message = "Pharmacy profile updated successfully", action = "", data = (object?)null });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("UpdatePharmacyProfile: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("UpdatePharmacyProfile: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpPost("config")]
-        public IActionResult SavePharmacySetting([FromBody] Newtonsoft.Json.Linq.JObject jobject)
+        public ActionResult SavePharmacySetting([FromBody] Newtonsoft.Json.Linq.JObject jobject)
         {
-            _logger.LogInfo("******* SAVE PHARMACY SETTING REQUEST **********");
+            iloggermanager.LogInfo("******* SAVE PHARMACY SETTING REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
-                var userId = GetCallerUserId();
-
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 if (jobject == null)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Invalid request" });
+                    return Bad("Invalid request");
 
                 string key = jobject["key"]?.ToString() ?? "";
                 string value = jobject["value"]?.ToString() ?? "";
 
                 if (string.IsNullOrEmpty(key))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Setting key is required" });
+                    return Bad("Setting key is required");
 
                 string escapedKey = key.Replace("'", "''");
                 string escapedValue = value.Replace("'", "''");
@@ -119,65 +108,60 @@ namespace MediStock.API.Controllers
                     dbhandler.ExecuteNonQuery(insertSql);
                 }
 
-                _logger.LogInfo($"SavePharmacySetting: pharmacyId={pharmacyId} key={key}");
-                CaptureAuditTrail(GetCallerEmail(), "Save Pharmacy Setting", $"Saved setting: {key}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Setting saved successfully"
-                });
+                iloggermanager.LogInfo($"SavePharmacySetting: pharmacyId={pharmacyId} key={key}");
+                CaptureAuditTrail(userId.ToString(), "Save Pharmacy Setting", $"Saved setting: {key}");
+                return Ok(new { success = true, message = "Setting saved successfully", action = "", data = (object?)null });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("SavePharmacySetting: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("SavePharmacySetting: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [NonAction]
-        private void CaptureAuditTrail(string email, string actionType, string description)
+        private List<Dictionary<string, object>> ToRows(DataTable dt)
         {
-            try
+            var rows = new List<Dictionary<string, object>>();
+            foreach (DataRow dr in dt.Rows)
             {
-                var model = new AuditTrailModel
-                {
-                    user_name = email,
-                    action_type = actionType,
-                    action_description = description,
-                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    session_id = HttpContext.Session?.Id ?? "",
-                    created_on = DateTime.UtcNow
-                };
-                dbhandler.AddAuditTrail(model);
+                var row = new Dictionary<string, object>();
+                foreach (DataColumn col in dt.Columns) row[col.ColumnName] = dr[col];
+                rows.Add(row);
             }
-            catch (Exception ex)
+            return rows;
+        }
+
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
+        {
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
+        }
+
+        [NonAction]
+        private ActionResult Bad(string msg) =>
+            StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
+
+        [NonAction]
+        private ActionResult Forbidden(string msg) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
+
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
+
+        [NonAction]
+        public bool CaptureAuditTrail(string user, string action_type, string action_description)
+        {
+            AuditTrailModel audittrailmodel = new()
             {
-                _logger.LogError("CaptureAuditTrail: " + ex.Message);
-            }
-        }
-
-        private Int64 GetCallerPharmacyId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
-
-        private Int64 GetCallerUserId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "user_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
-
-        private string GetCallerEmail()
-        {
-            return HttpContext.User.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "";
-        }
-
-        private int GetCallerRoleId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
-            return claim != null ? Convert.ToInt32(claim.Value) : 0;
+                user_name = user,
+                action_type = action_type,
+                action_description = action_description,
+                page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                session_id = "TODO"
+            };
+            return dbhandler.AddAuditTrail(audittrailmodel);
         }
     }
 }

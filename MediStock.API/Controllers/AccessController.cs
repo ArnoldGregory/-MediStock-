@@ -9,17 +9,19 @@ namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/access")]
-    public class AccessController : ControllerBase
+    public class AccessController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly IConfiguration _config;
-        private readonly ILoggerManager _logger;
 
-        public AccessController(IConfiguration config, ILoggerManager logger)
+        public AccessController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
-            _config = config;
-            _logger = logger;
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         // =====================================================================
@@ -27,22 +29,19 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpGet("roles")]
-        public IActionResult GetRoles()
+        public ActionResult GetRoles()
         {
-            _logger.LogInfo("******* GET ROLES REQUEST **********");
+            iloggermanager.LogInfo("******* GET ROLES REQUEST **********");
             try
             {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetRecords("roles", "0");
-                _logger.LogInfo($"GetRoles: returned {dt.Rows.Count} rows");
+                iloggermanager.LogInfo($"GetRoles: returned {dt.Rows.Count} rows");
 
-                var list = DataTableToList(dt);
-                return Ok(new ApiResponse<object> { success = true, message = "Roles retrieved", data = list });
+                return Ok(new { success = true, message = "Roles retrieved", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetRoles: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetRoles: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -50,25 +49,23 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpGet("roles/{id}")]
-        public IActionResult GetRoleById(int id)
+        public ActionResult GetRoleById(int id)
         {
-            _logger.LogInfo("******* GET ROLE BY ID REQUEST **********");
+            iloggermanager.LogInfo("******* GET ROLE BY ID REQUEST **********");
             try
             {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 if (id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "id is required" });
+                    return Bad("id is required");
 
                 DataTable dt = dbhandler.GetRecordsById("roles", id);
                 if (dt.Rows.Count == 0)
-                    return NotFound(new ApiResponse<object> { success = false, message = "Role not found" });
+                    return StatusCode(StatusCodes.Status404NotFound, new { success = false, message = "Role not found", action = "", data = new JObject() });
 
-                return Ok(new ApiResponse<object> { success = true, message = "Role retrieved", data = RowToDict(dt.Rows[0]) });
+                return Ok(new { success = true, message = "Role retrieved", action = "", data = RowToDict(dt.Rows[0]) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetRoleById: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetRoleById: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -76,25 +73,26 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpPost("roles")]
-        public IActionResult CreateRole([FromBody] JObject body)
+        public ActionResult CreateRole([FromBody] JObject body)
         {
-            _logger.LogInfo("******* CREATE ROLE REQUEST **********");
+            iloggermanager.LogInfo("******* CREATE ROLE REQUEST **********");
             try
             {
-                int callerRoleId = GetCallerRoleId();
-                if (callerRoleId != 1 && callerRoleId != 2)
-                    return StatusCode(403, new ApiResponse<object> { success = false, message = "Only Admin or SuperAdmin can create roles" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (roleId != 1 && roleId != 2)
+                    return Forbidden("Only Admin or SuperAdmin can create roles");
 
                 string roleName = body["role_name"]?.ToString()?.Trim() ?? "";
                 string? description = body["description"]?.ToString()?.Trim();
 
                 if (string.IsNullOrEmpty(roleName))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "role_name is required" });
+                    return Bad("role_name is required");
 
                 string sql = "INSERT INTO roles (role_name, description, created_by, created_on) VALUES ('" +
                     roleName.Replace("'", "''") + "', '" +
                     (description ?? "").Replace("'", "''") + "', " +
-                    GetCallerUserId() + ", NOW())";
+                    userId + ", NOW())";
 
                 dbhandler.GetAdhocData(sql);
 
@@ -103,21 +101,12 @@ namespace MediStock.API.Controllers
                 if (dtId.Rows.Count > 0)
                     newId = Convert.ToInt64(dtId.Rows[0]["id"]);
 
-                CaptureAuditTrail(GetCallerEmail(), "Create Role", $"Created role: {roleName}");
-                _logger.LogInfo($"CreateRole: id={newId} name={roleName}");
+                CaptureAuditTrail(userId.ToString(), "Create Role", $"Created role: {roleName}");
+                iloggermanager.LogInfo($"CreateRole: id={newId} name={roleName}");
 
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Role created",
-                    data = new { id = newId, role_name = roleName }
-                });
+                return Ok(new { success = true, message = "Role created", action = "", data = new JObject { { "id", newId }, { "role_name", roleName } } });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("CreateRole: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("CreateRole: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -125,17 +114,18 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpPut("roles/{id}")]
-        public IActionResult UpdateRole(int id, [FromBody] JObject body)
+        public ActionResult UpdateRole(int id, [FromBody] JObject body)
         {
-            _logger.LogInfo("******* UPDATE ROLE REQUEST **********");
+            iloggermanager.LogInfo("******* UPDATE ROLE REQUEST **********");
             try
             {
-                int callerRoleId = GetCallerRoleId();
-                if (callerRoleId != 1 && callerRoleId != 2)
-                    return StatusCode(403, new ApiResponse<object> { success = false, message = "Only Admin or SuperAdmin can update roles" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (roleId != 1 && roleId != 2)
+                    return Forbidden("Only Admin or SuperAdmin can update roles");
 
                 if (id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "id is required" });
+                    return Bad("id is required");
 
                 string? roleName = body["role_name"]?.ToString()?.Trim();
                 string? description = body["description"]?.ToString()?.Trim();
@@ -145,29 +135,20 @@ namespace MediStock.API.Controllers
                     updates += "role_name = '" + roleName.Replace("'", "''") + "'";
                 if (description != null)
                     updates += (updates.Length > 0 ? ", " : "") + "description = '" + description.Replace("'", "''") + "'";
-                updates += ", updated_by = " + GetCallerUserId() + ", updated_on = NOW()";
+                updates += ", updated_by = " + userId + ", updated_on = NOW()";
 
                 if (string.IsNullOrEmpty(roleName) && description == null)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "No fields to update" });
+                    return Bad("No fields to update");
 
                 string sql = "UPDATE roles SET " + updates + " WHERE id = " + id;
                 dbhandler.GetAdhocData(sql);
 
-                CaptureAuditTrail(GetCallerEmail(), "Update Role", $"Updated role {id}: {roleName}");
-                _logger.LogInfo($"UpdateRole: id={id} name={roleName}");
+                CaptureAuditTrail(userId.ToString(), "Update Role", $"Updated role {id}: {roleName}");
+                iloggermanager.LogInfo($"UpdateRole: id={id} name={roleName}");
 
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Role updated",
-                    data = new { id = id, role_name = roleName }
-                });
+                return Ok(new { success = true, message = "Role updated", action = "", data = new JObject { { "id", id }, { "role_name", roleName } } });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("UpdateRole: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("UpdateRole: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -175,32 +156,29 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpDelete("roles/{id}")]
-        public IActionResult DeleteRole(int id)
+        public ActionResult DeleteRole(int id)
         {
-            _logger.LogInfo("******* DELETE ROLE REQUEST **********");
+            iloggermanager.LogInfo("******* DELETE ROLE REQUEST **********");
             try
             {
-                int callerRoleId = GetCallerRoleId();
-                if (callerRoleId != 1)
-                    return StatusCode(403, new ApiResponse<object> { success = false, message = "Only SuperAdmin can delete roles" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (roleId != 1)
+                    return Forbidden("Only SuperAdmin can delete roles");
 
                 if (id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "id is required" });
+                    return Bad("id is required");
 
-                bool deleted = dbhandler.DeleteRecord(id, GetCallerUserId(), "roles");
+                bool deleted = dbhandler.DeleteRecord(id, userId, "roles");
                 if (!deleted)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Failed to delete role. Role may be in use." });
+                    return Bad("Failed to delete role. Role may be in use.");
 
-                CaptureAuditTrail(GetCallerEmail(), "Delete Role", $"Deleted role {id}");
-                _logger.LogInfo($"DeleteRole: id={id}");
+                CaptureAuditTrail(userId.ToString(), "Delete Role", $"Deleted role {id}");
+                iloggermanager.LogInfo($"DeleteRole: id={id}");
 
-                return Ok(new ApiResponse<object> { success = true, message = "Role deleted" });
+                return Ok(new { success = true, message = "Role deleted", action = "", data = (object?)null });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("DeleteRole: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("DeleteRole: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -208,22 +186,19 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpGet("menus")]
-        public IActionResult GetMenus()
+        public ActionResult GetMenus()
         {
-            _logger.LogInfo("******* GET MENUS REQUEST **********");
+            iloggermanager.LogInfo("******* GET MENUS REQUEST **********");
             try
             {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetRecords("menus", "0");
-                _logger.LogInfo($"GetMenus: returned {dt.Rows.Count} rows");
+                iloggermanager.LogInfo($"GetMenus: returned {dt.Rows.Count} rows");
 
-                var list = DataTableToList(dt);
-                return Ok(new ApiResponse<object> { success = true, message = "Menus retrieved", data = list });
+                return Ok(new { success = true, message = "Menus retrieved", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetMenus: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetMenus: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -231,25 +206,22 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpGet("menu-access")]
-        public IActionResult GetMenuAccess([FromQuery] int roleId)
+        public ActionResult GetMenuAccess([FromQuery] int roleId)
         {
-            _logger.LogInfo("******* GET MENU ACCESS REQUEST **********");
+            iloggermanager.LogInfo("******* GET MENU ACCESS REQUEST **********");
             try
             {
+                var (userId, pharmacyId, callerRoleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={callerRoleId}");
                 if (roleId <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "roleId is required" });
+                    return Bad("roleId is required");
 
                 DataTable dt = dbhandler.GetRecords("menu_access", roleId.ToString());
-                _logger.LogInfo($"GetMenuAccess: roleId={roleId} returned {dt.Rows.Count} rows");
+                iloggermanager.LogInfo($"GetMenuAccess: roleId={roleId} returned {dt.Rows.Count} rows");
 
-                var list = DataTableToList(dt);
-                return Ok(new ApiResponse<object> { success = true, message = "Menu access retrieved", data = list });
+                return Ok(new { success = true, message = "Menu access retrieved", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetMenuAccess: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetMenuAccess: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         // =====================================================================
@@ -257,22 +229,23 @@ namespace MediStock.API.Controllers
         // =====================================================================
         [Authorize]
         [HttpPost("menu-access")]
-        public IActionResult SaveMenuAccess([FromBody] JObject body)
+        public ActionResult SaveMenuAccess([FromBody] JObject body)
         {
-            _logger.LogInfo("******* SAVE MENU ACCESS REQUEST **********");
+            iloggermanager.LogInfo("******* SAVE MENU ACCESS REQUEST **********");
             try
             {
-                int callerRoleId = GetCallerRoleId();
+                var (userId, pharmacyId, callerRoleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={callerRoleId}");
                 if (callerRoleId != 1 && callerRoleId != 2)
-                    return StatusCode(403, new ApiResponse<object> { success = false, message = "Only Admin or SuperAdmin can manage menu access" });
+                    return Forbidden("Only Admin or SuperAdmin can manage menu access");
 
                 int roleId = body["role_id"] != null ? Convert.ToInt32(body["role_id"]) : 0;
                 if (roleId <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "role_id is required" });
+                    return Bad("role_id is required");
 
                 JArray? menuIds = body["menu_ids"] as JArray;
                 if (menuIds == null || menuIds.Count == 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "menu_ids array is required" });
+                    return Bad("menu_ids array is required");
 
                 // Delete existing access for this role, then re-insert
                 string deleteSql = "DELETE FROM menu_access WHERE role_id = " + roleId;
@@ -283,114 +256,75 @@ namespace MediStock.API.Controllers
                 {
                     int menuId = Convert.ToInt32(item);
                     string insertSql = "INSERT INTO menu_access (role_id, menu_id, created_by, created_on) VALUES (" +
-                        roleId + ", " + menuId + ", " + GetCallerUserId() + ", NOW())";
+                        roleId + ", " + menuId + ", " + userId + ", NOW())";
                     dbhandler.GetAdhocData(insertSql);
                     count++;
                 }
 
-                CaptureAuditTrail(GetCallerEmail(), "Save Menu Access", $"Saved {count} menu items for role {roleId}");
-                _logger.LogInfo($"SaveMenuAccess: roleId={roleId} saved {count} items");
+                CaptureAuditTrail(userId.ToString(), "Save Menu Access", $"Saved {count} menu items for role {roleId}");
+                iloggermanager.LogInfo($"SaveMenuAccess: roleId={roleId} saved {count} items");
 
-                return Ok(new ApiResponse<object>
-                {
-                    success = true,
-                    message = "Menu access saved",
-                    data = new { role_id = roleId, count = count }
-                });
+                return Ok(new { success = true, message = "Menu access saved", action = "", data = new JObject { { "role_id", roleId }, { "count", count } } });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("SaveMenuAccess: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("SaveMenuAccess: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
-        // =====================================================================
-        // AUDIT TRAIL — GET
-        // =====================================================================
-        [Authorize]
-        [HttpGet("audit")]
-        public IActionResult GetAuditTrail([FromQuery] int pageSize = 50)
-        {
-            _logger.LogInfo("******* GET AUDIT TRAIL REQUEST **********");
-            try
-            {
-                DataTable dt = dbhandler.GetRecords("audit_trail", "", pageSize.ToString());
-                _logger.LogInfo($"GetAuditTrail: returned {dt.Rows.Count} rows");
-
-                var list = DataTableToList(dt);
-                return Ok(new ApiResponse<object> { success = true, message = "Audit trail retrieved", data = list });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetAuditTrail: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
-        }
-
-        // =====================================================================
-        // HELPERS
-        // =====================================================================
         [NonAction]
-        private void CaptureAuditTrail(string email, string actionType, string description)
+        private List<Dictionary<string, object>> ToRows(DataTable dt)
         {
-            try
+            var rows = new List<Dictionary<string, object>>();
+            foreach (DataRow dr in dt.Rows)
             {
-                var model = new AuditTrailModel
-                {
-                    user_name = email,
-                    action_type = actionType,
-                    action_description = description,
-                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    session_id = HttpContext.Session?.Id ?? "",
-                    created_on = DateTime.UtcNow
-                };
-                dbhandler.AddAuditTrail(model);
+                var row = new Dictionary<string, object>();
+                foreach (DataColumn col in dt.Columns) row[col.ColumnName] = dr[col];
+                rows.Add(row);
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("CaptureAuditTrail: " + ex.Message);
-            }
+            return rows;
         }
 
-        private Int64 GetCallerPharmacyId()
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
         {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
         }
 
-        private Int64 GetCallerUserId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "user_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
-
-        private string GetCallerEmail()
-        {
-            return HttpContext.User.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "";
-        }
-
-        private int GetCallerRoleId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
-            return claim != null ? Convert.ToInt32(claim.Value) : 0;
-        }
-
-        private static List<Dictionary<string, object?>> DataTableToList(DataTable dt)
-        {
-            var list = new List<Dictionary<string, object?>>();
-            foreach (DataRow row in dt.Rows)
-                list.Add(RowToDict(row));
-            return list;
-        }
-
+        [NonAction]
         private static Dictionary<string, object?> RowToDict(DataRow row)
         {
             var dict = new Dictionary<string, object?>();
             foreach (DataColumn col in row.Table.Columns)
                 dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
             return dict;
+        }
+
+        [NonAction]
+        private ActionResult Bad(string msg) =>
+            StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
+
+        [NonAction]
+        private ActionResult Forbidden(string msg) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
+
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
+
+        [NonAction]
+        public bool CaptureAuditTrail(string user, string action_type, string action_description)
+        {
+            AuditTrailModel audittrailmodel = new()
+            {
+                user_name = user,
+                action_type = action_type,
+                action_description = action_description,
+                page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                session_id = "TODO"
+            };
+            return dbhandler.AddAuditTrail(audittrailmodel);
         }
     }
 }

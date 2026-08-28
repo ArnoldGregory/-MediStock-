@@ -9,7 +9,6 @@
 //    POST /Admin/UpdateUser   → proxy → api/admin/updateuser
 //    POST /Admin/DeleteUser   → proxy → api/admin/deleteuser
 //    POST /Admin/ResetPassword → proxy → api/admin/resetpassword
-//    GET  /Admin/GetAuditLog  → JSON audit log entries
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -49,12 +48,6 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
-        public async Task<IActionResult> AuditTrail()
-        {
-            await _audit.LogViewAsync("Admin/AuditTrail");
-            return View();
-        }
-
         // ── Data ──────────────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetUsers()
@@ -78,23 +71,6 @@ namespace MediStock.Portal.Controllers
             {
                 var result = await _api.GetAsync<object>($"api/admin/getuser?id={id}");
                 return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetAuditLog(string? from_date, string? to_date, int page = 1, int pageSize = 50)
-        {
-            try
-            {
-                var qs = $"api/admin/auditlog?pharmacyId={GetPharmacyId()}&page={page}&pageSize={pageSize}";
-                if (!string.IsNullOrWhiteSpace(from_date)) qs += $"&from_date={from_date}";
-                if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
-                var result = await _api.GetAsync<object>(qs);
-                return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
             {
@@ -276,21 +252,6 @@ namespace MediStock.Portal.Controllers
                 return Json(result.IsSuccess
                     ? new { success = true, message = "Role created" }
                     : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed" : result.Error });
-            }
-        }
-
-        // ── Audit Trail Data ─────────────────────────────────────────────────
-        [HttpGet]
-        public async Task<IActionResult> GetAuditData(int pageSize = 100)
-        {
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/access/audit?pageSize={pageSize}");
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
             }
         }
 

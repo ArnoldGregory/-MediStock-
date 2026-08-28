@@ -2,42 +2,42 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using Newtonsoft.Json.Linq;
 using System.Data;
 
 namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/dashboard")]
-    public class DashboardController : ControllerBase
+    public class DashboardController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly IConfiguration _config;
-        private readonly ILoggerManager _logger;
 
-        public DashboardController(IConfiguration config, ILoggerManager logger)
+        public DashboardController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
-            _config = config;
-            _logger = logger;
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         [Authorize]
         [HttpGet("summary")]
-        public IActionResult GetDashboardSummary()
+        public ActionResult GetDashboardSummary()
         {
-            _logger.LogInfo("******* GET DASHBOARD SUMMARY REQUEST **********");
+            iloggermanager.LogInfo("******* GET DASHBOARD SUMMARY REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetDashboardSummary(pharmacyId);
 
                 if (dt.Rows.Count == 0)
                 {
-                    return Ok(new ApiResponse<object>
-                    {
-                        success = true,
-                        data = new DashboardSummary()
-                    });
+                    return Ok(new { success = true, message = "Success", action = "", data = new DashboardSummary() });
                 }
 
                 DataRow row = dt.Rows[0];
@@ -54,157 +54,143 @@ namespace MediStock.API.Controllers
                     total_inventory_value = row["total_inventory_value"] != DBNull.Value ? Convert.ToDecimal(row["total_inventory_value"]) : 0
                 };
 
-                _logger.LogInfo($"GetDashboardSummary: pharmacyId={pharmacyId}");
-                return Ok(new ApiResponse<DashboardSummary>
-                {
-                    success = true,
-                    data = summary
-                });
+                iloggermanager.LogInfo($"GetDashboardSummary: pharmacyId={pharmacyId}");
+                return Ok(new { success = true, message = "Success", action = "", data = summary });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetDashboardSummary: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(StatusCodes.Status500InternalServerError, new ApiResponse<object> { success = false, message = "Internal server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetDashboardSummary: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("stocksummary")]
-        public IActionResult GetStockSummary()
+        public ActionResult GetStockSummary()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetStockSummary(pharmacyId);
-                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetStockSummary: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetStockSummary: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("salesstats")]
-        public IActionResult GetSalesStats()
+        public ActionResult GetSalesStats()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetSalesStats(pharmacyId);
-                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetSalesStats: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetSalesStats: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("expiringitems")]
-        public IActionResult GetExpiringItems()
+        public ActionResult GetExpiringItems()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetExpiringItems(pharmacyId);
-                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetExpiringItems: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetExpiringItems: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("alerts")]
-        public IActionResult GetAlerts()
+        public ActionResult GetAlerts()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetAlerts(pharmacyId);
-                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetAlerts: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetAlerts: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("mysales")]
-        public IActionResult GetMySales()
+        public ActionResult GetMySales()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
-                var userId = GetCallerUserId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetMySales(pharmacyId, userId);
-                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetMySales: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetMySales: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("pendingorders")]
-        public IActionResult GetPendingOrders()
+        public ActionResult GetPendingOrders()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetPendingOrders(pharmacyId);
-                return Ok(new ApiResponse<object> { success = true, data = DataTableToList(dt) });
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex)
+            catch (Exception ex) { iloggermanager.LogError("GetPendingOrders: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [NonAction]
+        private List<Dictionary<string, object>> ToRows(DataTable dt)
+        {
+            var rows = new List<Dictionary<string, object>>();
+            foreach (DataRow dr in dt.Rows)
             {
-                _logger.LogError("GetPendingOrders: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
+                var row = new Dictionary<string, object>();
+                foreach (DataColumn col in dt.Columns) row[col.ColumnName] = dr[col];
+                rows.Add(row);
             }
+            return rows;
         }
 
-        private Int64 GetCallerPharmacyId()
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
         {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
         }
 
-        private Int64 GetCallerUserId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "user_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
+        [NonAction]
+        private ActionResult Bad(string msg) =>
+            StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
 
-        private string GetCallerEmail()
-        {
-            return HttpContext.User.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "";
-        }
+        [NonAction]
+        private ActionResult Forbidden(string msg) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
-        private int GetCallerRoleId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
-            return claim != null ? Convert.ToInt32(claim.Value) : 0;
-        }
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
 
-        private static List<Dictionary<string, object?>> DataTableToList(DataTable dt)
+        [NonAction]
+        public bool CaptureAuditTrail(string user, string action_type, string action_description)
         {
-            var list = new List<Dictionary<string, object?>>();
-            foreach (DataRow row in dt.Rows)
+            AuditTrailModel audittrailmodel = new()
             {
-                var dict = new Dictionary<string, object?>();
-                foreach (DataColumn col in dt.Columns)
-                    dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
-                list.Add(dict);
-            }
-            return list;
+                user_name = user,
+                action_type = action_type,
+                action_description = action_description,
+                page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                session_id = "TODO"
+            };
+            return dbhandler.AddAuditTrail(audittrailmodel);
         }
     }
 }

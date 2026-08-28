@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
 using System.Data;
@@ -8,54 +9,77 @@ namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/menus")]
-    public class MenuController : ControllerBase
+    public class MenuController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly ILoggerManager _logger;
 
-        public MenuController(IConfiguration config, ILoggerManager logger)
+        public MenuController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            _logger = logger;
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         [Authorize]
         [HttpGet]
-        public IActionResult GetMenu([FromQuery] string pageaccessed = "")
+        public ActionResult GetMenu([FromQuery] string pageaccessed = "")
         {
-            _logger.LogInfo("******* GET MENU REQUEST **********");
-
-            if (!int.TryParse(HttpContext.Items["profile_id"]?.ToString(), out int profileId) || profileId == 0)
+            iloggermanager.LogInfo("******* GET MENU REQUEST **********");
+            try
             {
-                _logger.LogError("GetMenu: Invalid or missing profile_id in token");
-                return Unauthorized(new { success = false, message = "Invalid or missing profile_id in token" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+
+                if (!int.TryParse(HttpContext.Items["profile_id"]?.ToString(), out int profileId) || profileId == 0)
+                {
+                    iloggermanager.LogError("GetMenu: Invalid or missing profile_id in token");
+                    return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "Invalid or missing profile_id in token", action = "", data = new JObject() });
+                }
+
+                if (!int.TryParse(HttpContext.Items["user_id"]?.ToString(), out int menuUserId) || menuUserId == 0)
+                {
+                    iloggermanager.LogError("GetMenu: Invalid or missing user_id in token");
+                    return StatusCode(StatusCodes.Status401Unauthorized, new { success = false, message = "Invalid or missing user_id in token", action = "", data = new JObject() });
+                }
+
+                var roleType = HttpContext.Items["role_type"]?.ToString() ?? "CLIENT";
+                iloggermanager.LogInfo($"GetMenu: profileId={profileId}, roleType={roleType}, pageaccessed={pageaccessed}");
+
+                MenuHandler handler = new(dbhandler, iloggermanager);
+                IList<MenuModel> menuList = handler.GetMenu(profileId, pageaccessed);
+
+                iloggermanager.LogInfo($"GetMenu: returned {menuList.Count} main menus");
+
+                return Ok(new
+                {
+                    success = true,
+                    user_id = menuUserId,
+                    profile_id = profileId,
+                    pharmacy_id = HttpContext.Items["pharmacy_id"]?.ToString(),
+                    email = HttpContext.Items["email"]?.ToString(),
+                    role_type = roleType,
+                    menu = menuList
+                });
             }
-
-            if (!int.TryParse(HttpContext.Items["user_id"]?.ToString(), out int userId) || userId == 0)
-            {
-                _logger.LogError("GetMenu: Invalid or missing user_id in token");
-                return Unauthorized(new { success = false, message = "Invalid or missing user_id in token" });
-            }
-
-            var roleType = HttpContext.Items["role_type"]?.ToString() ?? "CLIENT";
-            _logger.LogInfo($"GetMenu: profileId={profileId}, roleType={roleType}, pageaccessed={pageaccessed}");
-
-            MenuHandler handler = new(dbhandler, _logger);
-            IList<MenuModel> menuList = handler.GetMenu(profileId, pageaccessed);
-
-            _logger.LogInfo($"GetMenu: returned {menuList.Count} main menus");
-
-            return Ok(new
-            {
-                success = true,
-                user_id = userId,
-                profile_id = profileId,
-                pharmacy_id = HttpContext.Items["pharmacy_id"]?.ToString(),
-                email = HttpContext.Items["email"]?.ToString(),
-                role_type = roleType,
-                menu = menuList
-            });
+            catch (Exception ex) { iloggermanager.LogError("GetMenu: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
+
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
+        {
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
+        }
+
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
     }
 
     // ── Menu models (Riziki pattern) ──────────────────────────────────────

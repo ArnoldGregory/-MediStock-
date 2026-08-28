@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
 using System.Data;
@@ -8,32 +9,34 @@ namespace MediStock.API.Controllers
 {
     [ApiController]
     [Route("api/admin")]
-    public class AdminController : ControllerBase
+    public class AdminController : Controller
     {
+        private readonly IConfiguration iconfiguration;
+        private readonly IWebHostEnvironment ihostingenvironment;
+        private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
-        private readonly IConfiguration _config;
-        private readonly ILoggerManager _logger;
 
-        public AdminController(IConfiguration config, ILoggerManager logger)
+        public AdminController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
         {
-            dbhandler = new DBHandler(config.GetConnectionString("DefaultConnection")!);
-            _config = config;
-            _logger = logger;
+            iloggermanager = logger;
+            ihostingenvironment = environment;
+            iconfiguration = configuration;
+            dbhandler = mydbhandler;
         }
 
         [Authorize]
         [HttpGet("users")]
-        public IActionResult GetUsers([FromQuery] long pharmacyId = 0)
+        public ActionResult GetUsers([FromQuery] long pharmacyId = 0)
         {
-            _logger.LogInfo("******* GET USERS REQUEST **********");
+            iloggermanager.LogInfo("******* GET USERS REQUEST **********");
             try
             {
-                var callerPharmacyId = GetCallerPharmacyId();
-                var callerRoleId = GetCallerRoleId();
-                if (callerRoleId == 1) pharmacyId = callerPharmacyId;
+                var (userId, callerPharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={callerPharmacyId}, role={roleId}");
+                if (roleId == 1) pharmacyId = callerPharmacyId;
                 else if (pharmacyId == 0) pharmacyId = callerPharmacyId;
 
-                _logger.LogInfo($"GetUsers: pharmacyId={pharmacyId}");
+                iloggermanager.LogInfo($"GetUsers: pharmacyId={pharmacyId}");
 
                 DataTable dtPortal = dbhandler.GetUsersByPharmacy(pharmacyId);
                 DataTable dtExternal = dbhandler.GetExternalUsersByPharmacy(pharmacyId);
@@ -44,25 +47,22 @@ namespace MediStock.API.Controllers
                 foreach (DataRow row in dtExternal.Rows)
                     users.Add(RowToDict(row));
 
-                CaptureAuditTrail(GetCallerEmail(), "View Users", $"Viewed user list for pharmacy {pharmacyId}");
-                return Ok(new ApiResponse<object> { success = true, data = users });
+                CaptureAuditTrail(userId.ToString(), "View Users", $"Viewed user list for pharmacy {pharmacyId}");
+                return Ok(new { success = true, message = "Success", action = "", data = users });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetUsers: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetUsers: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("users/{id}")]
-        public IActionResult GetUserById(long id)
+        public ActionResult GetUserById(long id)
         {
-            _logger.LogInfo("******* GET USER BY ID REQUEST **********");
+            iloggermanager.LogInfo("******* GET USER BY ID REQUEST **********");
             try
             {
-                if (id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "id is required" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (id <= 0) return Bad("id is required");
 
                 DataTable dt = dbhandler.GetUserById(id);
                 if (dt.Rows.Count == 0)
@@ -71,114 +71,100 @@ namespace MediStock.API.Controllers
                 }
 
                 if (dt.Rows.Count == 0)
-                    return NotFound(new ApiResponse<object> { success = false, message = "User not found" });
+                    return StatusCode(StatusCodes.Status404NotFound, new { success = false, message = "User not found", action = "", data = new JObject() });
 
-                return Ok(new ApiResponse<object> { success = true, data = RowToDict(dt.Rows[0]) });
+                return Ok(new { success = true, message = "Success", action = "", data = RowToDict(dt.Rows[0]) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetUserById: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetUserById: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("getuser")]
-        public IActionResult GetUser([FromQuery] long id)
+        public ActionResult GetUser([FromQuery] long id)
         {
             return GetUserById(id);
         }
 
         [Authorize]
         [HttpPost("users")]
-        public IActionResult CreateUser([FromBody] Newtonsoft.Json.Linq.JObject body)
+        public ActionResult CreateUser([FromBody] Newtonsoft.Json.Linq.JObject body)
         {
-            _logger.LogInfo("******* CREATE USER REQUEST **********");
-            _logger.LogInfo($"CreateUser: body={body}");
+            iloggermanager.LogInfo("******* CREATE USER REQUEST **********");
+            iloggermanager.LogInfo($"CreateUser: body={body}");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
-                var callerRoleId = GetCallerRoleId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
 
                 string firstName = body["firstName"]?.ToString() ?? body["first_name"]?.ToString() ?? "";
                 string lastName = body["lastName"]?.ToString() ?? body["last_name"]?.ToString() ?? "";
                 string email = body["email"]?.ToString() ?? "";
                 string? phone = body["phone"]?.ToString();
-                int roleId = body["roleId"] != null ? Convert.ToInt32(body["roleId"]) : (body["role_id"] != null ? Convert.ToInt32(body["role_id"]) : 3);
+                int newRoleId = body["roleId"] != null ? Convert.ToInt32(body["roleId"]) : (body["role_id"] != null ? Convert.ToInt32(body["role_id"]) : 3);
                 string password = body["password"]?.ToString() ?? "password";
 
-                if (string.IsNullOrEmpty(email))
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Email is required" });
+                if (string.IsNullOrEmpty(email)) return Bad("Email is required");
 
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
                 var user = new PharmacyUserModel
                 {
                     pharmacy_id = pharmacyId,
-                    role_id = roleId,
+                    role_id = newRoleId,
                     first_name = firstName,
                     last_name = lastName,
                     email = email,
                     mobile = phone,
                     password = hashedPassword,
-                    created_by = GetCallerUserId()
+                    created_by = userId
                 };
 
                 bool created = dbhandler.AddUser(user);
-                if (!created)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Failed to create user. Email may already exist." });
+                if (!created) return Bad("Failed to create user. Email may already exist.");
 
-                CaptureAuditTrail(GetCallerEmail(), "Create User", $"Created user: {email} (role: {roleId})");
-                return Ok(new ApiResponse<object> { success = true, message = "User created" });
+                CaptureAuditTrail(userId.ToString(), "Create User", $"Created user: {email} (role: {newRoleId})");
+                return Ok(new { success = true, message = "User created", action = "", data = (object?)null });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("CreateUser: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("CreateUser: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpPost("adduser")]
-        public IActionResult AddUser([FromBody] Newtonsoft.Json.Linq.JObject body)
+        public ActionResult AddUser([FromBody] Newtonsoft.Json.Linq.JObject body)
         {
             return CreateUser(body);
         }
 
         [Authorize]
         [HttpPut("users/{id}")]
-        public IActionResult UpdateUser(long id, [FromBody] Newtonsoft.Json.Linq.JObject body)
+        public ActionResult UpdateUser(long id, [FromBody] Newtonsoft.Json.Linq.JObject body)
         {
-            _logger.LogInfo("******* UPDATE USER REQUEST **********");
-            _logger.LogInfo($"UpdateUser: id={id}, body={body}");
+            iloggermanager.LogInfo("******* UPDATE USER REQUEST **********");
+            iloggermanager.LogInfo($"UpdateUser: id={id}, body={body}");
             try
             {
-                if (id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "id is required" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (id <= 0) return Bad("id is required");
 
                 string? firstName = body["firstName"]?.ToString() ?? body["first_name"]?.ToString();
                 string? lastName = body["lastName"]?.ToString() ?? body["last_name"]?.ToString();
                 string? email = body["email"]?.ToString();
                 string? phone = body["phone"]?.ToString();
-                int? roleId = body["roleId"] != null ? Convert.ToInt32(body["roleId"]) : (body["role_id"] != null ? Convert.ToInt32(body["role_id"]) : null);
+                int? newRoleId = body["roleId"] != null ? Convert.ToInt32(body["roleId"]) : (body["role_id"] != null ? Convert.ToInt32(body["role_id"]) : null);
                 bool isActive = body["isActive"] != null ? Convert.ToBoolean(body["isActive"]) : (body["is_active"] != null ? Convert.ToBoolean(body["is_active"]) : true);
 
-                bool updated = dbhandler.AdminUpdateUser(id, firstName, lastName, email, phone, roleId, isActive);
-                if (!updated)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Failed to update user" });
+                bool updated = dbhandler.AdminUpdateUser(id, firstName, lastName, email, phone, newRoleId, isActive);
+                if (!updated) return Bad("Failed to update user");
 
-                CaptureAuditTrail(GetCallerEmail(), "Update User", $"Updated user {id}: {email}");
-                return Ok(new ApiResponse<object> { success = true, message = "User updated" });
+                CaptureAuditTrail(userId.ToString(), "Update User", $"Updated user {id}: {email}");
+                return Ok(new { success = true, message = "User updated", action = "", data = (object?)null });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("UpdateUser: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("UpdateUser: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpPost("updateuser")]
-        public IActionResult UpdateUserLegacy([FromBody] Newtonsoft.Json.Linq.JObject body)
+        public ActionResult UpdateUserLegacy([FromBody] Newtonsoft.Json.Linq.JObject body)
         {
             long id = body["id"] != null ? Convert.ToInt64(body["id"]) : 0;
             return UpdateUser(id, body);
@@ -186,35 +172,28 @@ namespace MediStock.API.Controllers
 
         [Authorize]
         [HttpDelete("users/{id}")]
-        public IActionResult DeleteUser(long id)
+        public ActionResult DeleteUser(long id)
         {
-            _logger.LogInfo("******* DELETE USER REQUEST **********");
+            iloggermanager.LogInfo("******* DELETE USER REQUEST **********");
             try
             {
-                if (id <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "id is required" });
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (id <= 0) return Bad("id is required");
 
-                bool deleted = dbhandler.DeleteRecord(id, GetCallerUserId(), "pharmacy_user");
+                bool deleted = dbhandler.DeleteRecord(id, userId, "pharmacy_user");
                 if (!deleted)
-                    deleted = dbhandler.DeleteRecord(id, GetCallerUserId(), "p_external_portal_user");
+                    deleted = dbhandler.DeleteRecord(id, userId, "p_external_portal_user");
 
-                CaptureAuditTrail(GetCallerEmail(), "Delete User", $"Deleted user {id}");
-                return Ok(new ApiResponse<object>
-                {
-                    success = deleted,
-                    message = deleted ? "User deleted" : "Failed to delete user"
-                });
+                CaptureAuditTrail(userId.ToString(), "Delete User", $"Deleted user {id}");
+                return Ok(new { success = deleted, message = deleted ? "User deleted" : "Failed to delete user", action = "", data = new JObject { { "id", id } } });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("DeleteUser: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("DeleteUser: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpPost("deleteuser")]
-        public IActionResult DeleteUserLegacy([FromBody] Newtonsoft.Json.Linq.JObject body)
+        public ActionResult DeleteUserLegacy([FromBody] Newtonsoft.Json.Linq.JObject body)
         {
             long id = body["id"] != null ? Convert.ToInt64(body["id"]) : 0;
             return DeleteUser(id);
@@ -222,39 +201,37 @@ namespace MediStock.API.Controllers
 
         [Authorize]
         [HttpPost("resetpassword")]
-        public IActionResult ResetPassword([FromBody] Newtonsoft.Json.Linq.JObject body)
+        public ActionResult ResetPassword([FromBody] Newtonsoft.Json.Linq.JObject body)
         {
-            _logger.LogInfo("******* RESET PASSWORD REQUEST **********");
+            iloggermanager.LogInfo("******* RESET PASSWORD REQUEST **********");
             try
             {
-                long userId = body["user_id"] != null ? Convert.ToInt64(body["user_id"]) : 0;
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                long targetUserId = body["user_id"] != null ? Convert.ToInt64(body["user_id"]) : 0;
                 string newPassword = body["new_password"]?.ToString() ?? "password";
 
-                if (userId <= 0)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "user_id is required" });
+                if (targetUserId <= 0) return Bad("user_id is required");
 
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-                bool reset = dbhandler.AdminResetPassword(userId, hashedPassword);
-                if (!reset)
-                    return BadRequest(new ApiResponse<object> { success = false, message = "Failed to reset password" });
+                bool reset = dbhandler.AdminResetPassword(targetUserId, hashedPassword);
+                if (!reset) return Bad("Failed to reset password");
 
-                CaptureAuditTrail(GetCallerEmail(), "Reset Password", $"Reset password for user {userId}");
-                return Ok(new ApiResponse<object> { success = true, message = "Password reset" });
+                CaptureAuditTrail(userId.ToString(), "Reset Password", $"Reset password for user {targetUserId}");
+                return Ok(new { success = true, message = "Password reset", action = "", data = (object?)null });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("ResetPassword: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("ResetPassword: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("roles")]
-        public IActionResult GetRoles()
+        public ActionResult GetRoles()
         {
-            _logger.LogInfo("******* GET ROLES REQUEST **********");
+            iloggermanager.LogInfo("******* GET ROLES REQUEST **********");
             try
             {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetRecords("roles", "0");
                 if (dt.Rows.Count == 0)
                 {
@@ -266,29 +243,26 @@ namespace MediStock.API.Controllers
                         new { roleId = 4, roleName = "Staff" },
                         new { roleId = 5, roleName = "Cashier" },
                     };
-                    return Ok(new ApiResponse<object> { success = true, data = roles });
+                    return Ok(new { success = true, message = "Success", action = "", data = roles });
                 }
 
                 var roleList = new List<Dictionary<string, object?>>();
                 foreach (DataRow row in dt.Rows)
                     roleList.Add(RowToDict(row));
-                return Ok(new ApiResponse<object> { success = true, data = roleList });
+                return Ok(new { success = true, message = "Success", action = "", data = roleList });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetRoles: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetRoles: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("stats")]
-        public IActionResult GetStats()
+        public ActionResult GetStats()
         {
-            _logger.LogInfo("******* GET ADMIN STATS REQUEST **********");
+            iloggermanager.LogInfo("******* GET ADMIN STATS REQUEST **********");
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetDashboardSummary(pharmacyId);
 
                 var stats = new Dictionary<string, object?>();
@@ -301,18 +275,14 @@ namespace MediStock.API.Controllers
                     stats["alertCount"] = row["low_stock_count"] != DBNull.Value ? Convert.ToInt32(row["low_stock_count"]) : 0;
                 }
 
-                return Ok(new ApiResponse<object> { success = true, data = stats });
+                return Ok(new { success = true, message = "Success", action = "", data = stats });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetStats: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetStats: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("system-info")]
-        public IActionResult GetSystemInfo()
+        public ActionResult GetSystemInfo()
         {
             try
             {
@@ -322,98 +292,28 @@ namespace MediStock.API.Controllers
                     ["databaseStatus"] = "Connected",
                     ["serverTime"] = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
                 };
-                return Ok(new ApiResponse<object> { success = true, data = info });
+                return Ok(new { success = true, message = "Success", action = "", data = info });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetSystemInfo: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetSystemInfo: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
         [HttpGet("recent-logins")]
-        public IActionResult GetRecentLogins()
+        public ActionResult GetRecentLogins()
         {
             try
             {
-                var pharmacyId = GetCallerPharmacyId();
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 DataTable dt = dbhandler.GetUsersByPharmacy(pharmacyId);
                 var users = DataTableToList(dt);
-                return Ok(new ApiResponse<object> { success = true, data = users.Take(10) });
+                return Ok(new { success = true, message = "Success", action = "", data = users.Take(10) });
             }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetRecentLogins: " + ex.Message);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
-        }
-
-        [Authorize]
-        [HttpGet("auditlog")]
-        public IActionResult GetAuditLog([FromQuery] int page = 1, [FromQuery] int pageSize = 50)
-        {
-            _logger.LogInfo("******* GET AUDIT LOG REQUEST **********");
-            try
-            {
-                DataTable dt = dbhandler.GetRecords("audit_trail", "", pageSize.ToString());
-                var log = DataTableToList(dt);
-                return Ok(new ApiResponse<object> { success = true, data = log });
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("GetAuditLog: " + ex.Message + " - " + ex.StackTrace);
-                return StatusCode(500, new ApiResponse<object> { success = false, message = "Server error" });
-            }
+            catch (Exception ex) { iloggermanager.LogError("GetRecentLogins: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [NonAction]
-        private void CaptureAuditTrail(string email, string actionType, string description)
-        {
-            try
-            {
-                var model = new AuditTrailModel
-                {
-                    user_name = email,
-                    action_type = actionType,
-                    action_description = description,
-                    page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                    client_ip_address = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                    session_id = HttpContext.Session?.Id ?? "",
-                    created_on = DateTime.UtcNow
-                };
-                dbhandler.AddAuditTrail(model);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError("CaptureAuditTrail: " + ex.Message);
-            }
-        }
-
-        private Int64 GetCallerPharmacyId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
-
-        private Int64 GetCallerUserId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "user_id");
-            return claim != null ? Convert.ToInt64(claim.Value) : 0;
-        }
-
-        private string GetCallerEmail()
-        {
-            return HttpContext.User.Claims.FirstOrDefault(c => c.Type == "email")?.Value ?? "";
-        }
-
-        private int GetCallerRoleId()
-        {
-            var claim = HttpContext.User.Claims.FirstOrDefault(c => c.Type == "role_id");
-            return claim != null ? Convert.ToInt32(claim.Value) : 0;
-        }
-
-        private static List<Dictionary<string, object?>> DataTableToList(DataTable dt)
+        private List<Dictionary<string, object?>> DataTableToList(DataTable dt)
         {
             var list = new List<Dictionary<string, object?>>();
             foreach (DataRow row in dt.Rows)
@@ -421,12 +321,49 @@ namespace MediStock.API.Controllers
             return list;
         }
 
+        [NonAction]
         private static Dictionary<string, object?> RowToDict(DataRow row)
         {
             var dict = new Dictionary<string, object?>();
             foreach (DataColumn col in row.Table.Columns)
                 dict[col.ColumnName] = row[col] == DBNull.Value ? null : row[col];
             return dict;
+        }
+
+        [NonAction]
+        private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
+        {
+            Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
+            Int64 pharmacyId = Convert.ToInt64(HttpContext.Items["pharmacy_id"]?.ToString() ?? "0");
+            Int64 roleId = Convert.ToInt64(HttpContext.Items["profile_id"]?.ToString() ?? "0");
+            return (userId, pharmacyId, roleId);
+        }
+
+        [NonAction]
+        private ActionResult Bad(string msg) =>
+            StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
+
+        [NonAction]
+        private ActionResult Forbidden(string msg) =>
+            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
+
+        [NonAction]
+        private ActionResult ServerError() =>
+            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
+
+        [NonAction]
+        public bool CaptureAuditTrail(string user, string action_type, string action_description)
+        {
+            AuditTrailModel audittrailmodel = new()
+            {
+                user_name = user,
+                action_type = action_type,
+                action_description = action_description,
+                page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                session_id = "TODO"
+            };
+            return dbhandler.AddAuditTrail(audittrailmodel);
         }
     }
 }
