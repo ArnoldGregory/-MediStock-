@@ -70,6 +70,10 @@ namespace MediStock.Portal.Services
         public Task<ApiResult<T>> PostAsync<T>(string endpoint, object body)
             => SendWithRefreshAsync<T>("MainApi", HttpMethod.Post, endpoint, body);
 
+        // Multipart file upload to the Main API.
+        public Task<ApiResult<T>> PostFileAsync<T>(string endpoint, string fileName, byte[] fileBytes)
+            => SendFileWithRefreshAsync<T>("MainApi", endpoint, fileName, fileBytes);
+
         public Task<ApiResult<T>> PutAsync<T>(string endpoint, object body)
             => SendWithRefreshAsync<T>("MainApi", HttpMethod.Put, endpoint, body);
 
@@ -123,6 +127,35 @@ namespace MediStock.Portal.Services
             }
 
             return await ParseAsync<T>(response);
+        }
+
+        private async Task<ApiResult<T>> SendFileWithRefreshAsync<T>(
+            string clientName, string endpoint, string fileName, byte[] fileBytes)
+        {
+            var response = await DoSendFileAsync(clientName, endpoint, fileName, fileBytes, GetAccessToken());
+
+            if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+            {
+                var refreshed = await TryRefreshAsync();
+                if (!refreshed)
+                {
+                    await ForceLogoutAsync();
+                    return ApiResult<T>.Fail("Session expired. Please log in again.", 401);
+                }
+                response = await DoSendFileAsync(clientName, endpoint, fileName, fileBytes, GetAccessToken());
+            }
+
+            return await ParseAsync<T>(response);
+        }
+
+        private async Task<HttpResponseMessage> DoSendFileAsync(
+            string clientName, string endpoint, string fileName, byte[] fileBytes, string? token)
+        {
+            var client = BuildClient(clientName, token);
+            using var content = new MultipartFormDataContent();
+            content.Add(new ByteArrayContent(fileBytes), "file", fileName);
+            var request = new HttpRequestMessage(HttpMethod.Post, endpoint) { Content = content };
+            return await client.SendAsync(request);
         }
 
         private async Task<bool> TryRefreshAsync()

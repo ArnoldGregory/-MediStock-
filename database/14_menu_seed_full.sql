@@ -3,11 +3,11 @@
 --  Source of truth: Desktop/portal/port12.sql, port13.sql
 --
 --  Scope:
---    * menu_access_data  = master catalog (ALL 31 items)
+--    * menu_access_data  = master catalog (ALL 33 items)
 --    * menu_access       = per-role assignment
 --        role 1 (SuperAdmin): PLATFORM ONLY (5 items)
---        role 2 (Admin)     : full pharmacy menu (26)
---        role 3 (Pharmacist): 18
+--        role 2 (Admin)     : full pharmacy menu (28)
+--        role 3 (Pharmacist): 20
 --        role 4 (Staff)     : 7
 --        role 5 (Cashier)   : 5
 --
@@ -41,11 +41,13 @@ INSERT INTO menu_access_data (main_menu_name, sub_menu_name, menu_icon, menu_ord
 ('Suppliers','Suppliers','fa-truck',40,1,'~/Suppliers/Index','ALL'),
 ('Suppliers','Purchase Orders','fa-truck',40,2,'~/Suppliers/PurchaseOrders','ALL'),
 ('Suppliers','Receive Stock','fa-truck',40,3,'~/Suppliers/ReceiveStock','ALL'),
+('Suppliers','Import Invoice','fa-file-pdf-o',40,4,'~/Suppliers/ImportInvoice','ALL'),
 ('Finance','Expenses','fa-money',50,1,'~/Finance/Expenses','ALL'),
 ('Finance','Purchase Orders','fa-money',50,2,'~/Finance/PurchaseOrders','ALL'),
 ('Reports','Sales Report','fa-bar-chart',60,1,'~/Reports/Sales','ALL'),
 ('Reports','Stock Report','fa-bar-chart',60,2,'~/Reports/Stock','ALL'),
 ('Reports','Financial Report','fa-bar-chart',60,3,'~/Reports/Financial','ALL'),
+('AI','Smart Reorder','fa-magic',65,1,'~/AI/Index','ALL'),
 ('Clinical','Patients','fa-heartbeat',70,1,'~/Clinical/Patients','ALL'),
 ('Clinical','Prescriptions','fa-heartbeat',70,2,'~/Clinical/Prescriptions','ALL'),
 ('DDA','Register','fa-balance-scale',75,1,'~/DDA/Register','ALL'),
@@ -89,11 +91,13 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (2,'Suppliers','Suppliers','fa-truck','~/Suppliers/Index',1,40,1),
 (2,'Suppliers','Purchase Orders','fa-truck','~/Suppliers/PurchaseOrders',1,40,2),
 (2,'Suppliers','Receive Stock','fa-truck','~/Suppliers/ReceiveStock',1,40,3),
+(2,'Suppliers','Import Invoice','fa-file-pdf-o','~/Suppliers/ImportInvoice',1,40,4),
 (2,'Finance','Expenses','fa-money','~/Finance/Expenses',1,50,1),
 (2,'Finance','Purchase Orders','fa-money','~/Finance/PurchaseOrders',1,50,2),
 (2,'Reports','Sales Report','fa-bar-chart','~/Reports/Sales',1,60,1),
 (2,'Reports','Stock Report','fa-bar-chart','~/Reports/Stock',1,60,2),
 (2,'Reports','Financial Report','fa-bar-chart','~/Reports/Financial',1,60,3),
+(2,'AI','Smart Reorder','fa-magic','~/AI/Index',1,65,1),
 (2,'Clinical','Patients','fa-heartbeat','~/Clinical/Patients',1,70,1),
 (2,'Clinical','Prescriptions','fa-heartbeat','~/Clinical/Prescriptions',1,70,2),
 (2,'DDA','Register','fa-balance-scale','~/DDA/Register',1,75,1),
@@ -116,8 +120,10 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (3,'Customers','Wholesale','fa-users','~/Customers/Wholesale',1,30,2),
 (3,'Suppliers','Suppliers','fa-truck','~/Suppliers/Index',1,40,1),
 (3,'Suppliers','Purchase Orders','fa-truck','~/Suppliers/PurchaseOrders',1,40,2),
+(3,'Suppliers','Import Invoice','fa-file-pdf-o','~/Suppliers/ImportInvoice',1,40,4),
 (3,'Reports','Sales Report','fa-bar-chart','~/Reports/Sales',1,60,1),
 (3,'Reports','Stock Report','fa-bar-chart','~/Reports/Stock',1,60,2),
+(3,'AI','Smart Reorder','fa-magic','~/AI/Index',1,65,1),
 (3,'Clinical','Patients','fa-heartbeat','~/Clinical/Patients',1,70,1),
 (3,'Clinical','Prescriptions','fa-heartbeat','~/Clinical/Prescriptions',1,70,2),
 (3,'DDA','Register','fa-balance-scale','~/DDA/Register',1,75,1),
@@ -142,4 +148,4 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (5,'Customers','Retail','fa-users','~/Customers/Retail',1,30,1),
 (5,'Settings','Profile','fa-cog','~/Settings/Profile',1,80,1);
 
--- Verify: catalog = 31; access per role 1=5, 2=26, 3=18, 4=7, 5=5
+-- Verify: catalog = 33; access per role 1=5, 2=28, 3=20, 4=7, 5=5

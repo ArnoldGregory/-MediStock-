@@ -391,4 +391,23 @@ namespace MediStock.API.Models
         public int page { get; set; }
         public int page_size { get; set; }
     }
+
+    // ── Invoice Import ──
+    public class ImportConfirmRequest
+    {
+        public Int64 supplier_id { get; set; }
+        public string? po_number { get; set; }
+        public decimal markup_percent { get; set; } = 25m;
+        public List<ImportConfirmLineModel>? lines { get; set; }
+    }
+
+    public class ImportConfirmLineModel
+    {
+        public string product_name { get; set; } = "";
+        public int quantity { get; set; }
+        public decimal unit_cost { get; set; }
+        public decimal? unit_sell_price { get; set; }
+        public string? expiry_date { get; set; }
+        public bool skip { get; set; }
+    }
 }

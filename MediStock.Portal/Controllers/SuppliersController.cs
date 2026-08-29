@@ -51,6 +51,12 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
+        public async Task<IActionResult> ImportInvoice()
+        {
+            await _audit.LogViewAsync("Suppliers/ImportInvoice");
+            return View();
+        }
+
         // ── Supplier Data ─────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetSuppliers()
@@ -211,6 +217,55 @@ namespace MediStock.Portal.Controllers
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to receive stock" : result.Error });
         }
 
+        // ── Invoice Import ─────────────────────────────────────────────────────
+        [HttpPost]
+        public async Task<IActionResult> ImportInvoiceUpload(IFormFile file)
+        {
+            if (file == null || file.Length == 0)
+                return Json(new { success = false, message = "No file selected" });
+
+            using var ms = new MemoryStream();
+            await file.CopyToAsync(ms);
+
+            var result = await _api.PostFileAsync<object>("api/suppliers/import-invoice", file.FileName, ms.ToArray());
+            return Json(result.IsSuccess
+                ? new { success = true, message = "Invoice parsed", data = result.Data }
+                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to parse invoice" : result.Error });
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> ImportConfirm([FromBody] ImportConfirmRequest model)
+        {
+            if (model == null || model.supplier_id <= 0)
+                return Json(new { success = false, message = "Supplier is required" });
+
+            var lines = (model.lines ?? new List<ImportConfirmLineRequest>())
+                .Where(l => !l.skip && !string.IsNullOrWhiteSpace(l.product_name) && l.quantity > 0)
+                .ToList();
+            if (lines.Count == 0)
+                return Json(new { success = false, message = "No line items to import" });
+
+            var result = await _api.PostAsync<object>("api/suppliers/import-confirm", new
+            {
+                supplier_id    = model.supplier_id,
+                po_number      = model.po_number,
+                markup_percent = model.markup_percent,
+                lines          = lines.Select(l => new
+                {
+                    product_name    = l.product_name,
+                    quantity        = l.quantity,
+                    unit_cost       = l.unit_cost,
+                    unit_sell_price = l.unit_sell_price,
+                    expiry_date     = l.expiry_date,
+                    skip            = l.skip
+                }).ToList()
+            });
+
+            return Json(result.IsSuccess
+                ? new { success = true, message = "Stock imported", data = result.Data }
+                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to import" : result.Error });
+        }
+
         private string GetPharmacyId()
         {
             return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";
@@ -259,6 +314,24 @@ namespace MediStock.Portal.Controllers
             public long    id                 { get; set; }
             public int     quantity_received  { get; set; }
             public string? notes              { get; set; }
+        }
+
+        public class ImportConfirmRequest
+        {
+            public long     supplier_id      { get; set; }
+            public string?  po_number        { get; set; }
+            public decimal  markup_percent   { get; set; } = 25m;
+            public List<ImportConfirmLineRequest>? lines { get; set; }
+        }
+
+        public class ImportConfirmLineRequest
+        {
+            public string   product_name     { get; set; } = "";
+            public int      quantity         { get; set; }
+            public decimal  unit_cost        { get; set; }
+            public decimal? unit_sell_price  { get; set; }
+            public string?  expiry_date      { get; set; }
+            public bool     skip             { get; set; }
         }
     }
 }

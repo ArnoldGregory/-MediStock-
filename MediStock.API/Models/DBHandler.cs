@@ -285,6 +285,36 @@ namespace MediStock.API.Models
             }
         }
 
+        /// <summary>
+        /// Executes an INSERT and returns the auto-increment id from the SAME
+        /// connection (LAST_INSERT_ID() is connection-scoped).
+        /// </summary>
+        public long ExecuteInsertReturnId(string query, object parameters = null)
+        {
+            try
+            {
+                using (MySqlConnection connection = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                {
+                    using (MySqlCommand command = new MySqlCommand(query, connection))
+                    {
+                        if (parameters != null)
+                        {
+                            foreach (var prop in parameters.GetType().GetProperties())
+                                command.Parameters.AddWithValue($"@{prop.Name}", prop.GetValue(parameters));
+                        }
+                        connection.Open();
+                        command.ExecuteNonQuery();
+                        return command.LastInsertedId;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error("ExecuteInsertReturnId: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return 0;
+            }
+        }
+
         public async Task<DataTable> GetAdhocDataAsync(string query)
         {
             var dataTable = new DataTable();

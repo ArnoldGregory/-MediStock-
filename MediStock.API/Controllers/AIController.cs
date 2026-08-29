@@ -34,25 +34,105 @@ namespace MediStock.API.Controllers
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
 
+                int leadDays = 7;
+                if (jobject?["lead_days"] != null && int.TryParse(jobject["lead_days"]?.ToString(), out int ld) && ld > 0)
+                    leadDays = ld;
+
                 DataTable lowStock = dbhandler.GetRecords("low_stock_products", pharmacyId.ToString());
                 DataTable expiringSoon = dbhandler.GetRecords("expiring_batches", pharmacyId.ToString());
+                DataTable demand = dbhandler.GetRecords("sales_demand", pharmacyId.ToString());
+
+                // product_id -> average daily units sold over the last 30 days
+                var demandByProduct = new Dictionary<long, double>();
+                foreach (DataRow row in demand.Rows)
+                {
+                    long pid = row["product_id"] != DBNull.Value ? Convert.ToInt64(row["product_id"]) : 0;
+                    double units = row["units_30d"] != DBNull.Value ? Convert.ToDouble(row["units_30d"]) : 0;
+                    if (pid > 0) demandByProduct[pid] = units / 30.0;
+                }
 
                 var predictions = new List<object>();
                 foreach (DataRow row in lowStock.Rows)
                 {
+                    long productId = row["product_id"] != DBNull.Value ? Convert.ToInt64(row["product_id"]) : 0;
+                    string productName = row["product_name"]?.ToString() ?? "";
+                    string sku = row["sku"]?.ToString() ?? "";
+                    int stock = row["stock_qty"] != DBNull.Value ? Convert.ToInt32(row["stock_qty"]) : 0;
+                    int reorder = row["reorder_level"] != DBNull.Value ? Convert.ToInt32(row["reorder_level"]) : 0;
+                    decimal cost = row["cost_price"] != DBNull.Value ? Convert.ToDecimal(row["cost_price"]) : 0;
+                    decimal sell = row["selling_price"] != DBNull.Value ? Convert.ToDecimal(row["selling_price"]) : 0;
+                    string unit = row["unit"]?.ToString() ?? "";
+                    string category = row["category_name"]?.ToString() ?? "";
+
+                    demandByProduct.TryGetValue(productId, out double avgDaily);
+
+                    int suggested;
+                    double? daysOfStock = avgDaily > 0 ? Math.Round(stock / avgDaily, 1) : null;
+                    if (avgDaily > 0)
+                    {
+                        // forecast: (avg daily demand * lead time) + reorder-level safety stock
+                        double target = (avgDaily * leadDays) + reorder;
+                        suggested = Math.Max(0, (int)Math.Ceiling(target - stock));
+                    }
+                    else
+                    {
+                        // no sales history yet: fall back to 2x reorder level
+                        suggested = Math.Max(reorder * 2, reorder == 0 ? 10 : reorder);
+                    }
+
+                    string priority = stock <= 0 ? "Critical"
+                        : (avgDaily > 0 && stock < reorder ? "High" : "Medium");
+
                     predictions.Add(new
                     {
-                        product_id = row["product_id"] != DBNull.Value ? Convert.ToInt64(row["product_id"]) : 0,
-                        product_name = row["product_name"]?.ToString() ?? "",
-                        current_stock = row["stock_qty"] != DBNull.Value ? Convert.ToInt32(row["stock_qty"]) : 0,
-                        reorder_level = row["reorder_level"] != DBNull.Value ? Convert.ToInt32(row["reorder_level"]) : 0,
-                        suggested_quantity = row["reorder_level"] != DBNull.Value ? Convert.ToInt32(row["reorder_level"]) * 2 : 0,
-                        priority = row["stock_qty"] != DBNull.Value && Convert.ToInt32(row["stock_qty"]) == 0 ? "Critical" : "High"
+                        product_id = productId,
+                        product_name = productName,
+                        sku = sku,
+                        category = category,
+                        unit = unit,
+                        current_stock = stock,
+                        reorder_level = reorder,
+                        avg_daily_sales = Math.Round(avgDaily, 2),
+                        days_of_stock = daysOfStock,
+                        lead_days = leadDays,
+                        suggested_quantity = suggested,
+                        estimated_cost = suggested * cost,
+                        selling_price = sell,
+                        priority = priority
                     });
                 }
 
-                iloggermanager.LogInfo($"PredictReorder: pharmacyId={pharmacyId} predictions={predictions.Count}");
-                return Ok(new { success = true, message = "Success", action = "", data = new { predictions = predictions, expiring_soon_count = expiringSoon.Rows.Count, generated_at = DateTime.UtcNow } });
+                var expiring = new List<object>();
+                foreach (DataRow row in expiringSoon.Rows)
+                {
+                    DateTime? expiry = row["expiry_date"] != DBNull.Value ? Convert.ToDateTime(row["expiry_date"]) : (DateTime?)null;
+                    double? daysToExpiry = expiry.HasValue ? Math.Round((expiry.Value - DateTime.Today).TotalDays, 0) : null;
+                    expiring.Add(new
+                    {
+                        batch_id = row["batch_id"] != DBNull.Value ? Convert.ToInt64(row["batch_id"]) : 0,
+                        product_id = row["product_id"] != DBNull.Value ? Convert.ToInt64(row["product_id"]) : 0,
+                        product_name = row["product_name"]?.ToString() ?? "",
+                        batch_number = row["batch_number"]?.ToString() ?? "",
+                        expiry_date = expiry?.ToString("yyyy-MM-dd") ?? null,
+                        days_to_expiry = daysToExpiry,
+                        quantity = row["quantity"] != DBNull.Value ? Convert.ToInt32(row["quantity"]) : 0
+                    });
+                }
+
+                iloggermanager.LogInfo($"PredictReorder: pharmacyId={pharmacyId} predictions={predictions.Count} expiring={expiring.Count}");
+                return Ok(new
+                {
+                    success = true, message = "Success", action = "",
+                    data = new
+                    {
+                        generated_at = DateTime.UtcNow,
+                        lead_days = leadDays,
+                        predictions = predictions,
+                        expiring_soon = expiring,
+                        expiring_soon_count = expiring.Count,
+                        disclaimer = "Forecast uses the last 30 days of sales. Without sales history, suggestions fall back to 2x reorder level."
+                    }
+                });
             }
             catch (Exception ex) { iloggermanager.LogError("PredictReorder: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }

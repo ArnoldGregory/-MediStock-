@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using MediStock.API.Services;
 using Newtonsoft.Json.Linq;
 using System.Data;
 
@@ -259,6 +260,175 @@ namespace MediStock.API.Controllers
                 return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
             catch (Exception ex) { iloggermanager.LogError("GetSupplierPriceHistory: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
+        [HttpPost("import-invoice")]
+        public ActionResult ImportInvoice(IFormFile file)
+        {
+            iloggermanager.LogInfo("******* IMPORT INVOICE REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}, file={file?.FileName}");
+
+                if (file == null || file.Length == 0)
+                    return Bad("No file uploaded");
+
+                using var ms = new MemoryStream();
+                file.CopyTo(ms);
+
+                var parsed = InvoiceParsingService.Parse(ms.ToArray(), file.FileName);
+                iloggermanager.LogInfo($"ImportInvoice: type={parsed.document_type} lines={parsed.lines.Count} invoice#={parsed.invoice_number}");
+
+                return Ok(new { success = true, message = "Invoice parsed", action = "", data = parsed });
+            }
+            catch (Exception ex) { iloggermanager.LogError("ImportInvoice: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
+        [HttpPost("import-confirm")]
+        public ActionResult ImportConfirm([FromBody] ImportConfirmRequest req)
+        {
+            iloggermanager.LogInfo("******* IMPORT CONFIRM REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+
+                if (req == null || req.supplier_id <= 0)
+                    return Bad("Supplier is required");
+
+                var lines = req.lines?.Where(l => !l.skip && !string.IsNullOrWhiteSpace(l.product_name) && l.quantity > 0).ToList()
+                           ?? new List<ImportConfirmLineModel>();
+                if (lines.Count == 0)
+                    return Bad("No valid line items to import");
+
+                string poNumber = EnsureUniquePoNumber(req.po_number ?? "");
+                decimal total = lines.Sum(l => l.quantity * l.unit_cost);
+                decimal markup = req.markup_percent > 0 ? req.markup_percent : 25m;
+
+                // 1. PO header (status Received — this order already arrived)
+                long poId = dbhandler.ExecuteInsertReturnId(
+                    "INSERT INTO purchase_orders (pharmacy_id, supplier_id, po_number, status, total, expected_date, received_date, created_by, created_on) " +
+                    "VALUES (@pharmacy_id, @supplier_id, @po_number, 'Received', @total, @received_date, @received_date, @created_by, NOW())",
+                    new { pharmacy_id = pharmacyId, supplier_id = req.supplier_id, po_number = poNumber, total = total, received_date = DateTime.Today, created_by = userId });
+                if (poId <= 0)
+                    return Bad("Failed to create purchase order header");
+
+                // 2. Existing products (fresh snapshot for matching)
+                var existing = new List<(long id, string name, decimal sell, int reorder)>();
+                foreach (DataRow row in dbhandler.GetRecords("products", pharmacyId.ToString()).Rows)
+                {
+                    existing.Add((Convert.ToInt64(row["id"]), row["name"]?.ToString() ?? "", 
+                        row["selling_price"] != DBNull.Value ? Convert.ToDecimal(row["selling_price"]) : 0m,
+                        row["reorder_level"] != DBNull.Value ? Convert.ToInt32(row["reorder_level"]) : 5));
+                }
+
+                int created = 0, matched = 0;
+                foreach (var line in lines)
+                {
+                    bool isNew = false;
+                    long productId = MatchProduct(existing, line.product_name);
+                    if (productId <= 0)
+                    {
+                        // New product — create it with sensible defaults
+                        var pm = new ProductModel
+                        {
+                            pharmacy_id = pharmacyId,
+                            name = line.product_name,
+                            sku = GenerateSku(pharmacyId, created),
+                            cost_price = line.unit_cost,
+                            selling_price = line.unit_sell_price ?? Math.Round(line.unit_cost * (1 + markup / 100m), 2),
+                            reorder_level = 5,
+                            unit_of_measure = "pcs",
+                            created_by = userId
+                        };
+                        bool ok = dbhandler.AddProduct(pm);
+                        if (!ok || pm.id <= 0) continue;
+                        productId = pm.id;
+                        existing.Add((productId, line.product_name, pm.selling_price, 5));
+                        created++;
+                    }
+                    else
+                    {
+                        var ex = existing.First(e => e.id == productId);
+                        matched++;
+                        string upd = line.unit_sell_price.HasValue && line.unit_sell_price > 0
+                            ? $"UPDATE products SET stock_qty = stock_qty + {line.quantity}, cost_price = {line.unit_cost}, selling_price = {line.unit_sell_price} WHERE id = {productId} AND pharmacy_id = {pharmacyId}"
+                            : $"UPDATE products SET stock_qty = stock_qty + {line.quantity}, cost_price = {line.unit_cost} WHERE id = {productId} AND pharmacy_id = {pharmacyId}";
+                        _ = dbhandler.ExecuteNonQuery(upd);
+                    }
+
+                    if (productId <= 0) continue;
+
+                    // 3. Batch (the actual inventory increase)
+                    string expiry = string.IsNullOrWhiteSpace(line.expiry_date) ? "NULL" : $"'{line.expiry_date}'";
+                    _ = dbhandler.ExecuteNonQuery(
+                        "INSERT INTO product_batches (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity, status, created_by) " +
+                        $"VALUES ({pharmacyId}, {productId}, '{Escape(poNumber)}', {expiry}, {line.unit_cost}, {line.quantity}, 'Active', {userId})");
+
+                    // 4. PO line item
+                    _ = dbhandler.ExecuteNonQuery(
+                        "INSERT INTO po_items (po_id, product_id, quantity, received_qty, unit_cost, total) " +
+                        $"VALUES ({poId}, {productId}, {line.quantity}, {line.quantity}, {line.unit_cost}, {line.quantity * line.unit_cost})");
+
+                    // 5. Price history
+                    _ = dbhandler.ExecuteNonQuery(
+                        "INSERT INTO supplier_price_history (pharmacy_id, supplier_id, product_id, unit_cost, recorded_on) " +
+                        $"VALUES ({pharmacyId}, {req.supplier_id}, {productId}, {line.unit_cost}, NOW())");
+                }
+
+                iloggermanager.LogInfo($"ImportConfirm: poId={poId} created={created} matched={matched}");
+                CaptureAuditTrail(userId.ToString(), "Import Invoice", $"Imported {lines.Count} items from invoice {poNumber} ({created} new, {matched} matched)");
+                return Ok(new { success = true, message = "Stock imported successfully", action = "", data = new JObject { { "po_id", poId }, { "po_number", poNumber }, { "created", created }, { "matched", matched }, { "total", total } } });
+            }
+            catch (Exception ex) { iloggermanager.LogError("ImportConfirm: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [NonAction]
+        private string EnsureUniquePoNumber(string requested)
+        {
+            string po = string.IsNullOrWhiteSpace(requested)
+                ? "IMP-" + DateTime.Now.ToString("yyyyMMddHHmmss")
+                : requested.Trim();
+            string test = po;
+            int n = 1;
+            while (GetAdhocScalarInt($"SELECT COUNT(*) AS c FROM purchase_orders WHERE po_number = '{Escape(test)}'") > 0)
+                test = $"{po}-{n++}";
+            return test;
+        }
+
+        [NonAction]
+        private int GetAdhocScalarInt(string sql)
+        {
+            DataTable dt = dbhandler.GetAdhocData(sql);
+            return dt.Rows.Count > 0 && dt.Rows[0][0] != DBNull.Value ? Convert.ToInt32(dt.Rows[0][0]) : 0;
+        }
+
+        [NonAction]
+        private string GenerateSku(long pharmacyId, int seq) => $"MED-{pharmacyId}-{DateTime.Now:yyMMdd}-{seq + 1:D3}";
+
+        [NonAction]
+        private static string Escape(string s) => s.Replace("'", "''");
+
+        [NonAction]
+        private long MatchProduct(List<(long id, string name, decimal sell, int reorder)> existing, string name)
+        {
+            string n = Normalize(name);
+            foreach (var e in existing)
+                if (Normalize(e.name) == n) return e.id;
+            foreach (var e in existing)
+                if (Normalize(e.name).Contains(n) || n.Contains(Normalize(e.name))) return e.id;
+            return 0;
+        }
+
+        [NonAction]
+        private static string Normalize(string s)
+        {
+            var t = (s ?? "").ToLowerInvariant().Trim();
+            t = System.Text.RegularExpressions.Regex.Replace(t, @"\s+", " ");
+            return t.Trim(' ', '|', '=', '\t');
         }
 
         [NonAction]

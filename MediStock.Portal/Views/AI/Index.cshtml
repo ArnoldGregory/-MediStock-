@@ -1,0 +1,215 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-magic"></i> Smart Reorder <small>AI Stock Forecast</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <h4 class="panel-title"><i class="fa fa-filter"></i> Forecast Settings</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>Lead Time (days)</label>
+                    <input type="number" class="form-control" id="leadDays" value="7" min="1" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button class="btn btn-primary" id="btnGenerate" onclick="GenerateForecast();"><i class="fa fa-cog"></i> Generate Forecast</button>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label>How it works</label>
+                    <p class="text-muted m-b-0" style="line-height:1.5;">Forecast uses your last 30 days of sales to estimate daily demand, then suggests: <code>(avg daily sales &times; lead time) + reorder level &minus; current stock</code>. Products without sales history fall back to 2&times; reorder level.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Summary Cards -->
+<div class="row" id="summaryCards" style="display:none;">
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-blue">
+            <div class="stats-icon"><i class="fa fa-cube"></i></div>
+            <div class="stats-info"><h4>REORDER SUGGESTIONS</h4><p id="aiPredictions">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-red">
+            <div class="stats-icon"><i class="fa fa-exclamation-triangle"></i></div>
+            <div class="stats-info"><h4>CRITICAL (OUT OF STOCK)</h4><p id="aiCritical">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-green">
+            <div class="stats-icon"><i class="fa fa-money"></i></div>
+            <div class="stats-info"><h4>ESTIMATED ORDER COST</h4><p id="aiCost">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-orange">
+            <div class="stats-icon"><i class="fa fa-clock-o"></i></div>
+            <div class="stats-info"><h4>EXPIRING NEXT 90 DAYS</h4><p id="aiExpiring">-</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- Predictions Table -->
+<div class="row m-t-20" id="detailRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="GenerateForecast();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-table m-r-5"></i> Reorder Predictions</h4>
+            </div>
+            <div class="panel-body">
+                <table id="predTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Category</th>
+                            <th>Current Stock</th>
+                            <th>Reorder Lvl</th>
+                            <th>Avg Daily Sales</th>
+                            <th>Days of Stock</th>
+                            <th>Suggested Qty</th>
+                            <th>Est. Cost</th>
+                            <th>Priority</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Expiring Soon -->
+<div class="row m-t-20" id="expiryRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="GenerateForecast();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-clock-o m-r-5"></i> Expiring In Next 90 Days</h4>
+            </div>
+            <div class="panel-body">
+                <table id="expiryTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Batch No</th>
+                            <th>Expiry Date</th>
+                            <th>Days Left</th>
+                            <th>Quantity</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        // ============================================================
+        //  Smart Reorder — AI Stock Forecast (BFF pattern)
+        // ============================================================
+        var predTable, expiryTable;
+
+        $(document).ready(function () {
+            predTable = InitPredTable();
+            expiryTable = InitExpiryTable();
+        });
+
+        function InitPredTable() {
+            return $('#predTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.product_id); },
+                aoColumns: [
+                    { data: 'product_name', autoWidth: true, sDefaultContent: '-', render: function (d, t, r) { return d + (r.sku ? '<br/><small class="text-muted">' + r.sku + '</small>' : ''); } },
+                    { data: 'category', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'current_stock', autoWidth: true, sDefaultContent: '0' },
+                    { data: 'reorder_level', autoWidth: true, sDefaultContent: '0' },
+                    { data: 'avg_daily_sales', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return parseFloat(d || 0).toFixed(2); } },
+                    { data: 'days_of_stock', autoWidth: true, sDefaultContent: '-', render: function (d) { return d === null || d === undefined || d === '' ? '-' : d; } },
+                    { data: 'suggested_quantity', autoWidth: true, sDefaultContent: '0', render: function (d) { return '<span class="label label-success">' + (d || 0) + '</span>'; } },
+                    { data: 'estimated_cost', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'priority', autoWidth: true, sDefaultContent: 'Medium', render: function (d) {
+                        var cls = { 'Critical': 'label-danger', 'High': 'label-warning', 'Medium': 'label-info' };
+                        return '<span class="label ' + (cls[d] || 'label-info') + '">' + (d || '-') + '</span>';
+                    } }
+                ]
+            });
+        }
+
+        function InitExpiryTable() {
+            return $('#expiryTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.batch_id); },
+                aoColumns: [
+                    { data: 'product_name', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'batch_number', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'expiry_date', autoWidth: true, sDefaultContent: '-', render: function (d) { return d || '-'; } },
+                    { data: 'days_to_expiry', autoWidth: true, sDefaultContent: '-', render: function (d) { return d === null || d === undefined || d === '' ? '-' : d; } },
+                    { data: 'quantity', autoWidth: true, sDefaultContent: '0' }
+                ]
+            });
+        }
+
+        function GenerateForecast() {
+            var lead = parseInt($('#leadDays').val()) || 7;
+            if (lead < 1) lead = 7;
+            var btn = document.getElementById('btnGenerate');
+            btnLoad(btn, 'Analyzing...');
+            ajaxPost('/AI/PredictReorder', { lead_days: lead }, function (res) {
+                btnStop(btn);
+                if (!res.success) { Swal.fire('Error', res.message || 'Failed to generate forecast.', 'error'); return; }
+                RenderForecast(res.data || {});
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
+        }
+
+        function RenderForecast(d) {
+            var preds = d.predictions || [];
+            var expiring = d.expiring_soon || [];
+
+            $('#summaryCards').css('display', '');
+            $('#aiPredictions').text(preds.length);
+            $('#aiCritical').text(preds.filter(function (p) { return p.priority === 'Critical'; }).length);
+            var cost = preds.reduce(function (s, p) { return s + (parseFloat(p.estimated_cost) || 0); }, 0);
+            $('#aiCost').text('KES ' + cost.toFixed(2));
+            $('#aiExpiring').text(d.expiring_soon_count || expiring.length);
+
+            var s = predTable.fnSettings();
+            predTable.fnClearTable(true);
+            for (var i = 0; i < preds.length; i++) predTable.oApi._fnAddData(s, preds[i]);
+            s.aiDisplay = s.aiDisplayMaster.slice();
+            predTable.fnDraw();
+
+            var es = expiryTable.fnSettings();
+            expiryTable.fnClearTable(true);
+            for (var j = 0; j < expiring.length; j++) expiryTable.oApi._fnAddData(es, expiring[j]);
+            es.aiDisplay = es.aiDisplayMaster.slice();
+            expiryTable.fnDraw();
+
+            $('#detailRow').css('display', '');
+            $('#expiryRow').css('display', '');
+        }
+    </script>
+}

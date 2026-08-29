@@ -204,8 +204,9 @@ BEGIN
             ORDER BY condition_name;
 
         WHEN 'expiring_batches' THEN
-            SELECT b.id, b.batch_number, b.expiry_date, b.quantity, b.cost_price,
-                   p.name AS product_name
+            SELECT b.id AS batch_id, b.product_id, b.batch_number, b.expiry_date,
+                   b.quantity, b.quantity_sold, b.cost_price, b.status,
+                   p.name AS product_name, p.sku
             FROM product_batches b
             JOIN products p ON p.id = b.product_id
             WHERE b.pharmacy_id = p_param1 AND b.is_deleted = 0
@@ -213,12 +214,27 @@ BEGIN
               AND b.quantity > 0
             ORDER BY b.expiry_date;
 
+        WHEN 'sales_demand' THEN
+            SELECT si.product_id, p.name AS product_name,
+                   SUM(si.quantity) AS units_30d, COUNT(DISTINCT s.id) AS sale_count
+            FROM sale_items si
+            JOIN sales s ON s.id = si.sale_id
+            JOIN products p ON p.id = si.product_id
+            WHERE s.pharmacy_id = p_param1 AND s.is_deleted = 0
+              AND s.status IN ('Completed', 'Paid')
+              AND s.created_on >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+            GROUP BY si.product_id, p.name;
+
         WHEN 'low_stock_products' THEN
-            SELECT id, name, sku, stock_qty, reorder_level
-            FROM products
-            WHERE pharmacy_id = p_param1 AND is_deleted = 0
-              AND stock_qty <= reorder_level
-            ORDER BY stock_qty ASC;
+            SELECT p.id AS product_id, p.name AS product_name, p.sku, p.barcode,
+                   p.stock_qty, p.reorder_level, p.cost_price, p.selling_price,
+                   p.unit, p.is_active, p.created_on,
+                   c.name AS category_name
+            FROM products p
+            LEFT JOIN product_categories c ON c.id = p.category_id
+            WHERE p.pharmacy_id = p_param1 AND p.is_deleted = 0
+              AND p.stock_qty <= p.reorder_level
+            ORDER BY p.stock_qty ASC;
 
         WHEN 'menu_access' THEN
             SELECT id, role_id, main_menu_name, sub_menu_name, page_url,

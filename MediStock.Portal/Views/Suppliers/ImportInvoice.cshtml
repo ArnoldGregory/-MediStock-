@@ -1,0 +1,220 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-file-pdf-o"></i> Import from Invoice <small>AI-powered stock entry</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <h4 class="panel-title"><i class="fa fa-cloud-upload"></i> Upload Supplier Invoice</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="form-group">
+                    <label>Invoice File (PDF, JPG, PNG)</label>
+                    <input type="file" class="form-control" id="invFile" accept=".pdf,.jpg,.jpeg,.png" />
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="form-group">
+                    <label>Supplier</label>
+                    <select class="form-control" id="supplierSel"><option value="">Select...</option></select>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label>Invoice / Ref No</label>
+                    <input type="text" class="form-control" id="invNo" placeholder="auto" />
+                </div>
+            </div>
+            <div class="col-md-1">
+                <div class="form-group">
+                    <label>Markup %</label>
+                    <input type="number" class="form-control" id="markupPct" value="25" min="0" />
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button class="btn btn-primary" id="btnUpload" onclick="UploadInvoice();"><i class="fa fa-cog"></i> Read Invoice</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <p class="text-muted m-b-0"><i class="fa fa-info-circle"></i> The AI reads the invoice and lists each item below for a quick check &mdash; fix any names or type the <b>selling price</b> it didn't catch, then press <b>Add to Stock</b>.</p>
+    </div>
+</div>
+
+<!-- Parsed Invoice -->
+<div class="row m-t-20" id="reviewRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-warning" onclick="UploadInvoice();"><i class="fa fa-repeat"></i> Re-read</button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-list m-r-5"></i> Items Found <small id="invInfo" style="color:#aaa;"></small></h4>
+            </div>
+            <div class="panel-body">
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover table-bordered table-condensed">
+                        <thead>
+                            <tr>
+                                <th style="width:30px;">#</th>
+                                <th>Product Name</th>
+                                <th style="width:110px;">Quantity</th>
+                                <th style="width:120px;">Cost Price</th>
+                                <th style="width:120px;">Selling Price</th>
+                                <th style="width:120px;">Expiry (opt)</th>
+                                <th style="width:80px;" class="text-center">Conf.</th>
+                                <th style="width:70px;" class="text-center">Skip</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reviewBody"></tbody>
+                    </table>
+                </div>
+
+                <div class="m-t-20 text-right">
+                    <button class="btn btn-success btn-lg" id="btnImport" onclick="AddToStock();"><i class="fa fa-check"></i> Add To Stock</button>
+                    <a href="/Suppliers/PurchaseOrders" class="btn btn-default">View Purchase Orders</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        // ============================================================
+        //  Import from Invoice — review then add to stock (BFF pattern)
+        // ============================================================
+        var parsedData = null;
+
+        $(document).ready(function () {
+            loadSuppliers();
+        });
+
+        function loadSuppliers() {
+            ajaxGet('/Suppliers/GetSuppliers', function (data) {
+                var s = $('#supplierSel');
+                s.empty().append('<option value="">Select...</option>');
+                if (data && data.length) data.forEach(function (sup) {
+                    s.append('<option value="' + sup.id + '">' + (sup.name || ('Supplier ' + sup.id)) + '</option>');
+                });
+            });
+        }
+
+        function UploadInvoice() {
+            var fileInput = document.getElementById('invFile');
+            if (!fileInput.files || !fileInput.files.length) { Swal.fire('Error', 'Please choose an invoice file first.', 'warning'); return; }
+
+            var fd = new FormData();
+            fd.append('file', fileInput.files[0]);
+
+            var btn = document.getElementById('btnUpload');
+            btnLoad(btn, 'Reading invoice...');
+
+            $.ajax({
+                url: '/Suppliers/ImportInvoiceUpload',
+                type: 'POST',
+                data: fd,
+                processData: false,
+                contentType: false,
+                success: function (res) {
+                    btnStop(btn);
+                    if (!res.success) { Swal.fire('Error', res.message || 'Could not read the invoice.', 'error'); return; }
+                    parsedData = res.data || {};
+                    RenderReview();
+                },
+                error: function (xhr) { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); }
+            });
+        }
+
+        function RenderReview() {
+            var lines = parsedData.lines || [];
+            if (!lines.length) { Swal.fire('No items', parsedData.note || 'No product lines were recognised. Try a clearer scan.', 'warning'); return; }
+
+            var info = [];
+            if (parsedData.invoice_number) info.push('Ref: ' + parsedData.invoice_number);
+            if (parsedData.invoice_date) info.push('Date: ' + parsedData.invoice_date);
+            if (parsedData.supplier_name) info.push('Supplier: ' + parsedData.supplier_name);
+            $('#invInfo').text(info.join('   |   '));
+
+            if (!(parsedData.invoice_number)) $('#invNo').val(parsedData.invoice_number || '');
+
+            var html = '';
+            lines.forEach(function (l, i) {
+                var conf = Math.round((l.confidence || 0) * 100) + '%';
+                var confCls = conf >= 90 ? 'label-success' : (conf >= 60 ? 'label-warning' : 'label-danger');
+                var sell = l.unit_sell_price != null ? l.unit_sell_price : '';
+                html += '<tr data-idx="' + i + '">'
+                    + '<td>' + (i + 1) + '</td>'
+                    + '<td><input type="text" class="form-control input-sm np-name" value="' + esc(l.description) + '" /></td>'
+                    + '<td><input type="number" class="form-control input-sm np-qty" value="' + (l.quantity || 0) + '" min="0" /></td>'
+                    + '<td><input type="number" step="0.01" class="form-control input-sm np-cost" value="' + (l.unit_cost || '') + '" min="0" /></td>'
+                    + '<td><input type="number" step="0.01" class="form-control input-sm np-sell" value="' + sell + '" min="0" placeholder="auto" /></td>'
+                    + '<td><input type="date" class="form-control input-sm np-exp" value="' + (l.expiry_date || '') + '" /></td>'
+                    + '<td class="text-center"><span class="label ' + confCls + '">' + conf + '</span></td>'
+                    + '<td class="text-center"><input type="checkbox" class="np-skip" /></td>'
+                    + '</tr>';
+            });
+            $('#reviewBody').html(html);
+            $('#reviewRow').css('display', '');
+        }
+
+        function AddToStock() {
+            if (!parsedData) return;
+            var selectedSupplier = $('#supplierSel').val();
+            if (!selectedSupplier) { Swal.fire('Error', 'Please select the supplier.', 'warning'); return; }
+
+            var lines = [];
+            $('#reviewBody tr').each(function () {
+                var $tr = $(this);
+                if ($tr.find('.np-skip').is(':checked')) return;
+                var name = $tr.find('.np-name').val().trim();
+                var qty = parseInt($tr.find('.np-qty').val()) || 0;
+                var cost = parseFloat($tr.find('.np-cost').val()) || 0;
+                if (!name || qty <= 0) return;
+                var sellVal = $tr.find('.np-sell').val().trim();
+                lines.push({
+                    product_name: name,
+                    quantity: qty,
+                    unit_cost: cost,
+                    unit_sell_price: sellVal !== '' ? (parseFloat(sellVal) || 0) : null,
+                    expiry_date: $tr.find('.np-exp').val() || null,
+                    skip: false
+                });
+            });
+
+            if (!lines.length) { Swal.fire('Error', 'No items to import. Check the Skipped boxes.', 'warning'); return; }
+
+            var btn = document.getElementById('btnImport');
+            btnLoad(btn, 'Adding to stock...');
+
+            ajaxPost('/Suppliers/ImportConfirm', {
+                supplier_id: parseInt(selectedSupplier),
+                po_number: $('#invNo').val().trim() || null,
+                markup_percent: parseFloat($('#markupPct').val()) || 25,
+                lines: lines
+            }, function (res) {
+                btnStop(btn);
+                if (!res.success) { Swal.fire('Error', res.message || 'Import failed.', 'error'); return; }
+                var d = res.data || {};
+                var msg = 'Added <b>' + (d.created || 0) + '</b> new medicine' + ((d.created === 1) ? '' : 's')
+                    + ' and updated <b>' + (d.matched || 0) + '</b> existing.'
+                    + '<br/>Reference: <b>' + (d.po_number || '-') + '</b>'
+                    + '<br/>Total cost: <b>KES ' + parseFloat(d.total || 0).toFixed(2) + '</b>';
+                Swal.fire({ icon: 'success', title: 'Stock added successfully', html: msg, confirmButtonText: 'Done' }).then(function () {
+                    location.href = '/Suppliers/PurchaseOrders';
+                });
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
+        }
+
+        function esc(s) {
+            return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+    </script>
+}
