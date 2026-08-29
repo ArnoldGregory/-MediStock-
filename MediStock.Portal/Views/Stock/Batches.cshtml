@@ -9,19 +9,16 @@
 <div class="panel panel-inverse">
     <div class="panel-heading">
         <div class="panel-heading-btn">
-            <a href="@Url.Action("Batches", "Stock")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+            <button type="button" class="btn btn-xs btn-success" onclick="LoadBatches();"><i class="fa fa-repeat"></i></button>
         </div>
         <h4 class="panel-title">Stock Batches</h4>
     </div>
     <div class="panel-body">
         <div class="row m-b-10">
-            <div class="col-md-8">
-                <div class="btn-group">
-                    <a href="#" class="btn btn-sm btn-default" onclick="filterBatches('all');">All</a>
-                    <a href="#" class="btn btn-sm btn-danger" onclick="filterBatches('expired');">Expired</a>
-                    <a href="#" class="btn btn-sm btn-warning" onclick="filterBatches('expiring30');">Expiring &lt; 30 Days</a>
-                    <a href="#" class="btn btn-sm btn-info" onclick="filterBatches('expiring90');">Expiring &lt; 90 Days</a>
-                </div>
+            <div class="col-md-12">
+                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#batchModal">
+                    <i class="fa fa-plus"></i> Add Batch
+                </button>
             </div>
         </div>
 
@@ -33,14 +30,65 @@
                             <th>Product</th>
                             <th>Batch No</th>
                             <th>Quantity</th>
+                            <th>Sold</th>
                             <th>Cost Price</th>
                             <th>Expiry Date</th>
-                            <th>Supplier</th>
                             <th>Status</th>
-                            <th></th>
                         </tr>
                     </thead>
                 </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Batch Modal -->
+<div class="modal fade" id="batchModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                <h4 class="modal-title"><i class="fa fa-cubes"></i> Add Batch</h4>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Product <span class="text-danger">*</span></label>
+                    <select class="form-control" id="batchProductId">
+                        <option value="">-- Select Product --</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Batch Number <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="batchNumber" placeholder="e.g. B2026-001" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Quantity <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="batchQuantity" min="1" placeholder="0" />
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Cost Price <span class="text-danger">*</span></label>
+                            <input type="number" step="0.01" class="form-control" id="batchCostPrice" placeholder="0.00" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Expiry Date <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="batchExpiryDate" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                <button type="button" class="btn btn-success" id="btnSaveBatch"><i class="fa fa-save"></i> Save Batch</button>
             </div>
         </div>
     </div>
@@ -52,47 +100,104 @@
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
-        var table;
+        var _batchTable;
+
         $(document).ready(function () {
-            loadBatches();
+            _batchTable = InitBatchTable();
+            LoadBatches();
+            LoadBatchProducts();
         });
 
-        function loadBatches(status) {
-            if (table) table.destroy();
-            var url = status && status !== 'all' ? '/api/stock/batches?status=' + status : '/api/stock/batches';
-
-            table = $('#batchesTable').DataTable({
-                ajax: { url: url, dataSrc: '' },
-                columns: [
-                    { data: 'productName' },
-                    { data: 'batchNumber' },
-                    { data: 'quantity' },
-                    { data: 'costPrice', render: function (d) { return 'KES ' + parseFloat(d).toFixed(2); } },
-                    { data: 'expiryDate', render: function (d) { return formatDate(d); } },
-                    { data: 'supplierName', defaultContent: '-' },
-                    { data: null, render: function (data) {
-                        var expDate = new Date(data.expiryDate);
-                        var now = new Date();
-                        var diffDays = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
-                        if (diffDays < 0) return '<span class="label label-danger">Expired</span>';
-                        if (diffDays <= 30) return '<span class="label label-warning">' + diffDays + ' days</span>';
-                        if (diffDays <= 90) return '<span class="label label-info">' + diffDays + ' days</span>';
-                        return '<span class="label label-success">OK</span>';
-                    }},
-                    { data: null, orderable: false, searchable: false, render: function (data) {
-                        return '<a href="/Stock/BatchDetail/' + data.batchId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>';
-                    }}
+        function InitBatchTable() {
+            return $('#batchesTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: 'product_name',   autoWidth: true, sDefaultContent: '—' },
+                    { data: 'batch_number',   autoWidth: true, sDefaultContent: '—' },
+                    { data: 'quantity',       autoWidth: true, sDefaultContent: '0' },
+                    { data: 'quantity_sold',  autoWidth: true, sDefaultContent: '0' },
+                    { data: 'cost_price',     autoWidth: true, sDefaultContent: '0.00', render: function (d) { return formatCurrency(d); } },
+                    { data: 'expiry_date',    autoWidth: true, sDefaultContent: '—', render: function (d) { return formatDate(d); } },
+                    { data: null,             autoWidth: true, render: function (d) { return expiryStatus(d.expiry_date); } }
                 ],
-                order: [[4, 'asc']]
+                order: [[5, 'asc']]
             });
         }
 
-        function filterBatches(status) { loadBatches(status); }
+        function LoadBatches() {
+            ajaxGet('/Stock/GetBatches', function (data) {
+                var t = _batchTable;
+                var s = t.fnSettings();
+                t.fnClearTable(true);
+                if (data && data.length) {
+                    for (var i = 0; i < data.length; i++) t.oApi._fnAddData(s, data[i]);
+                }
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                t.fnDraw();
+            });
+        }
+
+        function LoadBatchProducts() {
+            ajaxGet('/Products/GetProducts', function (data) {
+                var $sel = $('#batchProductId');
+                var opts = ['<option value="">-- Select Product --</option>'];
+                if (data && data.length) {
+                    for (var i = 0; i < data.length; i++) {
+                        opts.push('<option value="' + data[i].id + '">' + data[i].name + '</option>');
+                    }
+                }
+                $sel.html(opts.join(''));
+            });
+        }
+
+        function expiryStatus(expiryDate) {
+            if (!expiryDate) return '<span class="label label-default">N/A</span>';
+            var expDate = new Date(expiryDate);
+            var now = new Date();
+            var diffDays = Math.floor((expDate - now) / (1000 * 60 * 60 * 24));
+            if (diffDays < 0) return '<span class="label label-danger">Expired</span>';
+            if (diffDays <= 30) return '<span class="label label-warning">' + diffDays + ' days</span>';
+            if (diffDays <= 90) return '<span class="label label-info">' + diffDays + ' days</span>';
+            return '<span class="label label-success">OK</span>';
+        }
 
         function formatDate(d) {
-            if (!d) return '-';
-            var dt = new Date(d);
-            return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            if (!d) return '—';
+            return new Date(d.indexOf('T') > -1 ? d : d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         }
+
+        $('#btnSaveBatch').on('click', function () {
+            var productId = parseInt($('#batchProductId').val()) || 0;
+            var batchNumber = $('#batchNumber').val().trim();
+            var quantity = parseInt($('#batchQuantity').val()) || 0;
+            var costPrice = parseFloat($('#batchCostPrice').val()) || 0;
+            var expiryDate = $('#batchExpiryDate').val();
+
+            if (!productId) { Swal.fire('Validation', 'Select a product.', 'warning'); return; }
+            if (!batchNumber) { Swal.fire('Validation', 'Batch number is required.', 'warning'); return; }
+            if (quantity <= 0) { Swal.fire('Validation', 'Quantity must be greater than 0.', 'warning'); return; }
+            if (!expiryDate) { Swal.fire('Validation', 'Expiry date is required.', 'warning'); return; }
+
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost('/Stock/AddBatch', {
+                product_id: productId,
+                batch_number: batchNumber,
+                quantity: quantity,
+                cost_price: costPrice,
+                expiry_date: expiryDate
+            }, function (res) {
+                btnStop(btn);
+                if (res.success) {
+                    $('#batchModal').modal('hide');
+                    $('#batchModal input, #batchModal select').val('');
+                    LoadBatches();
+                    Swal.fire('Saved', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
+        });
     </script>
 }

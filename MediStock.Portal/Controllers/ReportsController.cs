@@ -7,8 +7,8 @@
 //    GET  /Reports/GetSalesReport   → JSON sales report data
 //    GET  /Reports/GetStockReport   → JSON stock report data
 //    GET  /Reports/GetFinancialReport → JSON financial report data
-//    GET  /Reports/DownloadSalesReport → Excel export sales
-//    GET  /Reports/DownloadStockReport → Excel export stock
+//    GET  /Reports/GetMargins       → JSON product margins
+//    GET  /Reports/GetExpenseBreakdown → JSON expense by category
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -98,11 +98,25 @@ namespace MediStock.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetTopSellingProducts(string? from_date, string? to_date, int top = 10)
+        public async Task<IActionResult> GetMargins()
         {
             try
             {
-                var qs = $"api/reports/topselling?pharmacyId={GetPharmacyId()}&top={top}";
+                var result = await _api.GetAsync<object>("api/reports/margins?pharmacyId=" + GetPharmacyId());
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetExpenseBreakdown(string? from_date, string? to_date)
+        {
+            try
+            {
+                var qs = "api/reports/expensebreakdown?pharmacyId=" + GetPharmacyId();
                 if (!string.IsNullOrWhiteSpace(from_date)) qs += $"&from_date={from_date}";
                 if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
                 var result = await _api.GetAsync<object>(qs);
@@ -112,43 +126,6 @@ namespace MediStock.Portal.Controllers
             {
                 return Json(new { error = ex.Message });
             }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetExpiryReport(int days = 90)
-        {
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/reports/expiry?pharmacyId={GetPharmacyId()}&days={days}");
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> DownloadSalesReport(string? from_date, string? to_date)
-        {
-            var qs = $"api/reports/sales/excel?pharmacyId={GetPharmacyId()}";
-            if (!string.IsNullOrWhiteSpace(from_date)) qs += $"&from_date={from_date}";
-            if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
-
-            var (bytes, contentType, fileName, error) = await _api.GetFileAsync(qs);
-            if (bytes == null) return BadRequest(error ?? "Failed to generate report");
-            return File(bytes, contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        fileName ?? "sales_report.xlsx");
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> DownloadStockReport()
-        {
-            var (bytes, contentType, fileName, error) = await _api.GetFileAsync(
-                $"api/reports/stock/excel?pharmacyId={GetPharmacyId()}");
-            if (bytes == null) return BadRequest(error ?? "Failed to generate report");
-            return File(bytes, contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        fileName ?? "stock_report.xlsx");
         }
 
         private string GetPharmacyId()

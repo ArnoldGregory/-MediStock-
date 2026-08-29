@@ -28,11 +28,11 @@
                     <thead>
                         <tr>
                             <th>Business Name</th>
-                            <th>Contact Person</th>
                             <th>Phone</th>
+                            <th>Email</th>
                             <th>Credit Limit</th>
                             <th>Outstanding Balance</th>
-                            <th>Purchase Total</th>
+                            <th>Payment Terms</th>
                             <th>Status</th>
                             <th></th>
                             <th></th>
@@ -48,10 +48,8 @@
 <div class="modal fade" id="wholesaleModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <form asp-controller="Customers" asp-action="Save" method="POST" id="wholesaleForm">
-                @Html.AntiForgeryToken()
-                <input type="hidden" id="customerId" name="customerId" value="" />
-                <input type="hidden" id="customerType" name="customerType" value="Wholesale" />
+            <form id="wholesaleForm">
+                <input type="hidden" id="customerId" value="" />
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                     <h4 class="modal-title" id="modalLabel"><i class="fa fa-building"></i> Add Wholesale Customer</h4>
@@ -61,33 +59,31 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Business Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="customerName" name="customerName" required />
+                                <input type="text" class="form-control" id="customerName" required />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Contact Person <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="contactPerson" name="contactPerson" required />
+                                <label>Phone</label>
+                                <input type="text" class="form-control" id="phone" />
                             </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Phone <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="phone" name="phone" required />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="form-group">
                                 <label>Email</label>
-                                <input type="email" class="form-control" id="email" name="email" />
+                                <input type="email" class="form-control" id="email" />
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="form-group">
-                                <label>KRA PIN</label>
-                                <input type="text" class="form-control" id="kraPin" name="kraPin" />
+                                <label>Payment Terms</label>
+                                <select class="form-control" id="paymentTerms">
+                                    <option value="Cash">Cash</option>
+                                    <option value="Net 30">Net 30</option>
+                                    <option value="Credit">Credit</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -95,24 +91,23 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Credit Limit (KES)</label>
-                                <input type="number" class="form-control" id="creditLimit" name="creditLimit" step="0.01" min="0" value="0" />
+                                <input type="number" class="form-control" id="creditLimit" step="0.01" min="0" value="0" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Payment Terms (Days)</label>
-                                <input type="number" class="form-control" id="paymentTerms" name="paymentTerms" value="30" min="0" />
+                                <label>Address</label>
+                                <input type="text" class="form-control" id="address" />
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Address</label>
-                        <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                        <label><input type="checkbox" id="isActive" checked /> Active</label>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save</button>
+                    <button type="button" class="btn btn-success" id="btnSaveCustomer"><i class="fa fa-save"></i> Save</button>
                 </div>
             </form>
         </div>
@@ -125,66 +120,137 @@
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
+        // ============================================================
+        //  Wholesale Customers — (Riziki BFF pattern)
+        // ============================================================
         var table;
-        $(document).ready(function () { loadWholesale(); });
 
-        function loadWholesale() {
-            table = $('#wholesaleTable').DataTable({
-                ajax: { url: '/api/customers?type=Wholesale', dataSrc: '' },
-                columns: [
-                    { data: 'customerName' },
-                    { data: 'contactPerson', defaultContent: '-' },
-                    { data: 'phone' },
-                    { data: 'creditLimit', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
-                    { data: 'outstandingBalance', render: function (d) {
+        $(document).ready(function () {
+            table = initTable();
+            loadWholesale();
+
+            $('#wholesaleModal').on('hidden.bs.modal', function () {
+                resetForm();
+            });
+        });
+
+        function initTable() {
+            return $('#wholesaleTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: null, autoWidth: true, render: function (d) { return (d.first_name || '') + ' ' + (d.last_name || ''); } },
+                    { data: 'phone', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'email', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'credit_limit', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'outstanding_balance', autoWidth: true, sDefaultContent: '0.00', render: function (d) {
                         var v = parseFloat(d || 0);
                         return v > 0 ? '<span class="text-danger"><strong>KES ' + v.toFixed(2) + '</strong></span>' : '<span class="text-success">KES 0.00</span>';
-                    }},
-                    { data: 'totalPurchases', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
-                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-primary" onclick="editItem(\'' + data.customerId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<a href="/Customers/Detail/' + data.customerId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } }
-                ],
-                order: [[0, 'asc']]
+                    } },
+                    { data: 'payment_terms', autoWidth: true, sDefaultContent: 'Cash' },
+                    { data: 'is_active', autoWidth: true, sDefaultContent: 'Active', render: function (d) { return (d == 1 || d === true) ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-warning btn-xs edit-cus"><i class="fa fa-edit"></i></button>' },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-danger btn-xs delete-cus"><i class="fa fa-trash"></i></button>' }
+                ]
+            });
+        }
+
+        function loadWholesale() {
+            ajaxGet('/Customers/GetCustomers?type=Wholesale', function (data) {
+                var filtered = (data || []).filter(function (c) { return c.customer_type === 'Wholesale'; });
+                var s = table.fnSettings();
+                table.fnClearTable(true);
+                for (var i = 0; i < filtered.length; i++) table.oApi._fnAddData(s, filtered[i]);
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                table.fnDraw();
             });
         }
 
         function resetForm() {
             $('#wholesaleForm')[0].reset();
             $('#customerId').val('');
+            $('#isActive').prop('checked', true);
+            $('#paymentTerms').val('Net 30');
+            $('#creditLimit').val('0');
             $('#modalLabel').html('<i class="fa fa-building"></i> Add Wholesale Customer');
         }
 
-        function editItem(id) {
-            $.get('/api/customers/' + id, function (data) {
-                $('#customerId').val(data.customerId);
-                $('#customerName').val(data.customerName);
-                $('#contactPerson').val(data.contactPerson);
-                $('#phone').val(data.phone);
-                $('#email').val(data.email);
-                $('#kraPin').val(data.kraPin);
-                $('#creditLimit').val(data.creditLimit);
-                $('#paymentTerms').val(data.paymentTerms);
-                $('#address').val(data.address);
-                $('#modalLabel').html('<i class="fa fa-edit"></i> Edit Wholesale Customer');
-                $('#wholesaleModal').modal('show');
-            });
+        function getCustomerForm() {
+            return {
+                customer_name: $('#customerName').val().trim(),
+                customer_type: 'Wholesale',
+                phone: $('#phone').val().trim() || null,
+                email: $('#email').val().trim() || null,
+                address: $('#address').val().trim() || null,
+                payment_terms: $('#paymentTerms').val(),
+                credit_limit: parseFloat($('#creditLimit').val()) || 0,
+                is_active: $('#isActive').is(':checked')
+            };
         }
 
-        $('#wholesaleForm').on('submit', function (e) {
+        // ── Edit ─────────────────────────────────────────────────────────────
+        $('#wholesaleTable').on('click', 'button.edit-cus', function (e) {
             e.preventDefault();
-            var id = $('#customerId').val();
-            $.ajax({
-                url: id ? '/api/customers/' + id : '/api/customers',
-                type: id ? 'PUT' : 'POST',
-                data: $(this).serialize(),
-                success: function () {
-                    Swal.fire('Saved', 'Customer saved.', 'success');
-                    $('#wholesaleModal').modal('hide');
-                    table.ajax.reload();
-                },
-                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error'); }
+            var d = table.fnGetData($(this).parents('tr')[0]);
+            $('#customerId').val(d.id);
+            $('#customerName').val(((d.first_name || '') + ' ' + (d.last_name || '')).trim());
+            $('#phone').val(d.phone || '');
+            $('#email').val(d.email || '');
+            $('#address').val(d.address || '');
+            $('#paymentTerms').val(d.payment_terms || 'Net 30');
+            $('#creditLimit').val(d.credit_limit || 0);
+            $('#isActive').prop('checked', !(d.is_active == 0 || d.is_active === false));
+            $('#modalLabel').html('<i class="fa fa-edit"></i> Edit Wholesale Customer');
+            $('#wholesaleModal').modal('show');
+        });
+
+        // ── Delete ───────────────────────────────────────────────────────────
+        $('#wholesaleTable').on('click', 'button.delete-cus', function (e) {
+            e.preventDefault();
+            var d = table.fnGetData($(this).parents('tr')[0]);
+            var name = (d.first_name || '') + ' ' + (d.last_name || '');
+            Swal.fire({
+                title: 'Delete Customer?',
+                text: 'Delete "' + name.trim() + '"? This cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, Delete',
+                reverseButtons: true
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                ajaxPost('/Customers/DeleteCustomer', { id: d.id }, function (res) {
+                    if (res.success) {
+                        loadWholesale();
+                        Swal.fire('Deleted', res.message, 'success');
+                    } else {
+                        Swal.fire('Error', res.message, 'error');
+                    }
+                });
             });
+        });
+
+        // ── Save (add / update) ──────────────────────────────────────────────
+        $('#btnSaveCustomer').on('click', function (e) {
+            e.preventDefault();
+            var name = $('#customerName').val().trim();
+            if (!name) { Swal.fire('Validation', 'Customer name is required.', 'warning'); return; }
+            var id = parseInt($('#customerId').val()) || 0;
+            var url = id ? '/Customers/UpdateCustomer' : '/Customers/AddCustomer';
+            var payload = getCustomerForm();
+            if (id) payload.id = id;
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost(url, payload, function (res) {
+                btnStop(btn);
+                if (res.success) {
+                    $('#wholesaleModal').modal('hide');
+                    loadWholesale();
+                    Swal.fire(id ? 'Updated' : 'Saved', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
         });
     </script>
 }

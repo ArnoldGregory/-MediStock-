@@ -48,8 +48,8 @@ namespace MediStock.Portal.Controllers
         {
             try
             {
-                var qs = "api/customers?pharmacyId=" + GetPharmacyId();
-                if (!string.IsNullOrWhiteSpace(type)) qs += $"&type={type}";
+                var qs = "api/customers";
+                if (type == "Wholesale") qs = "api/customers/wholesale";
                 var result = await _api.GetAsync<object>(qs);
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
@@ -65,7 +65,7 @@ namespace MediStock.Portal.Controllers
             if (id <= 0) return Json(new { error = "id required" });
             try
             {
-                var result = await _api.GetAsync<object>($"api/customers/getcustomer?id={id}");
+                var result = await _api.GetAsync<object>($"api/customers/{id}");
                 return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
@@ -80,7 +80,7 @@ namespace MediStock.Portal.Controllers
             if (customer_id <= 0) return Json(new List<object>());
             try
             {
-                var result = await _api.GetAsync<object>($"api/customers/customersales?customer_id={customer_id}");
+                var result = await _api.GetAsync<object>("api/sales");
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
@@ -95,15 +95,20 @@ namespace MediStock.Portal.Controllers
             if (model == null)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/customers/addcustomer", new
+            var (first, last) = SplitName(model.customer_name);
+
+            var result = await _api.PostAsync<object>("api/customers", new
             {
-                pharmacy_id   = GetPharmacyId(),
-                customer_name = model.customer_name,
-                phone         = model.phone,
-                email         = model.email,
-                customer_type = model.customer_type,
-                id_number     = model.id_number,
-                address       = model.address
+                pharmacy_id        = GetPharmacyId(),
+                customer_type      = model.customer_type,
+                first_name         = first,
+                last_name          = last,
+                phone              = model.phone,
+                email              = model.email,
+                address            = model.address,
+                credit_limit       = model.credit_limit,
+                payment_terms      = model.payment_terms,
+                is_active          = true
             });
 
             return Json(result.IsSuccess
@@ -117,15 +122,20 @@ namespace MediStock.Portal.Controllers
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/customers/updatecustomer", new
+            var (first, last) = SplitName(model.customer_name);
+
+            var result = await _api.PutAsync<object>($"api/customers/{model.id}", new
             {
-                id            = model.id,
-                customer_name = model.customer_name,
-                phone         = model.phone,
-                email         = model.email,
-                customer_type = model.customer_type,
-                id_number     = model.id_number,
-                address       = model.address
+                customer_type      = model.customer_type,
+                first_name         = first,
+                last_name          = last,
+                phone              = model.phone,
+                email              = model.email,
+                address            = model.address,
+                credit_limit       = model.credit_limit,
+                outstanding_balance= model.outstanding_balance,
+                payment_terms      = model.payment_terms,
+                is_active          = model.is_active
             });
 
             return Json(result.IsSuccess
@@ -139,10 +149,17 @@ namespace MediStock.Portal.Controllers
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "id is required" });
 
-            var result = await _api.PostAsync<object>("api/customers/deletecustomer", new { id = model.id });
+            var result = await _api.DeleteAsync<object>($"api/customers/{model.id}");
             return Json(result.IsSuccess
                 ? new { success = true, message = "Customer deleted" }
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to delete customer" : result.Error });
+        }
+
+        private static (string first, string last) SplitName(string? full)
+        {
+            if (string.IsNullOrWhiteSpace(full)) return ("", "");
+            var parts = full.Trim().Split(' ', 2);
+            return (parts[0], parts.Length > 1 ? parts[1] : "");
         }
 
         private string GetPharmacyId()
@@ -155,23 +172,27 @@ namespace MediStock.Portal.Controllers
 
         public class AddCustomerRequest
         {
-            public string? customer_name { get; set; }
-            public string? phone         { get; set; }
-            public string? email         { get; set; }
-            public string? customer_type { get; set; }
-            public string? id_number     { get; set; }
-            public string? address       { get; set; }
+            public string? customer_name    { get; set; }
+            public string? customer_type    { get; set; }
+            public string? phone            { get; set; }
+            public string? email            { get; set; }
+            public string? address          { get; set; }
+            public decimal credit_limit     { get; set; }
+            public string? payment_terms    { get; set; }
         }
 
         public class UpdateCustomerRequest
         {
-            public long    id             { get; set; }
-            public string? customer_name  { get; set; }
-            public string? phone          { get; set; }
-            public string? email          { get; set; }
-            public string? customer_type  { get; set; }
-            public string? id_number      { get; set; }
-            public string? address        { get; set; }
+            public long    id                   { get; set; }
+            public string? customer_name        { get; set; }
+            public string? customer_type        { get; set; }
+            public string? phone                { get; set; }
+            public string? email                { get; set; }
+            public string? address              { get; set; }
+            public decimal credit_limit         { get; set; }
+            public decimal outstanding_balance  { get; set; }
+            public string? payment_terms        { get; set; }
+            public bool    is_active            { get; set; } = true;
         }
     }
 }

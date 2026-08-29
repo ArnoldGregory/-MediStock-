@@ -32,10 +32,9 @@
                             <th>PO Number</th>
                             <th>Date</th>
                             <th>Supplier</th>
-                            <th>Items</th>
                             <th>Total Amount</th>
+                            <th>Expected Date</th>
                             <th>Status</th>
-                            <th></th>
                             <th></th>
                         </tr>
                     </thead>
@@ -47,10 +46,9 @@
 
 <!-- Create PO Modal -->
 <div class="modal fade" id="poModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <form asp-controller="Suppliers" asp-action="CreatePO" method="POST" id="poForm">
-                @Html.AntiForgeryToken()
+            <form id="poForm">
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                     <h4 class="modal-title"><i class="fa fa-file-text-o"></i> Create Purchase Order</h4>
@@ -60,7 +58,7 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Supplier <span class="text-danger">*</span></label>
-                                <select class="form-control select2" id="poSupplier" name="supplierId" required>
+                                <select class="form-control select2" id="poSupplier" required>
                                     <option value="">-- Select Supplier --</option>
                                 </select>
                             </div>
@@ -68,41 +66,48 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Expected Delivery Date</label>
-                                <input type="text" class="form-control date-picker" id="expectedDate" name="expectedDeliveryDate" />
+                                <input type="text" class="form-control date-picker" id="expectedDate" />
                             </div>
                         </div>
                     </div>
-                    <div class="row m-b-10">
-                        <div class="col-md-12">
-                            <button type="button" class="btn btn-xs btn-info" onclick="addPOLine();"><i class="fa fa-plus"></i> Add Item</button>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Product <span class="text-danger">*</span></label>
+                                <select class="form-control select2" id="poProduct" required>
+                                    <option value="">-- Select Product --</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Quantity <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="poQty" min="1" required />
+                            </div>
                         </div>
                     </div>
-                    <table class="table table-condensed" id="poLines">
-                        <thead>
-                            <tr>
-                                <th style="width:45%;">Product</th>
-                                <th style="width:20%;">Quantity</th>
-                                <th style="width:25%;">Unit Cost</th>
-                                <th style="width:10%;"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><select class="form-control input-sm po-product" required><option value="">-- Select --</option></select></td>
-                                <td><input type="number" class="form-control input-sm po-qty" min="1" required /></td>
-                                <td><input type="number" class="form-control input-sm po-cost" step="0.01" min="0" required /></td>
-                                <td><button type="button" class="btn btn-xs btn-danger" onclick="$(this).closest('tr').remove();"><i class="fa fa-times"></i></button></td>
-                            </tr>
-                        </tbody>
-                    </table>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Unit Cost (KES) <span class="text-danger">*</span></label>
+                                <input type="number" class="form-control" id="poCost" step="0.01" min="0" required />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Total</label>
+                                <input type="text" class="form-control" id="poTotal" readonly />
+                            </div>
+                        </div>
+                    </div>
                     <div class="form-group">
                         <label>Notes</label>
-                        <textarea class="form-control" name="notes" rows="2"></textarea>
+                        <textarea class="form-control" id="poNotes" rows="2"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Create PO</button>
+                    <button type="button" class="btn btn-success" id="btnCreatePO"><i class="fa fa-save"></i> Create PO</button>
                 </div>
             </form>
         </div>
@@ -117,108 +122,131 @@
     <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
     <script>
+        // ============================================================
+        //  Purchase Orders — (Riziki BFF pattern)
+        // ============================================================
         var poTable;
+
         $(document).ready(function () {
             $('.select2').select2({ width: '100%' });
-            $('.date-picker').datepicker({ autoclose: true, format: 'dd M yyyy' });
+            $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'dd M yyyy' });
+            poTable = initTable();
             loadPOs();
             loadSuppliersForPO();
             loadProductsForPO();
+
+            $('#poModal').on('hidden.bs.modal', function () { resetPOForm(); });
         });
 
+        function initTable() {
+            return $('#poTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: 'po_number', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'created_on', autoWidth: true, sDefaultContent: '-', render: function (d) { return formatDate(d); } },
+                    { data: 'supplier_name', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'total', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'expected_date', autoWidth: true, sDefaultContent: '-', render: function (d) { return formatDate(d); } },
+                    { data: 'status', autoWidth: true, sDefaultContent: '-', render: function (d) {
+                        var cls = { 'Draft': 'label-default', 'Pending': 'label-info', 'Partial': 'label-warning', 'Received': 'label-success', 'Cancelled': 'label-danger' };
+                        return '<span class="label ' + (cls[d] || 'label-info') + '">' + (d || '-') + '</span>';
+                    } },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-success btn-xs receive-po"><i class="fa fa-truck"></i> Receive</button>' }
+                ]
+            });
+        }
+
         function loadPOs() {
-            poTable = $('#poTable').DataTable({
-                ajax: { url: '/api/purchase-orders', dataSrc: '' },
-                columns: [
-                    { data: 'poNumber' },
-                    { data: 'orderDate', render: function (d) { return formatDate(d); } },
-                    { data: 'supplierName' },
-                    { data: 'totalItems' },
-                    { data: 'totalAmount', render: function (d) { return 'KES ' + parseFloat(d).toFixed(2); } },
-                    { data: 'status', render: function (d) {
-                        var cls = { 'Draft': 'label-default', 'Sent': 'label-info', 'Partial': 'label-warning', 'Received': 'label-success', 'Cancelled': 'label-danger' };
-                        return '<span class="label ' + (cls[d] || 'label-default') + '">' + d + '</span>';
-                    }},
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Suppliers/PODetail/' + d.poId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) {
-                        if (d.status === 'Draft' || d.status === 'Sent') {
-                            return '<a href="/Suppliers/ReceiveStock/' + d.poId + '" class="btn btn-xs btn-success"><i class="fa fa-truck"></i> Receive</a>';
-                        }
-                        return '';
-                    }}
-                ],
-                order: [[1, 'desc']]
+            ajaxGet('/Suppliers/GetPurchaseOrders', function (data) {
+                var s = poTable.fnSettings();
+                poTable.fnClearTable(true);
+                for (var i = 0; i < data.length; i++) poTable.oApi._fnAddData(s, data[i]);
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                poTable.fnDraw();
             });
         }
 
         function loadSuppliersForPO() {
-            $.get('/api/suppliers', function (data) {
-                var $sel = $('#poSupplier');
-                $.each(data, function (i, s) { $sel.append('<option value="' + s.supplierId + '">' + s.supplierName + '</option>'); });
+            ajaxGet('/Suppliers/GetSuppliers', function (data) {
+                var opt = '<option value="">-- Select Supplier --</option>';
+                for (var i = 0; i < data.length; i++)
+                    opt += '<option value="' + data[i].id + '">' + data[i].name + '</option>';
+                $('#poSupplier').html(opt);
             });
         }
 
         function loadProductsForPO() {
-            $.get('/api/products', function (data) {
+            ajaxGet('/Products/GetProducts', function (data) {
                 window._poProducts = data;
+                var opt = '<option value="">-- Select Product --</option>';
+                for (var i = 0; i < data.length; i++)
+                    opt += '<option value="' + data[i].id + '" data-cost="' + (data[i].cost_price || 0) + '">' + data[i].name + '</option>';
+                $('#poProduct').html(opt);
             });
         }
 
-        function addPOLine() {
-            var html = '<tr>';
-            html += '<td><select class="form-control input-sm po-product" required><option value="">-- Select --</option>';
-            $.each(window._poProducts || [], function (i, p) {
-                html += '<option value="' + p.productId + '">' + p.productName + '</option>';
-            });
-            html += '</select></td>';
-            html += '<td><input type="number" class="form-control input-sm po-qty" min="1" required /></td>';
-            html += '<td><input type="number" class="form-control input-sm po-cost" step="0.01" min="0" required /></td>';
-            html += '<td><button type="button" class="btn btn-xs btn-danger" onclick="$(this).closest(\'tr\').remove();"><i class="fa fa-times"></i></button></td>';
-            html += '</tr>';
-            $('#poLines tbody').append(html);
+        // ── Receive ───────────────────────────────────────────────────────────
+        $('#poTable').on('click', 'button.receive-po', function (e) {
+            e.preventDefault();
+            var d = poTable.fnGetData($(this).parents('tr')[0]);
+            if (d.status === 'Received') { Swal.fire('Info', 'This PO is already fully received.', 'info'); return; }
+            window.location.href = '/Suppliers/ReceiveStock?id=' + d.id;
+        });
+
+        // ── Create PO ─────────────────────────────────────────────────────────
+        $('#poProduct').on('change', function () {
+            var cost = $(this).find('option:selected').data('cost');
+            if (cost && !$('#poCost').val()) $('#poCost').val(cost);
+            updateTotal();
+        });
+        $('#poQty, #poCost').on('input', updateTotal);
+
+        function updateTotal() {
+            var q = parseInt($('#poQty').val()) || 0;
+            var c = parseFloat($('#poCost').val()) || 0;
+            $('#poTotal').val('KES ' + (q * c).toFixed(2));
         }
 
         function resetPOForm() {
             $('#poForm')[0].reset();
-            $('#poLines tbody').empty();
-            addPOLine();
-            $('.select2').val(null).trigger('change');
+            $('#poModal').find('.select2').val('').trigger('change');
+            $('#poTotal').val('');
         }
 
         function formatDate(d) {
             return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
         }
 
-        $('#poForm').on('submit', function (e) {
+        $('#btnCreatePO').on('click', function (e) {
             e.preventDefault();
-            var lines = [];
-            $('#poLines tbody tr').each(function () {
-                var pid = $(this).find('.po-product').val();
-                var qty = $(this).find('.po-qty').val();
-                var cost = $(this).find('.po-cost').val();
-                if (pid && qty && cost) {
-                    lines.push({ productId: pid, quantity: parseInt(qty), unitCost: parseFloat(cost) });
-                }
-            });
-            var payload = {
-                supplierId: $('#poSupplier').val(),
-                expectedDeliveryDate: $('#expectedDate').val(),
-                notes: $('textarea[name="notes"]').val(),
-                lines: lines
-            };
-            $.ajax({
-                url: '/api/purchase-orders',
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(payload),
-                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                success: function () {
-                    Swal.fire('Created', 'Purchase order created.', 'success');
+            var supplierId = $('#poSupplier').val();
+            var productId = $('#poProduct').val();
+            var qty = parseInt($('#poQty').val()) || 0;
+            var cost = parseFloat($('#poCost').val()) || 0;
+            if (!supplierId || !productId || qty <= 0 || cost <= 0) {
+                Swal.fire('Validation', 'Supplier, product, quantity and unit cost are required.', 'warning');
+                return;
+            }
+            var btn = this;
+            btnLoad(btn, 'Creating...');
+            ajaxPost('/Suppliers/CreatePurchaseOrder', {
+                supplier_id: supplierId,
+                product_id: productId,
+                quantity: qty,
+                unit_cost: cost,
+                expected_date: $('#expectedDate').eq(0).val() || null,
+                notes: $('#poNotes').val().trim() || null
+            }, function (res) {
+                btnStop(btn);
+                if (res.success) {
                     $('#poModal').modal('hide');
-                    poTable.ajax.reload();
-                },
-                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to create PO.', 'error'); }
-            });
+                    loadPOs();
+                    Swal.fire('Created', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
         });
     </script>
 }

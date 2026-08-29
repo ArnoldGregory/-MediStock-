@@ -26,7 +26,7 @@
                 <div class="form-group">
                     <label>&nbsp;</label>
                     <div>
-                        <button class="btn btn-primary" onclick="generateReport();"><i class="fa fa-cog"></i> Generate</button>
+                        <button class="btn btn-primary" onclick="GenerateReport();"><i class="fa fa-cog"></i> Generate</button>
                         <button class="btn btn-default" onclick="window.print();"><i class="fa fa-print"></i> Print</button>
                     </div>
                 </div>
@@ -49,54 +49,113 @@
     </div>
 </div>
 
-<!-- Charts -->
-<div class="row m-t-20" id="finCharts" style="display:none;">
-    <div class="col-md-6">
+<!-- Margins -->
+<div class="row m-t-20" id="marginRow" style="display:none;">
+    <div class="col-md-12">
         <div class="panel panel-inverse">
-            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-chart-pie m-r-5"></i> Revenue vs Expenses</h4></div>
-            <div class="panel-body"><div id="revenueExpenseChart" style="height:300px;"></div></div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="panel panel-inverse">
-            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa fa-chart-bar m-r-5"></i> Expense Breakdown</h4></div>
-            <div class="panel-body"><div id="expenseBreakdownChart" style="height:300px;"></div></div>
+            <div class="panel-heading">
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="GenerateReport();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-percent m-r-5"></i> Product Margins</h4>
+            </div>
+            <div class="panel-body">
+                <table id="marginTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>SKU</th>
+                            <th>Units Sold</th>
+                            <th>Revenue</th>
+                            <th>Cost</th>
+                            <th>Profit</th>
+                            <th>Margin %</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
         </div>
     </div>
 </div>
 
 @section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
     <script>
+        var _marginTable;
+        var earnings = { totalSales: 0, cogs: 0, totalExpenses: 0 };
+        var breakDown = [];
+        var margins = [];
+
         $(document).ready(function () {
-            $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'dd M yyyy' });
+            _marginTable = $('#marginTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.name); },
+                aoColumns: [
+                    { data: 'name',       autoWidth: true, sDefaultContent: '—' },
+                    { data: 'sku',        autoWidth: true, sDefaultContent: '—' },
+                    { data: 'units_sold', autoWidth: true, sDefaultContent: '0' },
+                    { data: 'revenue',    autoWidth: true, sDefaultContent: '0', render: function (d) { return 'KES ' + num(d); } },
+                    { data: 'cost',       autoWidth: true, sDefaultContent: '0', render: function (d) { return 'KES ' + num(d); } },
+                    { data: 'profit',     autoWidth: true, sDefaultContent: '0', render: function (d) { return '<strong>KES ' + num(d) + '</strong>'; } },
+                    { data: 'margin_pct', autoWidth: true, sDefaultContent: '—', render: function (d) { return (d === null || d === undefined ? '—' : num(d) + '%'); } }
+                ],
+                order: [[2, 'desc']],
+                pageLength: 25
+            });
+            $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'yyyy-mm-dd' });
         });
 
-        function generateReport() {
-            var from = $('#dateFrom').val();
-            var to = $('#dateTo').val();
-            var url = '/api/reports/financial?';
-            if (from) url += 'from=' + encodeURIComponent(from) + '&';
-            if (to) url += 'to=' + encodeURIComponent(to);
+        function GenerateReport() {
+            var qs = '';
+            if ($('#dateFrom').val()) qs += 'from_date=' + encodeURIComponent($('#dateFrom').val()) + '&';
+            if ($('#dateTo').val()) qs += 'to_date=' + encodeURIComponent($('#dateTo').val());
 
-            $.get(url, function (data) {
-                $('#plSection, #finCharts').show();
-
-                var html = '';
-                html += '<tr class="active"><td><strong>REVENUE</strong></td><td></td></tr>';
-                html += '<tr><td>&nbsp;&nbsp;Total Sales</td><td class="text-right">KES ' + num(data.totalSales) + '</td></tr>';
-                html += '<tr><td>&nbsp;&nbsp;Cost of Goods Sold</td><td class="text-right text-danger">(KES ' + num(data.cogs) + ')</td></tr>';
-                html += '<tr class="success"><td><strong>Gross Profit</strong></td><td class="text-right"><strong>KES ' + num(data.grossProfit) + '</strong></td></tr>';
-                html += '<tr class="active"><td><strong>OPERATING EXPENSES</strong></td><td></td></tr>';
-                if (data.expenseBreakdown) {
-                    $.each(data.expenseBreakdown, function (i, e) {
-                        html += '<tr><td>&nbsp;&nbsp;' + e.category + '</td><td class="text-right">(KES ' + num(e.amount) + ')</td></tr>';
+            ajaxGet('/Reports/GetFinancialReport?' + qs, function (data) {
+                earnings = data || {};
+                ajaxGet('/Reports/GetExpenseBreakdown?' + qs, function (b) {
+                    breakDown = b || [];
+                    ajaxGet('/Reports/GetMargins?' + qs, function (m) {
+                        margins = m || [];
+                        RenderPl();
+                        RenderMarginsTable();
                     });
-                }
-                html += '<tr><td>&nbsp;&nbsp;Total Expenses</td><td class="text-right text-danger">(KES ' + num(data.totalExpenses) + ')</td></tr>';
-                html += '<tr class="info"><td><strong>NET PROFIT / (LOSS)</strong></td><td class="text-right"><strong style="font-size:18px;">KES ' + num(data.netProfit) + '</strong></td></tr>';
-                $('#plBody').html(html);
+                });
             });
+        }
+
+        function RenderPl() {
+            $('#plSection').show();
+
+            var totalSales = parseFloat(earnings.total_sales || 0);
+            var cogs = parseFloat(earnings.cogs || 0);
+            var expenses = parseFloat(earnings.total_expenses || 0);
+            var gross = totalSales - cogs;
+            var net = gross - expenses;
+
+            var html = '';
+            html += '<tr class="active"><td><strong>REVENUE</strong></td><td></td></tr>';
+            html += '<tr><td>&nbsp;&nbsp;Total Sales</td><td class="text-right">KES ' + num(totalSales) + '</td></tr>';
+            html += '<tr><td>&nbsp;&nbsp;Cost of Goods Sold</td><td class="text-right text-danger">(KES ' + num(cogs) + ')</td></tr>';
+            html += '<tr class="success"><td><strong>Gross Profit</strong></td><td class="text-right"><strong>KES ' + num(gross) + '</strong></td></tr>';
+            html += '<tr class="active"><td><strong>OPERATING EXPENSES</strong></td><td></td></tr>';
+            for (var i = 0; i < breakDown.length; i++) {
+                html += '<tr><td>&nbsp;&nbsp;' + (breakDown[i].category_name || '—') + '</td><td class="text-right">(KES ' + num(breakDown[i].amount) + ')</td></tr>';
+            }
+            html += '<tr><td>&nbsp;&nbsp;Total Expenses</td><td class="text-right text-danger">(KES ' + num(expenses) + ')</td></tr>';
+            html += '<tr class="info"><td><strong>NET PROFIT / (LOSS)</strong></td><td class="text-right"><strong style="font-size:18px;">KES ' + num(net) + '</strong></td></tr>';
+            $('#plBody').html(html);
+        }
+
+        function RenderMarginsTable() {
+            $('#marginRow').show();
+            var t = _marginTable;
+            var s = t.fnSettings();
+            t.fnClearTable(true);
+            for (var i = 0; i < margins.length; i++) t.oApi._fnAddData(s, margins[i]);
+            s.aiDisplay = s.aiDisplayMaster.slice();
+            t.fnDraw();
         }
 
         function num(v) { return parseFloat(v || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }

@@ -40,12 +40,10 @@
                             <th>Receipt #</th>
                             <th>Date</th>
                             <th>Customer</th>
-                            <th>Items</th>
                             <th>Subtotal</th>
                             <th>Discount</th>
                             <th>Total</th>
                             <th>Payment</th>
-                            <th>Sold By</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -62,34 +60,49 @@
     <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
     <script>
         var table;
+        var allSales = [];
         $(document).ready(function () {
             $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'dd M yyyy' });
             loadSales();
         });
 
-        function loadSales(from, to) {
-            if (table) table.destroy();
-            var url = '/api/sales?';
-            if (from) url += 'from=' + encodeURIComponent(from) + '&';
-            if (to) url += 'to=' + encodeURIComponent(to);
+        function loadSales() {
+            ajaxGet('/Sales/GetSales', function (data) {
+                allSales = data || [];
+                renderSales();
+            });
+        }
 
+        function renderSales() {
+            var from = $('#dateFrom').val();
+            var to = $('#dateTo').val();
+            var filtered = allSales.slice();
+
+            if (from) {
+                var fD = new Date(from + ' 00:00:00');
+                filtered = filtered.filter(function (s) { return new Date(s.created_on) >= fD; });
+            }
+            if (to) {
+                var tD = new Date(to + ' 23:59:59');
+                filtered = filtered.filter(function (s) { return new Date(s.created_on) <= tD; });
+            }
+
+            if (table) table.destroy();
             table = $('#salesTable').DataTable({
-                ajax: { url: url, dataSrc: '' },
+                data: filtered,
                 columns: [
-                    { data: 'receiptNumber' },
-                    { data: 'saleDate', render: function (d) { return formatDate(d); } },
-                    { data: 'customerName', defaultContent: 'Walk-In' },
-                    { data: 'totalItems' },
-                    { data: 'subtotal', render: function (d) { return 'KES ' + parseFloat(d).toFixed(2); } },
-                    { data: 'discount', render: function (d) { return parseFloat(d).toFixed(2); } },
-                    { data: 'totalAmount', render: function (d) { return '<strong>KES ' + parseFloat(d).toFixed(2) + '</strong>'; } },
-                    { data: 'paymentMethod', render: function (d) {
+                    { data: 'sale_number' },
+                    { data: 'created_on', render: function (d) { return formatDate(d); } },
+                    { data: 'customer_name', defaultContent: 'Walk-In' },
+                    { data: 'subtotal', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'discount', render: function (d) { return parseFloat(d || 0).toFixed(2); } },
+                    { data: 'total', render: function (d) { return '<strong>KES ' + parseFloat(d || 0).toFixed(2) + '</strong>'; } },
+                    { data: 'payment_method', render: function (d) {
                         var cls = d === 'Cash' ? 'label-success' : d === 'Mpesa' ? 'label-info' : d === 'Credit' ? 'label-warning' : 'label-default';
                         return '<span class="label ' + cls + '">' + d + '</span>';
                     }},
-                    { data: 'soldByName' },
                     { data: null, orderable: false, searchable: false, render: function (data) {
-                        return '<a href="/Sales/Receipt/' + data.saleId + '" class="btn btn-xs btn-info"><i class="fa fa-print"></i></a>';
+                        return '<a href="/Sales/Receipt/' + data.id + '" class="btn btn-xs btn-info"><i class="fa fa-print"></i></a>';
                     }}
                 ],
                 order: [[1, 'desc']]
@@ -97,15 +110,13 @@
         }
 
         function filterSales() {
-            var from = $('#dateFrom').val();
-            var to = $('#dateTo').val();
-            loadSales(from, to);
+            renderSales();
         }
 
         function resetFilter() {
             $('#dateFrom').val('');
             $('#dateTo').val('');
-            loadSales();
+            renderSales();
         }
 
         function formatDate(d) {

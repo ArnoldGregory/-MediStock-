@@ -1,4 +1,5 @@
 @section PageStyles {
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
 }
 
 <h1 class="page-header"><i class="fa fa-hospital-o"></i> Pharmacy Settings <small>Configuration</small></h1>
@@ -10,20 +11,18 @@
                 <h4 class="panel-title"><i class="fa fa-cog"></i> Pharmacy Information</h4>
             </div>
             <div class="panel-body">
-                <form asp-controller="Settings" asp-action="UpdatePharmacy" method="POST" id="pharmacyForm">
-                    @Html.AntiForgeryToken()
-
+                <form id="pharmacyForm">
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Pharmacy Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="pharmacyName" name="pharmacyName" required />
+                                <input type="text" class="form-control" id="pharmacyName" required />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Slug / Code</label>
-                                <input type="text" class="form-control" id="slug" name="slug" readonly />
+                                <input type="text" class="form-control" id="slug" readonly />
                             </div>
                         </div>
                     </div>
@@ -31,45 +30,45 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Phone</label>
-                                <input type="text" class="form-control" id="pharmacyPhone" name="phone" />
+                                <input type="text" class="form-control" id="pharmacyPhone" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Email</label>
-                                <input type="email" class="form-control" id="pharmacyEmail" name="email" />
+                                <input type="email" class="form-control" id="pharmacyEmail" />
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Physical Address</label>
-                        <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                        <textarea class="form-control" id="address" rows="2"></textarea>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>License Number</label>
-                                <input type="text" class="form-control" id="licenseNumber" name="licenseNumber" />
+                                <input type="text" class="form-control" id="licenseNumber" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>License Expiry</label>
-                                <input type="date" class="form-control" id="licenseExpiry" name="licenseExpiry" />
+                                <input type="text" class="form-control" id="licenseExpiry" readonly />
                             </div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>KRA PIN</label>
-                                <input type="text" class="form-control" id="kraPin" name="kraPin" />
+                                <label>VAT Number</label>
+                                <input type="text" class="form-control" id="vatNumber" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Currency</label>
-                                <select class="form-control" id="currency" name="currency">
+                                <select class="form-control" id="currency">
                                     <option value="KES">KES — Kenyan Shilling</option>
                                     <option value="USD">USD — US Dollar</option>
                                     <option value="UGX">UGX — Ugandan Shilling</option>
@@ -78,6 +77,10 @@
                             </div>
                         </div>
                     </div>
+                    <div class="form-group">
+                        <label>Receipt Footer</label>
+                        <textarea class="form-control" id="receiptFooter" rows="2" placeholder="Thank you for shopping with us!"></textarea>
+                    </div>
 
                     <hr />
                     <h4><i class="fa fa-sliders"></i> Operational Settings</h4>
@@ -85,25 +88,25 @@
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label>Default Tax Rate (%)</label>
-                                <input type="number" class="form-control" id="taxRate" name="taxRate" step="0.01" min="0" max="100" value="16" />
+                                <input type="number" class="form-control" id="taxRate" step="0.01" min="0" max="100" />
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label>Default Discount Limit (%)</label>
-                                <input type="number" class="form-control" id="discountLimit" name="discountLimit" step="0.01" min="0" max="100" value="10" />
+                                <input type="number" class="form-control" id="discountLimit" step="0.01" min="0" max="100" />
                             </div>
                         </div>
                         <div class="col-md-4">
                             <div class="form-group">
                                 <label>Low Stock Alert Days</label>
-                                <input type="number" class="form-control" id="lowStockDays" name="lowStockAlertDays" value="30" min="1" />
+                                <input type="number" class="form-control" id="lowStockDays" min="1" />
                             </div>
                         </div>
                     </div>
 
                     <div class="m-t-20">
-                        <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save Settings</button>
+                        <button type="submit" class="btn btn-success" id="btnSavePharmacy"><i class="fa fa-save"></i> Save Settings</button>
                     </div>
                 </form>
             </div>
@@ -122,41 +125,72 @@
 @section PageScripts {
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
-        $(document).ready(function () { loadPharmacySettings(); });
+        $(document).ready(function () { LoadPharmacy(); });
 
-        function loadPharmacySettings() {
-            $.get('/api/settings/pharmacy', function (data) {
-                $('#pharmacyName').val(data.pharmacyName);
-                $('#slug').val(data.slug);
-                $('#pharmacyPhone').val(data.phone);
-                $('#pharmacyEmail').val(data.email);
-                $('#address').val(data.address);
-                $('#licenseNumber').val(data.licenseNumber);
-                $('#licenseExpiry').val(data.licenseExpiry ? data.licenseExpiry.split('T')[0] : '');
-                $('#kraPin').val(data.kraPin);
-                $('#currency').val(data.currency);
-                $('#taxRate').val(data.taxRate);
-                $('#discountLimit').val(data.discountLimit);
-                $('#lowStockDays').val(data.lowStockAlertDays);
+        function LoadPharmacy() {
+            ajaxGet('/Settings/GetPharmacy', function (data) {
+                if (!data) { $('#pharmacyStatus').html('<p class="text-muted">No pharmacy profile found.</p>'); return; }
+
+                $('#pharmacyName').val(data.name || '');
+                $('#slug').val(data.slug || '');
+                $('#pharmacyPhone').val(data.phone || '');
+                $('#pharmacyEmail').val(data.email || '');
+                $('#address').val(data.address || '');
+                $('#licenseNumber').val(data.license_number || '');
+                $('#licenseExpiry').val(data.license_expiry ? String(data.license_expiry).substring(0, 10) : '');
+                $('#vatNumber').val(data.vat_number || '');
+                $('#currency').val(data.currency || 'KES');
+                $('#receiptFooter').val(data.receipt_footer || '');
+                if (data.tax_rate) $('#taxRate').val(data.tax_rate);
+                if (data.discount_limit) $('#discountLimit').val(data.discount_limit);
+                if (data.low_stock_alert_days) $('#lowStockDays').val(data.low_stock_alert_days);
 
                 var statusHtml = '<table class="table table-condensed">';
                 statusHtml += '<tr><td><strong>Status</strong></td><td><span class="label label-success">Active</span></td></tr>';
-                statusHtml += '<tr><td><strong>Slug</strong></td><td>' + data.slug + '</td></tr>';
-                statusHtml += '<tr><td><strong>License</strong></td><td>' + (data.licenseNumber || '-') + '</td></tr>';
+                statusHtml += '<tr><td><strong>Slug</strong></td><td>' + (data.slug || '-') + '</td></tr>';
+                statusHtml += '<tr><td><strong>License</strong></td><td>' + (data.license_number || '-') + '</td></tr>';
+                statusHtml += '<tr><td><strong>Currency</strong></td><td>' + (data.currency || 'KES') + '</td></tr>';
                 statusHtml += '</table>';
                 $('#pharmacyStatus').html(statusHtml);
+            }, function () {
+                $('#pharmacyStatus').html('<p class="text-muted">Unable to load pharmacy profile.</p>');
             });
         }
 
         $('#pharmacyForm').on('submit', function (e) {
             e.preventDefault();
-            $.ajax({
-                url: '/api/settings/pharmacy',
-                type: 'PUT',
-                data: $(this).serialize(),
-                success: function () { Swal.fire('Saved', 'Pharmacy settings updated.', 'success'); },
-                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error'); }
-            });
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost('/Settings/UpdatePharmacy', {
+                pharmacy_name: $('#pharmacyName').val().trim(),
+                pharmacy_phone: $('#pharmacyPhone').val().trim() || null,
+                pharmacy_email: $('#pharmacyEmail').val().trim() || null,
+                pharmacy_address: $('#address').val().trim() || null,
+                license_number: $('#licenseNumber').val().trim() || null,
+                vat_number: $('#vatNumber').val().trim() || null,
+                receipt_footer: $('#receiptFooter').val().trim() || null,
+                currency: $('#currency').val() || 'KES'
+            }, function (res) {
+                if (!res.success) return SaveFail(btn, res.message);
+                SaveConfigs(function () {
+                    btnStop(btn);
+                    Swal.fire('Saved', 'Pharmacy settings updated.', 'success');
+                    LoadPharmacy();
+                });
+            }, function () { SaveFail(btn, 'Request failed.'); });
         });
+
+        function SaveConfigs(done) {
+            var pending = 3;
+            var doneAll = function () { if (--pending === 0 && done) done(); };
+            ajaxPost('/Settings/SavePharmacyConfig', { key: 'tax_rate', value: $('#taxRate').val() || '' }, function () { doneAll(); });
+            ajaxPost('/Settings/SavePharmacyConfig', { key: 'discount_limit', value: $('#discountLimit').val() || '' }, function () { doneAll(); });
+            ajaxPost('/Settings/SavePharmacyConfig', { key: 'low_stock_alert_days', value: $('#lowStockDays').val() || '' }, function () { doneAll(); });
+        }
+
+        function SaveFail(btn, msg) {
+            btnStop(btn);
+            Swal.fire('Error', msg || 'Unable to save.', 'error');
+        }
     </script>
 }

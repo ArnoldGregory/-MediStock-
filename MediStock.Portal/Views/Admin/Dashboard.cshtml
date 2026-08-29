@@ -83,41 +83,43 @@
         });
 
         function loadAdminStats() {
-            $.get('/api/admin/stats', function (data) {
+            ajaxGet('/Admin/GetStats', function (data) {
                 $('#statUsers').text(data.totalUsers || 0);
                 $('#statPharmacy').text(data.pharmacyName || '-');
                 $('#statProducts').text(data.totalProducts || 0);
                 $('#statAlerts').text(data.alertCount || 0);
-            }).fail(function () {
+            }, function () {
                 $('#statUsers').text('0');
                 $('#statPharmacy').text('-');
                 $('#statProducts').text('0');
                 $('#statAlerts').text('0');
             });
 
-            $.get('/api/admin/system-info', function (data) {
+            ajaxGet('/Admin/GetSystemInfo', function (data) {
                 var html = '<table class="table table-condensed">';
                 html += '<tr><td><strong>Version</strong></td><td>' + (data.version || '-') + '</td></tr>';
                 html += '<tr><td><strong>Database</strong></td><td>' + (data.databaseStatus || '-') + '</td></tr>';
                 html += '<tr><td><strong>Server Time</strong></td><td>' + (data.serverTime || '-') + '</td></tr>';
                 html += '</table>';
                 $('#systemInfo').html(html);
-            }).fail(function () {
+            }, function () {
                 $('#systemInfo').html('<p class="text-muted">Unable to load system info</p>');
             });
 
-            $.get('/api/admin/recent-logins', function (data) {
-                var html = '<table class="table table-condensed table-striped"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Last Login</th></tr></thead><tbody>';
+            ajaxGet('/Admin/GetRecentLogins', function (data) {
+                var html = '<table class="table table-condensed table-striped"><thead><tr><th>User</th><th>Email</th><th>Role</th><th>Created / Last Login</th></tr></thead><tbody>';
                 if (data && data.length) {
                     $.each(data, function (i, u) {
-                        html += '<tr><td>' + u.fullName + '</td><td>' + u.email + '</td><td>' + u.roleName + '</td><td>' + (u.lastLoginDate ? new Date(u.lastLoginDate).toLocaleString() : 'Never') + '</td></tr>';
+                        var roleName = u.role_id == 1 ? 'SuperAdmin' : u.role_id == 2 ? 'Admin' : u.role_id == 3 ? 'Pharmacist' : u.role_id == 4 ? 'Staff' : u.role_id == 5 ? 'Cashier' : ('Role ' + (u.role_id || 0));
+                        var created = u.created_on || u.last_login_date || u.lastLoginDate;
+                        html += '<tr><td>' + (u.first_name || '') + ' ' + (u.last_name || '') + '</td><td>' + (u.email || '') + '</td><td>' + roleName + '</td><td>' + (created ? new Date(created.indexOf('T') > -1 ? created : created + 'T00:00:00').toLocaleString() : 'Never') + '</td></tr>';
                     });
                 } else {
                     html += '<tr><td colspan="4" class="text-muted">No login data</td></tr>';
                 }
                 html += '</tbody></table>';
                 $('#recentLogins').html(html);
-            }).fail(function () {
+            }, function () {
                 $('#recentLogins').html('<p class="text-muted">Unable to load data</p>');
             });
         }

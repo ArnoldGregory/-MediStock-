@@ -30,8 +30,8 @@
                             <th>Name</th>
                             <th>Phone</th>
                             <th>Email</th>
-                            <th>Total Purchases</th>
-                            <th>Last Visit</th>
+                            <th>Type</th>
+                            <th>Credit Limit</th>
                             <th>Status</th>
                             <th></th>
                             <th></th>
@@ -47,10 +47,8 @@
 <div class="modal fade" id="customerModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <form asp-controller="Customers" asp-action="Save" method="POST" id="customerForm">
-                @Html.AntiForgeryToken()
-                <input type="hidden" id="customerId" name="customerId" value="" />
-                <input type="hidden" id="customerType" name="customerType" value="Retail" />
+            <form id="customerForm">
+                <input type="hidden" id="customerId" value="" />
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                     <h4 class="modal-title" id="customerModalLabel"><i class="fa fa-user"></i> Add Retail Customer</h4>
@@ -60,13 +58,13 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Full Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="customerName" name="customerName" required />
+                                <input type="text" class="form-control" id="customerName" required />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Phone <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="phone" name="phone" required />
+                                <label>Phone</label>
+                                <input type="text" class="form-control" id="phone" />
                             </div>
                         </div>
                     </div>
@@ -74,24 +72,40 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Email</label>
-                                <input type="email" class="form-control" id="email" name="email" />
+                                <input type="email" class="form-control" id="email" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>ID Number</label>
-                                <input type="text" class="form-control" id="idNumber" name="idNumber" />
+                                <label>Payment Terms</label>
+                                <select class="form-control" id="paymentTerms">
+                                    <option value="Cash">Cash</option>
+                                    <option value="Credit">Credit</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Credit Limit (KES)</label>
+                                <input type="number" class="form-control" id="creditLimit" step="0.01" min="0" value="0" />
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Address</label>
+                                <input type="text" class="form-control" id="address" />
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Address</label>
-                        <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                        <label><input type="checkbox" id="isActive" checked /> Active</label>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save</button>
+                    <button type="button" class="btn btn-success" id="btnSaveCustomer"><i class="fa fa-save"></i> Save</button>
                 </div>
             </form>
         </div>
@@ -104,66 +118,133 @@
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
+        // ============================================================
+        //  Retail Customers — (Riziki BFF pattern)
+        // ============================================================
         var table;
-        $(document).ready(function () { loadCustomers(); });
+
+        $(document).ready(function () {
+            table = initTable();
+            loadCustomers();
+
+            $('#customerModal').on('hidden.bs.modal', function () {
+                resetCustomerForm();
+            });
+        });
+
+        function initTable() {
+            return $('#customersTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: null, autoWidth: true, render: function (d) { return (d.first_name || '') + ' ' + (d.last_name || ''); } },
+                    { data: 'phone', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'email', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'customer_type', autoWidth: true, sDefaultContent: 'Retail' },
+                    { data: 'credit_limit', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'is_active', autoWidth: true, sDefaultContent: 'Active', render: function (d) { return (d == 1 || d === true) ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-warning btn-xs edit-cus"><i class="fa fa-edit"></i></button>' },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-danger btn-xs delete-cus"><i class="fa fa-trash"></i></button>' }
+                ]
+            });
+        }
 
         function loadCustomers() {
-            table = $('#customersTable').DataTable({
-                ajax: { url: '/api/customers?type=Retail', dataSrc: '' },
-                columns: [
-                    { data: 'customerName' },
-                    { data: 'phone' },
-                    { data: 'email', defaultContent: '-' },
-                    { data: 'totalPurchases', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
-                    { data: 'lastVisitDate', render: function (d) { return d ? formatDate(d) : '-'; } },
-                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-primary" onclick="editCustomer(\'' + data.customerId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<a href="/Customers/Detail/' + data.customerId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } }
-                ],
-                order: [[0, 'asc']]
+            ajaxGet('/Customers/GetCustomers', function (data) {
+                var filtered = (data || []).filter(function (c) { return c.customer_type !== 'Wholesale'; });
+                var s = table.fnSettings();
+                table.fnClearTable(true);
+                for (var i = 0; i < filtered.length; i++) table.oApi._fnAddData(s, filtered[i]);
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                table.fnDraw();
             });
         }
 
         function resetCustomerForm() {
             $('#customerForm')[0].reset();
             $('#customerId').val('');
+            $('#isActive').prop('checked', true);
+            $('#paymentTerms').val('Cash');
+            $('#creditLimit').val('0');
             $('#customerModalLabel').html('<i class="fa fa-user"></i> Add Retail Customer');
         }
 
-        function editCustomer(id) {
-            $.get('/api/customers/' + id, function (data) {
-                $('#customerId').val(data.customerId);
-                $('#customerName').val(data.customerName);
-                $('#phone').val(data.phone);
-                $('#email').val(data.email);
-                $('#idNumber').val(data.idNumber);
-                $('#address').val(data.address);
-                $('#customerModalLabel').html('<i class="fa fa-edit"></i> Edit Customer');
-                $('#customerModal').modal('show');
-            });
+        function getCustomerForm() {
+            return {
+                customer_name: $('#customerName').val().trim(),
+                customer_type: 'Retail',
+                phone: $('#phone').val().trim() || null,
+                email: $('#email').val().trim() || null,
+                address: $('#address').val().trim() || null,
+                payment_terms: $('#paymentTerms').val(),
+                credit_limit: parseFloat($('#creditLimit').val()) || 0,
+                is_active: $('#isActive').is(':checked')
+            };
         }
 
-        function formatDate(d) {
-            return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-        }
-
-        $('#customerForm').on('submit', function (e) {
+        // ── Edit ─────────────────────────────────────────────────────────────
+        $('#customersTable').on('click', 'button.edit-cus', function (e) {
             e.preventDefault();
-            var formData = $(this).serialize();
-            var id = $('#customerId').val();
-            $.ajax({
-                url: id ? '/api/customers/' + id : '/api/customers',
-                type: id ? 'PUT' : 'POST',
-                data: formData,
-                success: function () {
-                    Swal.fire('Saved', 'Customer saved.', 'success');
-                    $('#customerModal').modal('hide');
-                    table.ajax.reload();
-                },
-                error: function (xhr) {
-                    Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error');
-                }
+            var d = table.fnGetData($(this).parents('tr')[0]);
+            $('#customerId').val(d.id);
+            $('#customerName').val(((d.first_name || '') + ' ' + (d.last_name || '')).trim());
+            $('#phone').val(d.phone || '');
+            $('#email').val(d.email || '');
+            $('#address').val(d.address || '');
+            $('#paymentTerms').val(d.payment_terms || 'Cash');
+            $('#creditLimit').val(d.credit_limit || 0);
+            $('#isActive').prop('checked', !(d.is_active == 0 || d.is_active === false));
+            $('#customerModalLabel').html('<i class="fa fa-edit"></i> Edit Customer');
+            $('#customerModal').modal('show');
+        });
+
+        // ── Delete ───────────────────────────────────────────────────────────
+        $('#customersTable').on('click', 'button.delete-cus', function (e) {
+            e.preventDefault();
+            var d = table.fnGetData($(this).parents('tr')[0]);
+            var name = (d.first_name || '') + ' ' + (d.last_name || '');
+            Swal.fire({
+                title: 'Delete Customer?',
+                text: 'Delete "' + name.trim() + '"? This cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, Delete',
+                reverseButtons: true
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                ajaxPost('/Customers/DeleteCustomer', { id: d.id }, function (res) {
+                    if (res.success) {
+                        loadCustomers();
+                        Swal.fire('Deleted', res.message, 'success');
+                    } else {
+                        Swal.fire('Error', res.message, 'error');
+                    }
+                });
             });
+        });
+
+        // ── Save (add / update) ──────────────────────────────────────────────
+        $('#btnSaveCustomer').on('click', function (e) {
+            e.preventDefault();
+            var name = $('#customerName').val().trim();
+            if (!name) { Swal.fire('Validation', 'Customer name is required.', 'warning'); return; }
+            var id = parseInt($('#customerId').val()) || 0;
+            var url = id ? '/Customers/UpdateCustomer' : '/Customers/AddCustomer';
+            var payload = getCustomerForm();
+            if (id) payload.id = id;
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost(url, payload, function (res) {
+                btnStop(btn);
+                if (res.success) {
+                    $('#customerModal').modal('hide');
+                    loadCustomers();
+                    Swal.fire(id ? 'Updated' : 'Saved', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
         });
     </script>
 }

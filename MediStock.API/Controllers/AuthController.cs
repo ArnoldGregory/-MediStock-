@@ -63,7 +63,14 @@ namespace MediStock.API.Controllers
                 try { decryptedPassword = crypto.Decrypt(storedPassword); }
                 catch { decryptedPassword = storedPassword; }
 
-                if (password != decryptedPassword)
+                bool validPassword = password == decryptedPassword;
+                if (!validPassword)
+                {
+                    try { validPassword = BCrypt.Net.BCrypt.Verify(password, storedPassword); }
+                    catch { validPassword = false; }
+                }
+
+                if (!validPassword)
                 {
                     iloggermanager.LogInfo($"Login failed: Wrong password for email: {email}");
                     CaptureAuditTrail(email, "Invalid Login", "Wrong password");

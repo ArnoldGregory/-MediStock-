@@ -41,6 +41,22 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
+        public async Task<IActionResult> Receipt(long id)
+        {
+            if (id <= 0) return NotFound();
+
+            var sale = await _api.GetAsync<List<SaleDto>>($"api/sales/{id}");
+            var items = await _api.GetAsync<List<SaleItemDto>>($"api/sales/{id}/items");
+            if (!sale.IsSuccess || sale.Data == null || sale.Data.Count == 0)
+                return NotFound();
+
+            return View(new ReceiptViewModel
+            {
+                Sale = sale.Data[0],
+                Items = items.IsSuccess ? (items.Data ?? new List<SaleItemDto>()) : new List<SaleItemDto>()
+            });
+        }
+
         // ── Data ──────────────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetSales(string? from_date, string? to_date)
@@ -65,7 +81,7 @@ namespace MediStock.Portal.Controllers
             if (id <= 0) return Json(new { error = "id required" });
             try
             {
-                var result = await _api.GetAsync<object>($"api/sales/getsale?id={id}");
+                var result = await _api.GetAsync<object>($"api/sales/{id}");
                 return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
@@ -80,7 +96,35 @@ namespace MediStock.Portal.Controllers
             if (sale_id <= 0) return Json(new List<object>());
             try
             {
-                var result = await _api.GetAsync<object>($"api/sales/saleitems?sale_id={sale_id}");
+                var result = await _api.GetAsync<object>($"api/sales/{sale_id}/items");
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPOSProducts()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/sales/products");
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetCustomers()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/customers");
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
@@ -94,7 +138,7 @@ namespace MediStock.Portal.Controllers
         {
             try
             {
-                var result = await _api.GetAsync<object>("api/sales/todaysummary?pharmacyId=" + GetPharmacyId());
+                var result = await _api.GetAsync<object>("api/dashboard/salesstats");
                 return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
@@ -109,14 +153,21 @@ namespace MediStock.Portal.Controllers
             if (model == null)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/sales/processsale", new
+            var result = await _api.PostAsync<object>("api/sales", new
             {
-                pharmacy_id   = GetPharmacyId(),
-                customer_id   = model.customer_id,
-                items         = model.items,
-                payment_method = model.payment_method,
-                amount_paid   = model.amount_paid,
-                notes         = model.notes
+                pharmacy_id     = GetPharmacyId(),
+                customer_id     = model.customer_id,
+                sale_type       = model.sale_type,
+                subtotal        = model.subtotal,
+                total_amount    = model.subtotal,
+                discount        = model.discount,
+                tax             = model.tax,
+                net_amount      = model.net_amount,
+                amount_paid     = model.amount_paid,
+                payment_method  = model.payment_method,
+                payment_reference = model.payment_reference,
+                notes           = model.notes,
+                items           = model.items
             });
 
             return Json(result.IsSuccess
@@ -146,11 +197,50 @@ namespace MediStock.Portal.Controllers
 
         public class ProcessSaleRequest
         {
-            public long?          customer_id    { get; set; }
-            public List<object>?  items          { get; set; }
-            public string?        payment_method { get; set; }
-            public decimal        amount_paid    { get; set; }
-            public string?        notes          { get; set; }
+            public long?          customer_id       { get; set; }
+            public string?        sale_type         { get; set; }
+            public List<object>?  items             { get; set; }
+            public decimal        subtotal          { get; set; }
+            public decimal        discount          { get; set; }
+            public decimal        tax               { get; set; }
+            public decimal        net_amount        { get; set; }
+            public decimal        amount_paid       { get; set; }
+            public string?        payment_method    { get; set; }
+            public string?        payment_reference { get; set; }
+            public string?        notes             { get; set; }
         }
+    }
+
+    public class ReceiptViewModel
+    {
+        public SaleDto? Sale { get; set; }
+        public List<SaleItemDto> Items { get; set; } = new();
+    }
+
+    public class SaleDto
+    {
+        public long id { get; set; }
+        public string? sale_number { get; set; }
+        public string? sale_type { get; set; }
+        public decimal subtotal { get; set; }
+        public decimal discount { get; set; }
+        public decimal total { get; set; }
+        public decimal amount_paid { get; set; }
+        public string? payment_method { get; set; }
+        public string? status { get; set; }
+        public string? customer_name { get; set; }
+        public DateTime created_on { get; set; }
+    }
+
+    public class SaleItemDto
+    {
+        public long id { get; set; }
+        public long sale_id { get; set; }
+        public long product_id { get; set; }
+        public int quantity { get; set; }
+        public decimal unit_price { get; set; }
+        public decimal discount { get; set; }
+        public decimal total { get; set; }
+        public string? product_name { get; set; }
     }
 }

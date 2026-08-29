@@ -3,13 +3,9 @@
 //  Routes:
 //    GET  /Settings/Profile         → profile view
 //    GET  /Settings/Pharmacy        → pharmacy settings view
-//    GET  /Settings/GetProfile      → JSON current user profile
-//    POST /Settings/UpdateProfile   → proxy → api/settings/updateprofile
-//    GET  /Settings/GetPharmacy     → JSON pharmacy settings
-//    POST /Settings/UpdatePharmacy  → proxy → api/settings/updatepharmacy
-//    GET  /Settings/GetUsers        → JSON pharmacy users (admin)
-//    POST /Settings/AddUser         → proxy → api/settings/adduser
-//    POST /Settings/DeleteUser      → proxy → api/settings/deleteuser
+//    GET  /Settings/GetPharmacy     → JSON pharmacy info (api/settings)
+//    POST /Settings/UpdatePharmacy  → proxy → api/settings/profile
+//    POST /Settings/SavePharmacyConfig → proxy → api/settings/config
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -34,6 +30,11 @@ namespace MediStock.Portal.Controllers
         public async Task<IActionResult> Profile()
         {
             await _audit.LogViewAsync("Settings/Profile");
+            ViewBag.FirstName = User.FindFirst("first_name")?.Value ?? "";
+            ViewBag.LastName  = User.FindFirst("last_name")?.Value ?? "";
+            ViewBag.Email     = User.Identity?.Name ?? "";
+            ViewBag.Phone     = User.FindFirst("phone")?.Value ?? "";
+            ViewBag.RoleId    = User.FindFirst("profile_id")?.Value ?? "";
             return View();
         }
 
@@ -43,48 +44,16 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
-        // ── Profile data ──────────────────────────────────────────────────────
-        [HttpGet]
-        public async Task<IActionResult> GetProfile()
-        {
-            try
-            {
-                var result = await _api.GetAsync<object>("api/settings/profile");
-                return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest model)
-        {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
-
-            var result = await _api.PostAsync<object>("api/settings/updateprofile", new
-            {
-                first_name = model.first_name,
-                last_name  = model.last_name,
-                phone      = model.phone,
-                avatar     = model.avatar
-            });
-
-            return Json(result.IsSuccess
-                ? new { success = true, message = "Profile updated" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to update profile" : result.Error });
-        }
-
         // ── Pharmacy data ─────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetPharmacy()
         {
             try
             {
-                var result = await _api.GetAsync<object>("api/settings/pharmacy?pharmacyId=" + GetPharmacyId());
-                return Json(result.IsSuccess ? result.Data : null);
+                var result = await _api.GetAsync<List<object>>("api/settings/");
+                if (result.IsSuccess && result.Data != null && result.Data.Count > 0)
+                    return Json(result.Data[0]);
+                return Json((object?)null);
             }
             catch (Exception ex)
             {
@@ -98,15 +67,16 @@ namespace MediStock.Portal.Controllers
             if (model == null)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/settings/updatepharmacy", new
+            var result = await _api.PostAsync<object>("api/settings/profile", new
             {
-                pharmacy_id     = GetPharmacyId(),
-                pharmacy_name   = model.pharmacy_name,
-                pharmacy_phone  = model.pharmacy_phone,
-                pharmacy_email  = model.pharmacy_email,
-                pharmacy_address = model.pharmacy_address,
+                name            = model.pharmacy_name,
+                phone           = model.pharmacy_phone,
+                email           = model.pharmacy_email,
+                address         = model.pharmacy_address,
                 license_number  = model.license_number,
-                kra_pin         = model.kra_pin
+                vat_number      = model.vat_number,
+                receipt_footer  = model.receipt_footer,
+                currency        = model.currency
             });
 
             return Json(result.IsSuccess
@@ -114,53 +84,21 @@ namespace MediStock.Portal.Controllers
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to update pharmacy" : result.Error });
         }
 
-        // ── Users data (admin only) ───────────────────────────────────────────
-        [HttpGet]
-        public async Task<IActionResult> GetUsers()
-        {
-            try
-            {
-                var result = await _api.GetAsync<object>("api/settings/users?pharmacyId=" + GetPharmacyId());
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
         [HttpPost]
-        public async Task<IActionResult> AddUser([FromBody] AddUserRequest model)
+        public async Task<IActionResult> SavePharmacyConfig([FromBody] SaveConfigRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || string.IsNullOrEmpty(model.key))
+                return Json(new { success = false, message = "key is required" });
 
-            var result = await _api.PostAsync<object>("api/settings/adduser", new
+            var result = await _api.PostAsync<object>("api/settings/config", new
             {
-                pharmacy_id  = GetPharmacyId(),
-                first_name   = model.first_name,
-                last_name    = model.last_name,
-                email        = model.email,
-                phone        = model.phone,
-                role_id      = model.role_id,
-                password     = model.password
+                key   = model.key,
+                value = model.value ?? ""
             });
 
             return Json(result.IsSuccess
-                ? new { success = true, message = "User added" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add user" : result.Error });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> DeleteUser([FromBody] IdRequest model)
-        {
-            if (model == null || model.id <= 0)
-                return Json(new { success = false, message = "id is required" });
-
-            var result = await _api.PostAsync<object>("api/settings/deleteuser", new { id = model.id });
-            return Json(result.IsSuccess
-                ? new { success = true, message = "User deleted" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to delete user" : result.Error });
+                ? new { success = true, message = "Setting saved" }
+                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to save setting" : result.Error });
         }
 
         private string GetPharmacyId()
@@ -169,16 +107,6 @@ namespace MediStock.Portal.Controllers
         }
 
         // ── Request models ────────────────────────────────────────────────────
-        public class IdRequest { public long id { get; set; } }
-
-        public class UpdateProfileRequest
-        {
-            public string? first_name { get; set; }
-            public string? last_name  { get; set; }
-            public string? phone      { get; set; }
-            public string? avatar     { get; set; }
-        }
-
         public class UpdatePharmacyRequest
         {
             public string? pharmacy_name   { get; set; }
@@ -186,17 +114,15 @@ namespace MediStock.Portal.Controllers
             public string? pharmacy_email  { get; set; }
             public string? pharmacy_address { get; set; }
             public string? license_number  { get; set; }
-            public string? kra_pin         { get; set; }
+            public string? vat_number      { get; set; }
+            public string? receipt_footer  { get; set; }
+            public string? currency        { get; set; }
         }
 
-        public class AddUserRequest
+        public class SaveConfigRequest
         {
-            public string? first_name { get; set; }
-            public string? last_name  { get; set; }
-            public string? email      { get; set; }
-            public string? phone      { get; set; }
-            public long    role_id    { get; set; }
-            public string? password   { get; set; }
+            public string? key   { get; set; }
+            public string? value { get; set; }
         }
     }
 }

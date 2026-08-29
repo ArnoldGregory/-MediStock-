@@ -86,6 +86,56 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
+        [HttpPut("{id}")]
+        public ActionResult UpdateSupplier(Int64 id, [FromBody] SupplierModel model)
+        {
+            iloggermanager.LogInfo("******* UPDATE SUPPLIER REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+
+                if (model == null || string.IsNullOrEmpty(model.name))
+                    return Bad("Supplier name is required");
+
+                model.id = id;
+                model.pharmacy_id = pharmacyId;
+
+                bool ok = dbhandler.UpdateSupplier(model);
+                if (ok)
+                {
+                    iloggermanager.LogInfo($"UpdateSupplier: supplierId={id}");
+                    CaptureAuditTrail(userId.ToString(), "Update Supplier", $"Updated supplier: {model.name}");
+                    return Ok(new { success = true, message = "Supplier updated successfully", action = "", data = new JObject() });
+                }
+                return Bad("Failed to update supplier");
+            }
+            catch (Exception ex) { iloggermanager.LogError("UpdateSupplier: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
+        [HttpDelete("{id}")]
+        public ActionResult DeleteSupplier(Int64 id)
+        {
+            iloggermanager.LogInfo("******* DELETE SUPPLIER REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+
+                bool ok = dbhandler.DeleteRecord(id, userId, "supplier");
+                if (ok)
+                {
+                    iloggermanager.LogInfo($"DeleteSupplier: supplierId={id}");
+                    CaptureAuditTrail(userId.ToString(), "Delete Supplier", $"Deleted supplier ID {id}");
+                    return Ok(new { success = true, message = "Supplier deleted successfully", action = "", data = new JObject() });
+                }
+                return Bad("Failed to delete supplier");
+            }
+            catch (Exception ex) { iloggermanager.LogError("DeleteSupplier: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
         [HttpGet("po")]
         public ActionResult GetPurchaseOrders()
         {
@@ -177,22 +227,13 @@ namespace MediStock.API.Controllers
 
                 var receiveStock = new ReceiveStockModel
                 {
+                    quantity_received = model.quantity_received,
+                    notes             = model.notes,
+                    received_by       = userId,
                     items = model.items ?? new List<ReceiveStockItemModel>()
                 };
 
-                foreach (var item in receiveStock.items)
-                {
-                    ReceiveStockItemModel itemModel = new ReceiveStockItemModel
-                    {
-                        product_id = item.product_id,
-                        batch_number = item.batch_number,
-                        expiry_date = item.expiry_date,
-                        unit_cost = item.unit_cost,
-                        quantity = item.quantity
-                    };
-                }
-
-                bool ok = dbhandler.ReceiveStock(id, new ReceiveStockModel { items = receiveStock.items });
+                bool ok = dbhandler.ReceiveStock(id, receiveStock);
                 if (ok)
                 {
                     iloggermanager.LogInfo($"ReceiveStock: poId={id}");

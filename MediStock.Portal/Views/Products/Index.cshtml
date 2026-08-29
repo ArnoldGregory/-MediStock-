@@ -2,7 +2,6 @@
     <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
     <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
     <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
-    <link href="~/assets/static/plugins/select2/dist/css/select2.min.css" rel="stylesheet" />
 }
 
 <h1 class="page-header"><i class="fa fa-pills"></i> Products <small>Register</small></h1>
@@ -10,17 +9,18 @@
 <div class="panel panel-inverse" id="main_panel">
     <div class="panel-heading">
         <div class="panel-heading-btn">
-            <a href="@Url.Action("Index", "Products")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
-            <a href="@Url.Action("Index", "Dashboard")" class="btn btn-xs btn-icon btn-circle btn-danger" data-click="panel-remove"><i class="fa fa-times"></i></a>
+            <a href="@Url.Action("Index","Products")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+            <a href="@Url.Action("Index","Dashboard")" class="btn btn-xs btn-icon btn-circle btn-danger" data-click="panel-remove"><i class="fa fa-times"></i></a>
         </div>
         <h4 class="panel-title">Product Register</h4>
     </div>
     <div class="panel-body">
+
         <div class="row m-b-10">
             <div class="col-md-12">
-                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#productModal" onclick="resetProductForm();">
+                <a href="#" class="btn btn-sm btn-success" data-toggle="modal" data-target="#product-modal">
                     <i class="fa fa-plus"></i> Add Product
-                </button>
+                </a>
             </div>
         </div>
 
@@ -29,15 +29,15 @@
                 <table id="productsTable" class="table table-striped table-hover table-bordered table-condensed">
                     <thead>
                         <tr>
-                            <th>Code</th>
                             <th>Name</th>
+                            <th>Code (SKU)</th>
                             <th>Category</th>
-                            <th>Form</th>
-                            <th>Strength</th>
-                            <th>Price</th>
+                            <th>Selling Price</th>
+                            <th>Cost Price</th>
                             <th>Stock</th>
+                            <th>Reorder</th>
+                            <th>DDA</th>
                             <th>Status</th>
-                            <th></th>
                             <th></th>
                             <th></th>
                         </tr>
@@ -45,264 +45,103 @@
                 </table>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Add/Edit Product Modal -->
-<div class="modal fade" id="productModal" tabindex="-1" role="dialog" aria-labelledby="productModalLabel">
-    <div class="modal-dialog modal-lg" role="document">
-        <div class="modal-content">
-            <form asp-controller="Products" asp-action="Save" method="POST" id="productForm">
-                @Html.AntiForgeryToken()
-                <input type="hidden" id="productId" name="productId" value="" />
-                <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                    <h4 class="modal-title" id="productModalLabel"><i class="fa fa-pills"></i> Add Product</h4>
+        <!-- ADD / EDIT MODAL -->
+        <div class="modal fade" id="product-modal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <form id="productForm">
+                        <input type="hidden" id="productId" value="" />
+                        <div class="modal-header">
+                            <button type="button" class="close" data-dismiss="modal"><i class="fa fa-times-circle"></i></button>
+                            <h4 class="modal-title" id="productModalLabel"><i class="fa fa-pills"></i> Add Product</h4>
+                        </div>
+                        <div class="modal-body">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="form-group">
+                                        <label>Product Name <span class="text-danger">*</span></label>
+                                        <input id="productName" type="text" class="form-control" placeholder="e.g. Amoxicillin 500mg" />
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Code (SKU)</label>
+                                        <input id="productSku" type="text" class="form-control" placeholder="e.g. AMOX-500" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Category <span class="text-danger">*</span></label>
+                                        <select id="categoryId" class="form-control">
+                                            <option value="">-- Select --</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Unit of Measure</label>
+                                        <input id="unitOfMeasure" type="text" class="form-control" placeholder="e.g. strips, bottles" />
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>DDA Controlled?</label>
+                                        <select id="isDDA" class="form-control">
+                                            <option value="false">No</option>
+                                            <option value="true">Yes — DDA Register Required</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Selling Price <span class="text-danger">*</span></label>
+                                        <input id="sellingPrice" type="number" class="form-control" step="0.01" min="0" />
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Cost Price</label>
+                                        <input id="costPrice" type="number" class="form-control" step="0.01" min="0" />
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="form-group">
+                                        <label>Reorder Level</label>
+                                        <input id="reorderLevel" type="number" class="form-control" value="10" min="0" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Barcode</label>
+                                <input id="productBarcode" type="text" class="form-control" placeholder="Optional barcode" />
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea id="productDescription" rows="3" class="form-control" placeholder="Optional description"></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <a href="#" class="btn btn-white btn-sm" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</a>
+                            <a href="#" class="btn btn-success btn-sm" id="btnSaveProduct"><i class="fa fa-save"></i> Save Product</a>
+                        </div>
+                    </form>
                 </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Product Code <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="productCode" name="productCode" required />
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Product Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="productName" name="productName" required />
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Category <span class="text-danger">*</span></label>
-                                <select class="form-control select2" id="categoryId" name="categoryId" required>
-                                    <option value="">-- Select --</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Form</label>
-                                <select class="form-control" id="dosageForm" name="dosageForm">
-                                    <option value="">-- Select --</option>
-                                    <option value="Tablet">Tablet</option>
-                                    <option value="Capsule">Capsule</option>
-                                    <option value="Syrup">Syrup</option>
-                                    <option value="Injection">Injection</option>
-                                    <option value="Cream">Cream</option>
-                                    <option value="Ointment">Ointment</option>
-                                    <option value="Drops">Drops</option>
-                                    <option value="Inhaler">Inhaler</option>
-                                    <option value="Suppository">Suppository</option>
-                                    <option value="Powder">Powder</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Strength</label>
-                                <input type="text" class="form-control" id="strength" name="strength" placeholder="e.g. 500mg" />
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Selling Price <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="sellingPrice" name="sellingPrice" step="0.01" min="0" required />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Cost Price</label>
-                                <input type="number" class="form-control" id="costPrice" name="costPrice" step="0.01" min="0" />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Reorder Level</label>
-                                <input type="number" class="form-control" id="reorderLevel" name="reorderLevel" value="10" min="0" />
-                            </div>
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Manufacturer</label>
-                                <input type="text" class="form-control" id="manufacturer" name="manufacturer" />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Unit of Measure</label>
-                                <input type="text" class="form-control" id="unitOfMeasure" name="unitOfMeasure" placeholder="e.g. strips, bottles" />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Is Prescription Required?</label>
-                                <select class="form-control" id="isPrescriptionRequired" name="isPrescriptionRequired">
-                                    <option value="false">No (OTC)</option>
-                                    <option value="true">Yes (Rx)</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>DDA Controlled?</label>
-                        <select class="form-control" id="isDDA" name="isDDA">
-                            <option value="false">No</option>
-                            <option value="true">Yes — DDA Register Required</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save Product</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Confirmation Modal -->
-<div class="modal fade" id="deleteProductModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-red">
-                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                <h4 class="modal-title" style="color:#fff;"><i class="fa fa-trash"></i> Delete Product</h4>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteProductName"></strong>?</p>
-                <p class="text-danger"><i class="fa fa-warning"></i> This action cannot be undone.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteProduct"><i class="fa fa-trash"></i> Delete</button>
             </div>
         </div>
+
+        <hr />
     </div>
 </div>
 
 @section PageScripts {
-    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.js"></script>
     <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
-    <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
-    <script>
-        var table;
-        $(document).ready(function () {
-            $('.select2').select2({ width: '100%' });
-            loadCategories();
-            loadProducts();
-        });
-
-        function loadProducts() {
-            table = $('#productsTable').DataTable({
-                ajax: { url: '/api/products', dataSrc: '' },
-                columns: [
-                    { data: 'productCode' },
-                    { data: 'productName' },
-                    { data: 'categoryName' },
-                    { data: 'dosageForm' },
-                    { data: 'strength' },
-                    { data: 'sellingPrice', render: function (d) { return 'KES ' + parseFloat(d).toFixed(2); } },
-                    { data: 'currentStock' },
-                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-primary" onclick="editProduct(\'' + data.productId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-info" onclick="viewProduct(\'' + data.productId + '\')"><i class="fa fa-eye"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-danger" onclick="deleteProduct(\'' + data.productId + '\', \'' + data.productName + '\')"><i class="fa fa-trash"></i></button>'; } }
-                ],
-                order: [[1, 'asc']]
-            });
-        }
-
-        function loadCategories() {
-            $.get('/api/categories', function (data) {
-                var $sel = $('#categoryId');
-                $sel.empty().append('<option value="">-- Select --</option>');
-                $.each(data, function (i, item) {
-                    $sel.append('<option value="' + item.categoryId + '">' + item.categoryName + '</option>');
-                });
-            });
-        }
-
-        function resetProductForm() {
-            $('#productForm')[0].reset();
-            $('#productId').val('');
-            $('#productModalLabel').html('<i class="fa fa-pills"></i> Add Product');
-        }
-
-        function editProduct(id) {
-            $.get('/api/products/' + id, function (data) {
-                $('#productId').val(data.productId);
-                $('#productCode').val(data.productCode);
-                $('#productName').val(data.productName);
-                $('#categoryId').val(data.categoryId).trigger('change');
-                $('#dosageForm').val(data.dosageForm);
-                $('#strength').val(data.strength);
-                $('#sellingPrice').val(data.sellingPrice);
-                $('#costPrice').val(data.costPrice);
-                $('#reorderLevel').val(data.reorderLevel);
-                $('#manufacturer').val(data.manufacturer);
-                $('#unitOfMeasure').val(data.unitOfMeasure);
-                $('#isPrescriptionRequired').val(data.isPrescriptionRequired.toString());
-                $('#isDDA').val(data.isDDA.toString());
-                $('#productModalLabel').html('<i class="fa fa-edit"></i> Edit Product');
-                $('#productModal').modal('show');
-            });
-        }
-
-        function viewProduct(id) {
-            window.location.href = '/Products/Detail/' + id;
-        }
-
-        function deleteProduct(id, name) {
-            $('#deleteProductName').text(name);
-            $('#confirmDeleteProduct').off('click').on('click', function () {
-                $.ajax({
-                    url: '/api/products/' + id,
-                    type: 'DELETE',
-                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                    success: function () {
-                        Swal.fire('Deleted', 'Product has been deleted.', 'success');
-                        table.ajax.reload();
-                        $('#deleteProductModal').modal('hide');
-                    },
-                    error: function () {
-                        Swal.fire('Error', 'Unable to delete product.', 'error');
-                    }
-                });
-            });
-            $('#deleteProductModal').modal('show');
-        }
-
-        $('#productForm').on('submit', function (e) {
-            e.preventDefault();
-            var formData = $(this).serialize();
-            var id = $('#productId').val();
-            var url = id ? '/api/products/' + id : '/api/products';
-            var method = id ? 'PUT' : 'POST';
-
-            $.ajax({
-                url: url,
-                type: method,
-                data: formData,
-                success: function () {
-                    Swal.fire('Saved', 'Product saved successfully.', 'success');
-                    $('#productModal').modal('hide');
-                    table.ajax.reload();
-                },
-                error: function (xhr) {
-                    Swal.fire('Error', xhr.responseText || 'Unable to save product.', 'error');
-                }
-            });
-        });
-    </script>
+    <script src="~/assets/static/js/products.js"></script>
 }

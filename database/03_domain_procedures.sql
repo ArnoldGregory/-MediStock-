@@ -15,30 +15,26 @@ DELIMITER $$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_pharmacy`$$
 CREATE PROCEDURE `add_pharmacy`(
-    IN  p_name           VARCHAR(200),
-    IN  p_slug           VARCHAR(100),
-    IN  p_phone          VARCHAR(50),
-    IN  p_email          VARCHAR(200),
-    IN  p_address        TEXT,
-    IN  p_license_number VARCHAR(100),
-    IN  p_currency       VARCHAR(10),
-    IN  p_vat_number     VARCHAR(100),
-    OUT p_id             BIGINT,
-    OUT p_error_code     VARCHAR(2),
-    OUT p_error_desc     VARCHAR(500)
+    IN  in_name        VARCHAR(200),
+    IN  in_slug        VARCHAR(100),
+    IN  in_address     TEXT,
+    IN  in_phone       VARCHAR(50),
+    IN  in_email       VARCHAR(200),
+    IN  in_license_no  VARCHAR(100),
+    IN  in_owner_name  VARCHAR(200),
+    IN  in_created_by  BIGINT,
+    OUT p_id           BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM pharmacies WHERE slug = p_slug AND is_deleted = 0) THEN
-        SET p_error_desc = 'Pharmacy slug already exists';
+    SET p_id = 0;
+    IF EXISTS (SELECT 1 FROM pharmacies WHERE slug = in_slug AND is_deleted = 0) THEN
+        SET p_id = 0;
     ELSE
         INSERT INTO pharmacies
-            (name, slug, phone, email, address, license_number, currency, vat_number, created_on)
+            (name, slug, phone, email, address, license_number, owner_name, created_on)
         VALUES
-            (p_name, p_slug, p_phone, p_email, p_address, p_license_number,
-             COALESCE(p_currency, 'KES'), p_vat_number, NOW());
+            (in_name, in_slug, in_phone, in_email, in_address, in_license_no, in_owner_name, NOW());
         SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'Pharmacy added';
     END IF;
 END$$
 
@@ -47,32 +43,46 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_user`$$
 CREATE PROCEDURE `add_user`(
-    IN  p_pharmacy_id  BIGINT,
-    IN  p_role_id      INT,
-    IN  p_first_name   VARCHAR(100),
-    IN  p_middle_name  VARCHAR(100),
-    IN  p_last_name    VARCHAR(100),
-    IN  p_email        VARCHAR(200),
-    IN  p_mobile       VARCHAR(50),
-    IN  p_password     VARCHAR(200),
-    IN  p_created_by   BIGINT,
-    OUT p_id           BIGINT,
-    OUT p_error_code   VARCHAR(2),
-    OUT p_error_desc   VARCHAR(500)
+    IN  in_pharmacy_id  BIGINT,
+    IN  in_role_id      INT,
+    IN  in_first_name   VARCHAR(100),
+    IN  in_last_name    VARCHAR(100),
+    IN  in_email        VARCHAR(200),
+    IN  in_password     VARCHAR(200),
+    IN  in_phone        VARCHAR(50),
+    IN  in_is_active    TINYINT,
+    IN  in_created_by   BIGINT,
+    OUT p_id            BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM pharmacy_users WHERE email = p_email AND is_deleted = 0) THEN
-        SET p_error_desc = 'Email already registered';
+    DECLARE v_locked TINYINT DEFAULT 0;
+    SET p_id = 0;
+    SET v_locked = IF(COALESCE(in_is_active, 1) = 1, 0, 1);
+
+    IF COALESCE(in_role_id, 3) IN (1, 2) THEN
+        IF EXISTS (SELECT 1 FROM portal_users WHERE email = in_email AND is_deleted = 0) THEN
+            SET p_id = 0;
+        ELSE
+            INSERT INTO portal_users
+                (pharmacy_id, role_id, first_name, last_name,
+                 email, mobile, PASSWORD, locked, approved, created_by, created_on)
+            VALUES
+                (in_pharmacy_id, in_role_id, in_first_name, in_last_name,
+                 in_email, in_phone, in_password, v_locked, 1, in_created_by, NOW());
+            SET p_id = LAST_INSERT_ID();
+        END IF;
     ELSE
-        INSERT INTO pharmacy_users
-            (pharmacy_id, role_id, first_name, middle_name, last_name,
-             email, mobile, password, created_by, created_on)
-        VALUES
-            (p_pharmacy_id, p_role_id, p_first_name, p_middle_name, p_last_name,
-             p_email, p_mobile, p_password, p_created_by, NOW());
-        SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'User added';
+        IF EXISTS (SELECT 1 FROM p_external_portal_user WHERE email = in_email AND is_deleted = 0) THEN
+            SET p_id = 0;
+        ELSE
+            INSERT INTO p_external_portal_user
+                (pharmacy_id, role_id, first_name, last_name,
+                 email, mobile, PASSWORD, locked, created_by, created_on)
+            VALUES
+                (in_pharmacy_id, in_role_id, in_first_name, in_last_name,
+                 in_email, in_phone, in_password, v_locked, in_created_by, NOW());
+            SET p_id = LAST_INSERT_ID();
+        END IF;
     END IF;
 END$$
 
@@ -85,12 +95,23 @@ CREATE PROCEDURE `validate_login`(
     IN profiletype VARCHAR(50)
 )
 BEGIN
-    SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
-           email, mobile, password, avatar, locked, change_password,
-           failed_login_attempts, google_authenticate, sec_key
-    FROM pharmacy_users
-    WHERE email = username AND is_deleted = 0
-    LIMIT 1;
+    IF LOWER(profiletype) = 'admin' THEN
+        SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
+               email, mobile, password, avatar, locked,
+               0 AS change_password, 0 AS failed_login_attempts,
+               google_authenticate, sec_key
+        FROM portal_users
+        WHERE email = username AND is_deleted = 0
+        LIMIT 1;
+    ELSE
+        SELECT id, pharmacy_id, role_id, first_name, middle_name, last_name,
+               email, mobile, password, avatar, locked,
+               change_password, failed_login_attempts,
+               google_authenticate, sec_key
+        FROM p_external_portal_user
+        WHERE email = username AND is_deleted = 0
+        LIMIT 1;
+    END IF;
 END$$
 
 -- ============================================================
@@ -243,42 +264,35 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_product`$$
 CREATE PROCEDURE `add_product`(
-    IN  p_pharmacy_id       BIGINT,
-    IN  p_category_id       BIGINT,
-    IN  p_name              VARCHAR(300),
-    IN  p_sku               VARCHAR(100),
-    IN  p_barcode           VARCHAR(100),
-    IN  p_description       TEXT,
-    IN  p_cost_price        DECIMAL(15,2),
-    IN  p_selling_price     DECIMAL(15,2),
-    IN  p_vat_rate          DECIMAL(5,2),
-    IN  p_reorder_level     INT,
-    IN  p_stock_qty         INT,
-    IN  p_unit              VARCHAR(50),
-    IN  p_is_controlled_drug TINYINT,
-    IN  p_created_by        BIGINT,
-    OUT p_id                BIGINT,
-    OUT p_error_code        VARCHAR(2),
-    OUT p_error_desc        VARCHAR(500)
+    IN  in_pharmacy_id      BIGINT,
+    IN  in_category_id      BIGINT,
+    IN  in_name             VARCHAR(300),
+    IN  in_description      TEXT,
+    IN  in_sku              VARCHAR(100),
+    IN  in_barcode          VARCHAR(100),
+    IN  in_cost_price       DECIMAL(15,2),
+    IN  in_selling_price    DECIMAL(15,2),
+    IN  in_reorder_level    INT,
+    IN  in_unit_of_measure  VARCHAR(50),
+    IN  in_is_active        TINYINT,
+    IN  in_created_by       BIGINT,
+    OUT p_id                BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM products WHERE pharmacy_id = p_pharmacy_id AND (sku = p_sku OR barcode = p_barcode) AND is_deleted = 0
-               AND (p_sku IS NOT NULL OR p_barcode IS NOT NULL)) THEN
-        SET p_error_desc = 'Product with same SKU or barcode already exists';
+    SET p_id = 0;
+    IF EXISTS (SELECT 1 FROM products WHERE pharmacy_id = in_pharmacy_id AND (sku = in_sku OR barcode = in_barcode) AND is_deleted = 0
+               AND (in_sku IS NOT NULL OR in_barcode IS NOT NULL)) THEN
+        SET p_id = 0;
     ELSE
         INSERT INTO products
             (pharmacy_id, category_id, name, sku, barcode, description,
-             cost_price, selling_price, vat_rate, reorder_level, stock_qty,
-             unit, is_controlled_drug, created_by, created_on)
+             cost_price, selling_price, reorder_level, unit, is_active, created_by, created_on)
         VALUES
-            (p_pharmacy_id, p_category_id, p_name, p_sku, p_barcode, p_description,
-             p_cost_price, p_selling_price, COALESCE(p_vat_rate, 16.00),
-             COALESCE(p_reorder_level, 0), COALESCE(p_stock_qty, 0),
-             COALESCE(p_unit, 'pcs'), COALESCE(p_is_controlled_drug, 0),
-             p_created_by, NOW());
+            (in_pharmacy_id, in_category_id, in_name, in_sku, in_barcode, in_description,
+             COALESCE(in_cost_price, 0), COALESCE(in_selling_price, 0),
+             COALESCE(in_reorder_level, 0), COALESCE(in_unit_of_measure, 'pcs'),
+             COALESCE(in_is_active, 1), in_created_by, NOW());
         SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'Product added';
     END IF;
 END$$
 
@@ -287,41 +301,32 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `update_product`$$
 CREATE PROCEDURE `update_product`(
-    IN  p_id                BIGINT,
-    IN  p_category_id       BIGINT,
-    IN  p_name              VARCHAR(300),
-    IN  p_sku               VARCHAR(100),
-    IN  p_barcode           VARCHAR(100),
-    IN  p_description       TEXT,
-    IN  p_cost_price        DECIMAL(15,2),
-    IN  p_selling_price     DECIMAL(15,2),
-    IN  p_vat_rate          DECIMAL(5,2),
-    IN  p_reorder_level     INT,
-    IN  p_unit              VARCHAR(50),
-    IN  p_is_controlled_drug TINYINT,
-    OUT p_error_code        VARCHAR(2),
-    OUT p_error_desc        VARCHAR(500)
+    IN  in_id                BIGINT,
+    IN  in_pharmacy_id       BIGINT,
+    IN  in_category_id       BIGINT,
+    IN  in_name              VARCHAR(300),
+    IN  in_description       TEXT,
+    IN  in_sku               VARCHAR(100),
+    IN  in_barcode           VARCHAR(100),
+    IN  in_cost_price        DECIMAL(15,2),
+    IN  in_selling_price     DECIMAL(15,2),
+    IN  in_reorder_level     INT,
+    IN  in_unit_of_measure   VARCHAR(50),
+    IN  in_is_active         TINYINT
 )
 BEGIN
-    SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF NOT EXISTS (SELECT 1 FROM products WHERE id = p_id AND is_deleted = 0) THEN
-        SET p_error_desc = 'Product not found';
-    ELSE
-        UPDATE products
-        SET category_id       = p_category_id,
-            name              = p_name,
-            sku               = p_sku,
-            barcode           = p_barcode,
-            description       = p_description,
-            cost_price        = p_cost_price,
-            selling_price     = p_selling_price,
-            vat_rate          = COALESCE(p_vat_rate, 16.00),
-            reorder_level     = COALESCE(p_reorder_level, 0),
-            unit              = COALESCE(p_unit, 'pcs'),
-            is_controlled_drug = COALESCE(p_is_controlled_drug, 0)
-        WHERE id = p_id AND is_deleted = 0;
-        SET p_error_code = '00'; SET p_error_desc = 'Product updated';
-    END IF;
+    UPDATE products
+    SET category_id      = in_category_id,
+        name             = in_name,
+        sku              = in_sku,
+        barcode          = in_barcode,
+        description      = in_description,
+        cost_price       = in_cost_price,
+        selling_price    = in_selling_price,
+        reorder_level    = COALESCE(in_reorder_level, 0),
+        unit             = COALESCE(in_unit_of_measure, 'pcs'),
+        is_active        = COALESCE(in_is_active, 1)
+    WHERE id = in_id AND pharmacy_id = in_pharmacy_id AND is_deleted = 0;
 END$$
 
 -- ============================================================
@@ -329,25 +334,22 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_category`$$
 CREATE PROCEDURE `add_category`(
-    IN  p_pharmacy_id  BIGINT,
-    IN  p_name         VARCHAR(200),
-    IN  p_description  TEXT,
-    IN  p_created_by   BIGINT,
-    OUT p_id           BIGINT,
-    OUT p_error_code   VARCHAR(2),
-    OUT p_error_desc   VARCHAR(500)
+    IN  in_pharmacy_id  BIGINT,
+    IN  in_name         VARCHAR(200),
+    IN  in_description  TEXT,
+    IN  in_created_by   BIGINT,
+    OUT p_id            BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM product_categories WHERE pharmacy_id = p_pharmacy_id AND name = p_name AND is_deleted = 0) THEN
-        SET p_error_desc = 'Category already exists';
+    SET p_id = 0;
+    IF EXISTS (SELECT 1 FROM product_categories WHERE pharmacy_id = in_pharmacy_id AND name = in_name AND is_deleted = 0) THEN
+        SET p_id = 0;
     ELSE
         INSERT INTO product_categories
             (pharmacy_id, name, description, created_by, created_on)
         VALUES
-            (p_pharmacy_id, p_name, p_description, p_created_by, NOW());
+            (in_pharmacy_id, in_name, in_description, in_created_by, NOW());
         SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'Category added';
     END IF;
 END$$
 
@@ -356,41 +358,32 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `create_sale`$$
 CREATE PROCEDURE `create_sale`(
-    IN  p_pharmacy_id       BIGINT,
-    IN  p_customer_id       BIGINT,
-    IN  p_sale_number       VARCHAR(50),
-    IN  p_sale_type         VARCHAR(20),
-    IN  p_subtotal          DECIMAL(15,2),
-    IN  p_vat_amount        DECIMAL(15,2),
-    IN  p_discount          DECIMAL(15,2),
-    IN  p_total             DECIMAL(15,2),
-    IN  p_amount_paid       DECIMAL(15,2),
-    IN  p_payment_method    VARCHAR(50),
-    IN  p_payment_reference VARCHAR(200),
-    IN  p_sold_by           BIGINT,
-    OUT p_id                BIGINT,
-    OUT p_error_code        VARCHAR(2),
-    OUT p_error_desc        VARCHAR(500)
+    IN  in_pharmacy_id      BIGINT,
+    IN  in_customer_id      BIGINT,
+    IN  in_user_id          BIGINT,
+    IN  in_total_amount     DECIMAL(15,2),
+    IN  in_discount         DECIMAL(15,2),
+    IN  in_tax              DECIMAL(15,2),
+    IN  in_net_amount       DECIMAL(15,2),
+    IN  in_amount_paid      DECIMAL(15,2),
+    IN  in_payment_method   VARCHAR(50),
+    IN  in_notes            TEXT,
+    OUT p_sale_id           BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM sales WHERE sale_number = p_sale_number) THEN
-        SET p_error_desc = 'Sale number already exists';
-    ELSE
-        INSERT INTO sales
-            (pharmacy_id, customer_id, sale_number, sale_type, subtotal, vat_amount,
-             discount, total, amount_paid, payment_method, payment_reference,
-             sold_by, created_on)
-        VALUES
-            (p_pharmacy_id, p_customer_id, p_sale_number,
-             COALESCE(p_sale_type, 'Retail'),
-             COALESCE(p_subtotal, 0), COALESCE(p_vat_amount, 0),
-             COALESCE(p_discount, 0), COALESCE(p_total, 0),
-             COALESCE(p_amount_paid, 0), COALESCE(p_payment_method, 'Cash'),
-             p_payment_reference, p_sold_by, NOW());
-        SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'Sale created';
-    END IF;
+    DECLARE v_sale_number VARCHAR(50);
+    SET p_sale_id = 0;
+    SET v_sale_number = CONCAT('SAL-', DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), '-', FLOOR(1000 + RAND() * 9000));
+    INSERT INTO sales
+        (pharmacy_id, customer_id, sale_number, sale_type, subtotal, vat_amount,
+         discount, total, amount_paid, payment_method, notes, sold_by, created_on)
+    VALUES
+        (in_pharmacy_id, in_customer_id, v_sale_number, 'Retail',
+         COALESCE(in_total_amount, 0), COALESCE(in_tax, 0),
+         COALESCE(in_discount, 0), COALESCE(in_net_amount, 0),
+         COALESCE(in_amount_paid, 0), COALESCE(in_payment_method, 'Cash'),
+         in_notes, in_user_id, NOW());
+    SET p_sale_id = LAST_INSERT_ID();
 END$$
 
 -- ============================================================
@@ -398,29 +391,19 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_sale_item`$$
 CREATE PROCEDURE `add_sale_item`(
-    IN  p_sale_id      BIGINT,
-    IN  p_product_id   BIGINT,
-    IN  p_batch_id     BIGINT,
-    IN  p_quantity     INT,
-    IN  p_unit_price   DECIMAL(15,2),
-    IN  p_cost_price   DECIMAL(15,2),
-    IN  p_vat_rate     DECIMAL(5,2),
-    IN  p_vat_amount   DECIMAL(15,2),
-    IN  p_discount     DECIMAL(15,2),
-    IN  p_total        DECIMAL(15,2),
-    OUT p_id           BIGINT
+    IN  in_sale_id    BIGINT,
+    IN  in_product_id BIGINT,
+    IN  in_quantity   INT,
+    IN  in_unit_price DECIMAL(15,2),
+    IN  in_discount   DECIMAL(15,2),
+    IN  in_total      DECIMAL(15,2)
 )
 BEGIN
-    SET p_id = 0;
     INSERT INTO sale_items
-        (sale_id, product_id, batch_id, quantity, unit_price, cost_price,
-         vat_rate, vat_amount, discount, total)
+        (sale_id, product_id, quantity, unit_price, discount, total)
     VALUES
-        (p_sale_id, p_product_id, p_batch_id, p_quantity,
-         COALESCE(p_unit_price, 0), COALESCE(p_cost_price, 0),
-         COALESCE(p_vat_rate, 0), COALESCE(p_vat_amount, 0),
-         COALESCE(p_discount, 0), COALESCE(p_total, 0));
-    SET p_id = LAST_INSERT_ID();
+        (in_sale_id, in_product_id, COALESCE(in_quantity, 0),
+         COALESCE(in_unit_price, 0), COALESCE(in_discount, 0), COALESCE(in_total, 0));
 END$$
 
 -- ============================================================
@@ -450,31 +433,33 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_customer`$$
 CREATE PROCEDURE `add_customer`(
-    IN  p_pharmacy_id    BIGINT,
-    IN  p_customer_type  VARCHAR(20),
-    IN  p_first_name     VARCHAR(100),
-    IN  p_last_name      VARCHAR(100),
-    IN  p_phone          VARCHAR(50),
-    IN  p_email          VARCHAR(200),
-    IN  p_address        TEXT,
-    IN  p_credit_limit   DECIMAL(15,2),
-    IN  p_payment_terms  VARCHAR(50),
-    IN  p_created_by     BIGINT,
-    OUT p_id             BIGINT,
-    OUT p_error_code     VARCHAR(2),
-    OUT p_error_desc     VARCHAR(500)
+    IN  in_pharmacy_id    BIGINT,
+    IN  in_first_name     VARCHAR(100),
+    IN  in_last_name      VARCHAR(100),
+    IN  in_email          VARCHAR(200),
+    IN  in_phone          VARCHAR(50),
+    IN  in_address        TEXT,
+    IN  in_date_of_birth  DATE,
+    IN  in_gender         VARCHAR(20),
+    IN  in_customer_type  VARCHAR(20),
+    IN  in_credit_limit   DECIMAL(15,2),
+    IN  in_payment_terms  VARCHAR(50),
+    IN  in_is_active      TINYINT,
+    IN  in_created_by     BIGINT,
+    OUT p_id              BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
+    SET p_id = 0;
     INSERT INTO customers
-        (pharmacy_id, customer_type, first_name, last_name, phone, email,
-         address, credit_limit, payment_terms, created_by, created_on)
+        (pharmacy_id, first_name, last_name, email, phone, address,
+         date_of_birth, gender, customer_type, credit_limit, payment_terms,
+         is_active, created_by, created_on)
     VALUES
-        (p_pharmacy_id, COALESCE(p_customer_type, 'Retail'), p_first_name, p_last_name,
-         p_phone, p_email, p_address, COALESCE(p_credit_limit, 0),
-         COALESCE(p_payment_terms, 'Cash'), p_created_by, NOW());
+        (in_pharmacy_id, in_first_name, in_last_name, in_email, in_phone, in_address,
+         in_date_of_birth, in_gender, COALESCE(in_customer_type, 'Retail'),
+         COALESCE(in_credit_limit, 0), COALESCE(in_payment_terms, 'Cash'),
+         COALESCE(in_is_active, 1), in_created_by, NOW());
     SET p_id = LAST_INSERT_ID();
-    SET p_error_code = '00'; SET p_error_desc = 'Customer added';
 END$$
 
 -- ============================================================
@@ -482,25 +467,55 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_supplier`$$
 CREATE PROCEDURE `add_supplier`(
-    IN  p_pharmacy_id     BIGINT,
-    IN  p_name            VARCHAR(200),
-    IN  p_contact_person  VARCHAR(200),
-    IN  p_phone           VARCHAR(50),
-    IN  p_email           VARCHAR(200),
-    IN  p_address         TEXT,
-    IN  p_created_by      BIGINT,
-    OUT p_id              BIGINT,
-    OUT p_error_code      VARCHAR(2),
-    OUT p_error_desc      VARCHAR(500)
+    IN  in_pharmacy_id    BIGINT,
+    IN  in_name           VARCHAR(200),
+    IN  in_contact_person VARCHAR(200),
+    IN  in_email          VARCHAR(200),
+    IN  in_phone          VARCHAR(50),
+    IN  in_address        TEXT,
+    IN  in_city           VARCHAR(100),
+    IN  in_country        VARCHAR(100),
+    IN  in_created_by     BIGINT,
+    OUT p_id              BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
+    SET p_id = 0;
     INSERT INTO suppliers
-        (pharmacy_id, name, contact_person, phone, email, address, created_by, created_on)
+        (pharmacy_id, name, contact_person, email, phone, address, city, country,
+         created_by, created_on)
     VALUES
-        (p_pharmacy_id, p_name, p_contact_person, p_phone, p_email, p_address, p_created_by, NOW());
+        (in_pharmacy_id, in_name, in_contact_person, in_email, in_phone, in_address,
+         in_city, in_country, in_created_by, NOW());
     SET p_id = LAST_INSERT_ID();
-    SET p_error_code = '00'; SET p_error_desc = 'Supplier added';
+END$$
+
+-- ============================================================
+-- 4b. SUPPLIERS — update_supplier
+-- ============================================================
+DROP PROCEDURE IF EXISTS `update_supplier`$$
+CREATE PROCEDURE `update_supplier`(
+    IN  in_id             BIGINT,
+    IN  in_pharmacy_id    BIGINT,
+    IN  in_name           VARCHAR(200),
+    IN  in_contact_person VARCHAR(200),
+    IN  in_email          VARCHAR(200),
+    IN  in_phone          VARCHAR(50),
+    IN  in_address        TEXT,
+    IN  in_city           VARCHAR(100),
+    IN  in_country        VARCHAR(100),
+    IN  in_is_active      TINYINT
+)
+BEGIN
+    UPDATE suppliers
+    SET name             = in_name,
+        contact_person   = in_contact_person,
+        email            = in_email,
+        phone            = in_phone,
+        address          = in_address,
+        city             = in_city,
+        country          = in_country,
+        is_active        = COALESCE(in_is_active, 1)
+    WHERE id = in_id AND pharmacy_id = in_pharmacy_id AND is_deleted = 0;
 END$$
 
 -- ============================================================
@@ -508,29 +523,36 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_purchase_order`$$
 CREATE PROCEDURE `add_purchase_order`(
-    IN  p_pharmacy_id   BIGINT,
-    IN  p_supplier_id   BIGINT,
-    IN  p_po_number     VARCHAR(50),
-    IN  p_total         DECIMAL(15,2),
-    IN  p_expected_date DATE,
-    IN  p_created_by    BIGINT,
-    OUT p_id            BIGINT,
-    OUT p_error_code    VARCHAR(2),
-    OUT p_error_desc    VARCHAR(500)
+    IN  in_pharmacy_id   BIGINT,
+    IN  in_supplier_id   BIGINT,
+    IN  in_product_id    BIGINT,
+    IN  in_quantity      INT,
+    IN  in_unit_cost     DECIMAL(15,2),
+    IN  in_total_cost    DECIMAL(15,2),
+    IN  in_expected_date DATE,
+    IN  in_notes         TEXT,
+    IN  in_created_by    BIGINT,
+    OUT p_id             BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM purchase_orders WHERE po_number = p_po_number) THEN
-        SET p_error_desc = 'PO number already exists';
-    ELSE
-        INSERT INTO purchase_orders
-            (pharmacy_id, supplier_id, po_number, total, expected_date, created_by, created_on)
-        VALUES
-            (p_pharmacy_id, p_supplier_id, p_po_number, COALESCE(p_total, 0),
-             p_expected_date, p_created_by, NOW());
-        SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'Purchase order created';
-    END IF;
+    DECLARE v_po_number VARCHAR(50);
+    SET p_id = 0;
+    SET v_po_number = CONCAT('PO-', DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), '-', FLOOR(1000 + RAND() * 9000));
+    INSERT INTO purchase_orders
+        (pharmacy_id, supplier_id, po_number, product_id, quantity, unit_cost,
+         total_cost, total, expected_date, notes, created_by, created_on)
+    VALUES
+        (in_pharmacy_id, in_supplier_id, v_po_number, in_product_id,
+         COALESCE(in_quantity, 0), COALESCE(in_unit_cost, 0),
+         COALESCE(in_total_cost, 0), COALESCE(in_total_cost, 0),
+         in_expected_date, in_notes, in_created_by, NOW());
+    SET p_id = LAST_INSERT_ID();
+
+    INSERT INTO po_items
+        (po_id, product_id, quantity, received_qty, unit_cost, total)
+    VALUES
+        (p_id, in_product_id, COALESCE(in_quantity, 0), 0,
+         COALESCE(in_unit_cost, 0), COALESCE(in_total_cost, 0));
 END$$
 
 -- ============================================================
@@ -559,51 +581,27 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `receive_stock`$$
 CREATE PROCEDURE `receive_stock`(
-    IN  p_po_id          BIGINT,
-    IN  p_pharmacy_id    BIGINT,
-    IN  p_product_id     BIGINT,
-    IN  p_batch_number   VARCHAR(100),
-    IN  p_expiry_date    DATE,
-    IN  p_unit_cost      DECIMAL(15,2),
-    IN  p_quantity       INT,
-    IN  p_created_by     BIGINT,
-    OUT p_error_code     VARCHAR(2),
-    OUT p_error_desc     VARCHAR(500)
+    IN  in_po_id             BIGINT,
+    IN  in_received_by       BIGINT,
+    IN  in_quantity_received INT,
+    IN  in_notes             TEXT
 )
 BEGIN
-    DECLARE v_batch_id BIGINT DEFAULT 0;
-    SET p_error_code = '01'; SET p_error_desc = 'Failed';
-
-    -- Create batch
-    INSERT INTO product_batches
-        (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity,
-         created_by, created_on)
-    VALUES
-        (p_pharmacy_id, p_product_id, p_batch_number, p_expiry_date, p_unit_cost,
-         p_quantity, p_created_by, NOW());
-    SET v_batch_id = LAST_INSERT_ID();
-
-    -- Update product stock_qty
-    UPDATE products
-    SET stock_qty = stock_qty + p_quantity
-    WHERE id = p_product_id AND pharmacy_id = p_pharmacy_id AND is_deleted = 0;
-
-    -- Update PO received_qty
     UPDATE po_items
-    SET received_qty = received_qty + p_quantity
-    WHERE po_id = p_po_id AND product_id = p_product_id;
+    SET received_qty = received_qty + COALESCE(in_quantity_received, 0)
+    WHERE po_id = in_po_id AND received_qty < quantity;
 
-    -- If all items on the PO are fully received, mark PO as Received
-    IF NOT EXISTS (
-        SELECT 1 FROM po_items
-        WHERE po_id = p_po_id AND received_qty < quantity
-    ) THEN
-        UPDATE purchase_orders
-        SET status = 'Received', received_date = CURDATE()
-        WHERE id = p_po_id;
-    END IF;
+    UPDATE purchase_orders po
+    SET po.status = CASE WHEN (SELECT COUNT(*) FROM po_items WHERE po_id = in_po_id AND received_qty < quantity) = 0
+                         THEN 'Received' ELSE 'Partial' END,
+        po.received_date = CASE WHEN (SELECT COUNT(*) FROM po_items WHERE po_id = in_po_id AND received_qty < quantity) = 0
+                                THEN CURDATE() ELSE po.received_date END
+    WHERE po.id = in_po_id;
 
-    SET p_error_code = '00'; SET p_error_desc = 'Stock received';
+    UPDATE products p
+    JOIN po_items pi ON pi.product_id = p.id AND pi.po_id = in_po_id
+    SET p.stock_qty = p.stock_qty + COALESCE(in_quantity_received, 0)
+    WHERE p.is_deleted = 0;
 END$$
 
 -- ============================================================
@@ -611,29 +609,33 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_expense`$$
 CREATE PROCEDURE `add_expense`(
-    IN  p_pharmacy_id    BIGINT,
-    IN  p_category_id    BIGINT,
-    IN  p_description    VARCHAR(500),
-    IN  p_amount         DECIMAL(15,2),
-    IN  p_expense_date   DATE,
-    IN  p_payment_method VARCHAR(50),
-    IN  p_reference      VARCHAR(200),
-    IN  p_created_by     BIGINT,
-    OUT p_id             BIGINT,
-    OUT p_error_code     VARCHAR(2),
-    OUT p_error_desc     VARCHAR(500)
+    IN  in_pharmacy_id    BIGINT,
+    IN  in_category       VARCHAR(200),
+    IN  in_description    VARCHAR(500),
+    IN  in_amount         DECIMAL(15,2),
+    IN  in_expense_date   DATE,
+    IN  in_payment_method VARCHAR(50),
+    IN  in_notes          TEXT,
+    IN  in_created_by     BIGINT,
+    OUT p_id              BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
+    DECLARE v_category_id BIGINT DEFAULT 0;
+    SET p_id = 0;
+    IF in_category IS NOT NULL AND in_category <> '' THEN
+        SELECT id INTO v_category_id
+        FROM expense_categories
+        WHERE pharmacy_id = in_pharmacy_id AND name = in_category AND is_deleted = 0
+        LIMIT 1;
+    END IF;
     INSERT INTO expenses
         (pharmacy_id, category_id, description, amount, expense_date,
-         payment_method, reference, created_by, created_on)
+         payment_method, notes, created_by, created_on)
     VALUES
-        (p_pharmacy_id, p_category_id, p_description, COALESCE(p_amount, 0),
-         COALESCE(p_expense_date, CURDATE()), COALESCE(p_payment_method, 'Cash'),
-         p_reference, p_created_by, NOW());
+        (in_pharmacy_id, IFNULL(v_category_id, 0), in_description, COALESCE(in_amount, 0),
+         COALESCE(in_expense_date, CURDATE()), COALESCE(in_payment_method, 'Cash'),
+         in_notes, in_created_by, NOW());
     SET p_id = LAST_INSERT_ID();
-    SET p_error_code = '00'; SET p_error_desc = 'Expense added';
 END$$
 
 -- ============================================================
@@ -667,30 +669,29 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_patient`$$
 CREATE PROCEDURE `add_patient`(
-    IN  p_pharmacy_id      BIGINT,
-    IN  p_first_name       VARCHAR(100),
-    IN  p_last_name        VARCHAR(100),
-    IN  p_phone            VARCHAR(50),
-    IN  p_email            VARCHAR(200),
-    IN  p_date_of_birth    DATE,
-    IN  p_gender           VARCHAR(20),
-    IN  p_address          TEXT,
-    IN  p_nhif_number      VARCHAR(50),
-    IN  p_created_by       BIGINT,
-    OUT p_id               BIGINT,
-    OUT p_error_code       VARCHAR(2),
-    OUT p_error_desc       VARCHAR(500)
+    IN  in_pharmacy_id      BIGINT,
+    IN  in_first_name       VARCHAR(100),
+    IN  in_last_name        VARCHAR(100),
+    IN  in_date_of_birth    DATE,
+    IN  in_gender           VARCHAR(20),
+    IN  in_phone            VARCHAR(50),
+    IN  in_email            VARCHAR(200),
+    IN  in_address          TEXT,
+    IN  in_allergies        TEXT,
+    IN  in_medical_history  TEXT,
+    IN  in_created_by       BIGINT,
+    OUT p_id                BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
+    SET p_id = 0;
     INSERT INTO patients
-        (pharmacy_id, first_name, last_name, phone, email, date_of_birth,
-         gender, address, nhif_number, created_by, created_on)
+        (pharmacy_id, first_name, last_name, date_of_birth, gender, phone, email,
+         address, allergies, medical_history, created_by, created_on)
     VALUES
-        (p_pharmacy_id, p_first_name, p_last_name, p_phone, p_email,
-         p_date_of_birth, p_gender, p_address, p_nhif_number, p_created_by, NOW());
+        (in_pharmacy_id, in_first_name, in_last_name, in_date_of_birth, in_gender,
+         in_phone, in_email, in_address, in_allergies, in_medical_history,
+         in_created_by, NOW());
     SET p_id = LAST_INSERT_ID();
-    SET p_error_code = '00'; SET p_error_desc = 'Patient added';
 END$$
 
 -- ============================================================
@@ -698,31 +699,26 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_prescription`$$
 CREATE PROCEDURE `add_prescription`(
-    IN  p_pharmacy_id         BIGINT,
-    IN  p_patient_id          BIGINT,
-    IN  p_prescription_number VARCHAR(50),
-    IN  p_doctor_name         VARCHAR(200),
-    IN  p_prescription_date   DATE,
-    IN  p_notes               TEXT,
-    IN  p_created_by          BIGINT,
-    OUT p_id                  BIGINT,
-    OUT p_error_code          VARCHAR(2),
-    OUT p_error_desc          VARCHAR(500)
+    IN  in_pharmacy_id         BIGINT,
+    IN  in_patient_id          BIGINT,
+    IN  in_doctor_name         VARCHAR(200),
+    IN  in_hospital            VARCHAR(200),
+    IN  in_prescription_date   DATE,
+    IN  in_notes               TEXT,
+    IN  in_created_by          BIGINT,
+    OUT p_id                   BIGINT
 )
 BEGIN
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF EXISTS (SELECT 1 FROM prescriptions WHERE prescription_number = p_prescription_number) THEN
-        SET p_error_desc = 'Prescription number already exists';
-    ELSE
-        INSERT INTO prescriptions
-            (pharmacy_id, patient_id, prescription_number, doctor_name,
-             prescription_date, notes, created_by, created_on)
-        VALUES
-            (p_pharmacy_id, p_patient_id, p_prescription_number, p_doctor_name,
-             COALESCE(p_prescription_date, CURDATE()), p_notes, p_created_by, NOW());
-        SET p_id = LAST_INSERT_ID();
-        SET p_error_code = '00'; SET p_error_desc = 'Prescription added';
-    END IF;
+    DECLARE v_rx_number VARCHAR(50);
+    SET p_id = 0;
+    SET v_rx_number = CONCAT('RX-', DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), '-', FLOOR(1000 + RAND() * 9000));
+    INSERT INTO prescriptions
+        (pharmacy_id, patient_id, prescription_number, doctor_name, hospital,
+         prescription_date, notes, created_by, created_on)
+    VALUES
+        (in_pharmacy_id, in_patient_id, v_rx_number, in_doctor_name, in_hospital,
+         COALESCE(in_prescription_date, CURDATE()), in_notes, in_created_by, NOW());
+    SET p_id = LAST_INSERT_ID();
 END$$
 
 -- ============================================================
@@ -756,36 +752,30 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `add_dda_entry`$$
 CREATE PROCEDURE `add_dda_entry`(
-    IN  p_pharmacy_id      BIGINT,
-    IN  p_product_id       BIGINT,
-    IN  p_batch_id         BIGINT,
-    IN  p_entry_type       VARCHAR(50),
-    IN  p_quantity         INT,
-    IN  p_reference_number VARCHAR(100),
-    IN  p_patient_name     VARCHAR(200),
-    IN  p_prescriber_name  VARCHAR(200),
-    IN  p_recorded_by      BIGINT,
-    OUT p_id               BIGINT,
-    OUT p_error_code       VARCHAR(2),
-    OUT p_error_desc       VARCHAR(500)
+    IN  in_pharmacy_id      BIGINT,
+    IN  in_patient_id       BIGINT,
+    IN  in_prescription_id  BIGINT,
+    IN  in_product_id       BIGINT,
+    IN  in_quantity         INT,
+    IN  in_dispensed_date   DATE,
+    IN  in_notes            TEXT,
+    IN  in_created_by       BIGINT,
+    OUT p_id                BIGINT
 )
 BEGIN
-    DECLARE v_current_stock INT DEFAULT 0;
-    SET p_id = 0; SET p_error_code = '01'; SET p_error_desc = 'Failed';
-
-    SELECT stock_qty INTO v_current_stock
+    DECLARE v_balance INT DEFAULT 0;
+    SET p_id = 0;
+    SELECT stock_qty INTO v_balance
     FROM products
-    WHERE id = p_product_id AND pharmacy_id = p_pharmacy_id AND is_deleted = 0;
-
+    WHERE id = in_product_id AND pharmacy_id = in_pharmacy_id AND is_deleted = 0;
     INSERT INTO dda_register
-        (pharmacy_id, product_id, batch_id, entry_type, quantity, reference_number,
-         patient_name, prescriber_name, balance_after, recorded_by, created_on)
+        (pharmacy_id, patient_id, prescription_id, product_id, entry_type, quantity,
+         dispensed_date, notes, balance_after, recorded_by, created_on)
     VALUES
-        (p_pharmacy_id, p_product_id, p_batch_id, p_entry_type, p_quantity,
-         p_reference_number, p_patient_name, p_prescriber_name,
-         COALESCE(v_current_stock, 0), p_recorded_by, NOW());
+        (in_pharmacy_id, in_patient_id, in_prescription_id, in_product_id, 'Dispense',
+         COALESCE(in_quantity, 0), in_dispensed_date, in_notes,
+         COALESCE(v_balance, 0) - COALESCE(in_quantity, 0), in_created_by, NOW());
     SET p_id = LAST_INSERT_ID();
-    SET p_error_code = '00'; SET p_error_desc = 'DDA entry recorded';
 END$$
 
 -- ============================================================
@@ -1052,8 +1042,8 @@ CREATE PROCEDURE `get_users_by_pharmacy`(
 )
 BEGIN
     SELECT id, pharmacy_id, role_id, first_name, last_name, email,
-           mobile, avatar, locked, is_active, created_on
-    FROM pharmacy_users
+           mobile, avatar, locked, IF(locked=1,0,1) AS is_active, created_on
+    FROM portal_users
     WHERE pharmacy_id = p_pharmacy_id AND is_deleted = 0
     ORDER BY first_name;
 END$$
@@ -1067,8 +1057,8 @@ CREATE PROCEDURE `get_user_by_id`(
 )
 BEGIN
     SELECT id, pharmacy_id, role_id, first_name, last_name, email,
-           mobile, avatar, locked, is_active, created_on
-    FROM pharmacy_users
+           mobile, avatar, locked, IF(locked=1,0,1) AS is_active, created_on
+    FROM portal_users
     WHERE id = p_id AND is_deleted = 0
     LIMIT 1;
 END$$
@@ -1084,26 +1074,27 @@ CREATE PROCEDURE `update_user`(
     IN  p_email      VARCHAR(200),
     IN  p_mobile     VARCHAR(50),
     IN  p_role_id    INT,
-    IN  p_is_active  TINYINT,
-    OUT p_error_code VARCHAR(2),
-    OUT p_error_desc VARCHAR(500)
+    IN  p_is_active  TINYINT
 )
 BEGIN
-    SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF NOT EXISTS (SELECT 1 FROM pharmacy_users WHERE id = p_id AND is_deleted = 0) THEN
-        SET p_error_desc = 'User not found';
-    ELSEIF EXISTS (SELECT 1 FROM pharmacy_users WHERE email = p_email AND id != p_id AND is_deleted = 0) THEN
-        SET p_error_desc = 'Email already in use by another user';
-    ELSE
-        UPDATE pharmacy_users
+    IF EXISTS (SELECT 1 FROM portal_users WHERE id = p_id AND is_deleted = 0) THEN
+        UPDATE portal_users
         SET first_name = COALESCE(p_first_name, first_name),
             last_name  = COALESCE(p_last_name, last_name),
             email      = COALESCE(p_email, email),
             mobile     = COALESCE(p_mobile, mobile),
             role_id    = COALESCE(p_role_id, role_id),
-            is_active  = p_is_active
+            locked     = IF(p_is_active = 1, 0, 1)
         WHERE id = p_id AND is_deleted = 0;
-        SET p_error_code = '00'; SET p_error_desc = 'User updated';
+    ELSE
+        UPDATE p_external_portal_user
+        SET first_name = COALESCE(p_first_name, first_name),
+            last_name  = COALESCE(p_last_name, last_name),
+            email      = COALESCE(p_email, email),
+            mobile     = COALESCE(p_mobile, mobile),
+            role_id    = COALESCE(p_role_id, role_id),
+            locked     = IF(p_is_active = 1, 0, 1)
+        WHERE id = p_id AND is_deleted = 0;
     END IF;
 END$$
 
@@ -1112,20 +1103,18 @@ END$$
 -- ============================================================
 DROP PROCEDURE IF EXISTS `admin_reset_password`$$
 CREATE PROCEDURE `admin_reset_password`(
-    IN  p_user_id     BIGINT,
-    IN  p_new_password VARCHAR(200),
-    OUT p_error_code  VARCHAR(2),
-    OUT p_error_desc  VARCHAR(500)
+    IN  p_user_id      BIGINT,
+    IN  p_new_password VARCHAR(200)
 )
 BEGIN
-    SET p_error_code = '01'; SET p_error_desc = 'Failed';
-    IF NOT EXISTS (SELECT 1 FROM pharmacy_users WHERE id = p_user_id AND is_deleted = 0) THEN
-        SET p_error_desc = 'User not found';
-    ELSE
-        UPDATE pharmacy_users
-        SET password = p_new_password, change_password = 1, failed_login_attempts = 0
+    IF EXISTS (SELECT 1 FROM portal_users WHERE id = p_user_id AND is_deleted = 0) THEN
+        UPDATE portal_users
+        SET PASSWORD = p_new_password, locked = 0
         WHERE id = p_user_id AND is_deleted = 0;
-        SET p_error_code = '00'; SET p_error_desc = 'Password reset';
+    ELSE
+        UPDATE p_external_portal_user
+        SET PASSWORD = p_new_password, change_password = 1, failed_login_attempts = 0
+        WHERE id = p_user_id AND is_deleted = 0;
     END IF;
 END$$
 

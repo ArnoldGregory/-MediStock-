@@ -1,0 +1,78 @@
+@model MediStock.Portal.Controllers.ReceiptViewModel
+@using MediStock.Portal.Controllers
+@{
+    Layout = null;
+    decimal lineTotal(decimal price, int qty) => price * qty;
+}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8" />
+    <title>Receipt</title>
+    <style>
+        body { font-family: 'Courier New', monospace; font-size: 13px; color: #222; margin: 0; padding: 20px; }
+        .receipt { max-width: 380px; margin: 0 auto; border: 1px solid #ccc; padding: 15px 18px; }
+        .center { text-align: center; }
+        h2 { margin: 4px 0; font-size: 16px; }
+        .muted { color: #777; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { padding: 3px 2px; text-align: left; vertical-align: top; }
+        th { border-bottom: 1px solid #999; }
+        td.num, th.num { text-align: right; }
+        .totals td { padding: 2px 2px; }
+        .totals .grand td { font-weight: bold; border-top: 1px solid #999; font-size: 14px; }
+        hr { border: none; border-top: 1px dashed #999; margin: 10px 0; }
+        .btn { display: inline-block; margin-top: 12px; text-decoration: none; border: 1px solid #888; padding: 6px 14px; color: #222; }
+    </style>
+</head>
+<body>
+    <div class="receipt">
+        <div class="center">
+            <h2>MediStock Pharmacy</h2>
+            <div class="muted">Sales Receipt</div>
+            <div class="muted">Receipt #: @Model.Sale!.sale_number</div>
+        </div>
+        <hr />
+        <div>Date: @Model.Sale.created_on.ToString("dd MMM yyyy HH:mm")</div>
+        <div>Customer: @(string.IsNullOrEmpty(Model.Sale.customer_name) ? "Walk-In" : Model.Sale.customer_name)</div>
+        <div>Payment: @Model.Sale.payment_method</div>
+        <hr />
+        <table>
+            <thead>
+                <tr>
+                    <th>Item</th>
+                    <th class="num">Qty</th>
+                    <th class="num">Price</th>
+                    <th class="num">Total</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var it in Model.Items)
+                {
+                    <tr>
+                        <td>@it.product_name</td>
+                        <td class="num">@it.quantity</td>
+                        <td class="num">@it.unit_price.ToString("N2")</td>
+                        <td class="num">@lineTotal(it.unit_price, it.quantity).ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <table class="totals">
+            <tr><td>Subtotal</td><td class="num">@Model.Sale.subtotal.ToString("N2")</td></tr>
+            @if (Model.Sale.discount > 0)
+            {
+                <tr><td>Discount</td><td class="num">-@Model.Sale.discount.ToString("N2")</td></tr>
+            }
+            <tr class="grand"><td>TOTAL</td><td class="num">KES @Model.Sale.total.ToString("N2")</td></tr>
+            <tr><td>Amount Paid</td><td class="num">@Model.Sale.amount_paid.ToString("N2")</td></tr>
+        </table>
+        <hr />
+        <div class="center">Thank you for shopping with us!</div>
+        <div class="center">
+            <a href="javascript:window.print();" class="btn">Print</a>
+            <a href="javascript:window.close();" class="btn">Close</a>
+        </div>
+    </div>
+</body>
+</html>

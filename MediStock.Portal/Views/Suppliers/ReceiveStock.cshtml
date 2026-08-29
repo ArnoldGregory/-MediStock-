@@ -1,8 +1,6 @@
-@{
-    ViewData["Title"] = "Receive Stock";
+@section PageStyles {
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
 }
-
-<div style="display:none;">@Html.AntiForgeryToken()</div>
 
 <h1 class="page-header"><i class="fa fa-truck"></i> Receive Stock <small>Purchase Order</small></h1>
 
@@ -21,41 +19,26 @@
                 </div>
 
                 <form id="receiveForm">
-                    <table class="table table-striped table-condensed" id="receiveLines">
+                    <table class="table table-striped table-condensed">
                         <thead>
                             <tr>
                                 <th>Product</th>
                                 <th>Ordered Qty</th>
-                                <th>Already Received</th>
-                                <th>Pending Qty</th>
                                 <th>Receive Qty Now</th>
-                                <th>Batch Number</th>
-                                <th>Expiry Date</th>
-                                <th>Unit Cost</th>
                             </tr>
                         </thead>
                         <tbody id="receiveBody">
-                            <tr><td colspan="8" class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</td></tr>
+                            <tr><td colspan="3" class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</td></tr>
                         </tbody>
                     </table>
 
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Delivery Note Number</label>
-                                <input type="text" class="form-control" id="deliveryNote" name="deliveryNoteNumber" />
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Notes</label>
-                                <textarea class="form-control" id="receiveNotes" name="notes" rows="2"></textarea>
-                            </div>
-                        </div>
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea class="form-control" id="receiveNotes" rows="2"></textarea>
                     </div>
 
                     <div class="m-t-20">
-                        <button type="submit" class="btn btn-success" id="receiveBtn"><i class="fa fa-check"></i> Confirm Receipt</button>
+                        <button type="button" class="btn btn-success" id="receiveBtn"><i class="fa fa-check"></i> Confirm Receipt</button>
                         <a href="/Suppliers/PurchaseOrders" class="btn btn-default"><i class="fa fa-arrow-left"></i> Back to POs</a>
                     </div>
                 </form>
@@ -67,35 +50,40 @@
 @section PageScripts {
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
-        var poId = '@ViewBag.PoId';
+        // ============================================================
+        //  Receive Stock — (Riziki BFF pattern)
+        // ============================================================
+        var poId = @(ViewBag.PoId ?? 0);
+        var poRow = null;
 
         $(document).ready(function () {
             if (poId) loadPO();
+            else $('#receiveBody').html('<tr><td colspan="3" class="text-center">No purchase order selected.</td></tr>');
         });
 
         function loadPO() {
-            $.get('/api/purchase-orders/' + poId, function (data) {
-                $('#poNumber').text(data.poNumber);
-                $('#poSupplier').text(data.supplierName);
-                $('#poDate').text(formatDate(data.orderDate));
-                $('#poStatus').html('<span class="label label-info">' + data.status + '</span>');
-                $('#poTotal').text('KES ' + parseFloat(data.totalAmount).toFixed(2));
+            ajaxGet('/Suppliers/GetPurchaseOrder?id=' + poId, function (data) {
+                if (!data || !data.length) {
+                    $('#receiveBody').html('<tr><td colspan="3" class="text-center text-danger">Purchase order not found.</td></tr>');
+                    return;
+                }
+                poRow = data[0];
+                $('#poNumber').text(poRow.po_number || ('PO-' + poId));
+                $('#poSupplier').text(poRow.supplier_name || '-');
+                $('#poDate').text(formatDate(poRow.created_on));
+                $('#poStatus').html('<span class="label label-info">' + (poRow.status || '-') + '</span>');
+                $('#poTotal').text('KES ' + parseFloat(poRow.total || 0).toFixed(2));
 
-                var html = '';
-                $.each(data.lines, function (i, line) {
-                    var pending = line.quantity - line.receivedQuantity;
-                    html += '<tr>';
-                    html += '<td>' + line.productName + '</td>';
-                    html += '<td>' + line.quantity + '</td>';
-                    html += '<td>' + line.receivedQuantity + '</td>';
-                    html += '<td>' + pending + '</td>';
-                    html += '<td><input type="number" class="form-control input-sm recv-qty" data-line="' + i + '" data-pending="' + pending + '" min="0" max="' + pending + '" value="0" /></td>';
-                    html += '<td><input type="text" class="form-control input-sm recv-batch" data-line="' + i + '" required /></td>';
-                    html += '<td><input type="date" class="form-control input-sm recv-expiry" data-line="' + i + '" required /></td>';
-                    html += '<td><input type="number" class="form-control input-sm recv-cost" data-line="' + i + '" value="' + line.unitCost + '" step="0.01" /></td>';
-                    html += '</tr>';
+                ajaxGet('/Products/GetProduct?id=' + poRow.product_id, function (pdata) {
+                    var productName = (pdata && pdata.length && pdata[0].name) ? pdata[0].name : ('Product #' + poRow.product_id);
+                    $('#receiveBody').html(
+                        '<tr>' +
+                        '<td>' + productName + '</td>' +
+                        '<td>' + (poRow.quantity || 0) + '</td>' +
+                        '<td><input type="number" class="form-control input-sm" id="recvQty" min="0" max="' + (poRow.quantity || 0) + '" value="' + (poRow.quantity || 0) + '" required /></td>' +
+                        '</tr>'
+                    );
                 });
-                $('#receiveBody').html(html);
             });
         }
 
@@ -103,58 +91,37 @@
             return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
         }
 
-        $('#receiveForm').on('submit', function (e) {
+        $('#receiveBtn').on('click', function (e) {
             e.preventDefault();
-            var items = [];
-            var valid = true;
-
-            $('#receiveBody tr').each(function () {
-                var qty = parseInt($(this).find('.recv-qty').val()) || 0;
-                var pending = parseInt($(this).find('.recv-qty').data('pending')) || 0;
-                if (qty > pending) { valid = false; return; }
-
-                if (qty > 0) {
-                    items.push({
-                        lineIndex: $(this).find('.recv-qty').data('line'),
-                        receivedQuantity: qty,
-                        batchNumber: $(this).find('.recv-batch').val(),
-                        expiryDate: $(this).find('.recv-expiry').val(),
-                        unitCost: parseFloat($(this).find('.recv-cost').val()) || 0
-                    });
-                }
-            });
-
-            if (!valid) { Swal.fire('Error', 'Receive quantity exceeds pending quantity.', 'error'); return; }
-            if (items.length === 0) { Swal.fire('Notice', 'Enter at least one item to receive.', 'info'); return; }
-
-            var payload = {
-                poId: poId,
-                deliveryNoteNumber: $('#deliveryNote').val(),
-                notes: $('#receiveNotes').val(),
-                items: items
-            };
+            if (!poRow) return;
+            var qty = parseInt($('#recvQty').val()) || 0;
+            if (qty <= 0) { Swal.fire('Validation', 'Enter a quantity to receive.', 'warning'); return; }
+            var max = poRow.quantity || 0;
+            if (qty > max) { Swal.fire('Validation', 'Receive quantity exceeds ordered quantity (' + max + ').', 'warning'); return; }
 
             Swal.fire({
                 title: 'Confirm Receipt',
-                text: 'Receive ' + items.length + ' item(s)?',
+                text: 'Receive ' + qty + ' item(s)?',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745'
             }).then(function (result) {
-                if (result.isConfirmed) {
-                    $.ajax({
-                        url: '/api/stock/receive',
-                        type: 'POST',
-                        contentType: 'application/json',
-                        data: JSON.stringify(payload),
-                        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                        success: function () {
-                            Swal.fire('Received', 'Stock received successfully.', 'success');
-                            loadPO();
-                        },
-                        error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to receive stock.', 'error'); }
-                    });
-                }
+                if (!result.isConfirmed) return;
+                var btn = $('#receiveBtn')[0];
+                btnLoad(btn, 'Receiving...');
+                ajaxPost('/Suppliers/ReceivePurchaseOrder', {
+                    id: poId,
+                    quantity_received: qty,
+                    notes: $('#receiveNotes').val().trim() || null
+                }, function (res) {
+                    btnStop(btn);
+                    if (res.success) {
+                        Swal.fire('Received', res.message, 'success');
+                        loadPO();
+                    } else {
+                        Swal.fire('Error', res.message, 'error');
+                    }
+                }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
             });
         });
     </script>

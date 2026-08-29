@@ -173,15 +173,13 @@
                 confirmButtonText: 'Yes, delete!'
             }).then(function (result) {
                 if (result.isConfirmed) {
-                    $.ajax({
-                        url: '/api/access/roles/' + id,
-                        type: 'DELETE',
-                        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                        success: function () {
+                    ajaxPost('/Admin/DeleteRole', { id: id }, function (res) {
+                        if (res.success) {
                             Swal.fire('Deleted', 'Role deleted.', 'success');
                             loadRoles();
-                        },
-                        error: function () { Swal.fire('Error', 'Failed to delete role.', 'error'); }
+                        } else {
+                            Swal.fire('Error', res.message, 'error');
+                        }
                     });
                 }
             });
@@ -197,22 +195,18 @@
             };
 
             btnLoad('#btnSaveRole', 'Saving...');
-            $.ajax({
-                url: id ? '/api/access/roles/' + id : '/api/access/roles',
-                type: id ? 'PUT' : 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify(payload),
-                headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                success: function () {
+            ajaxPost('/Admin/SaveRole', payload, function (res) {
+                if (res.success) {
                     Swal.fire('Saved', 'Role saved.', 'success');
                     $('#roleModal').modal('hide');
                     loadRoles();
-                    btnStop('#btnSaveRole');
-                },
-                error: function (xhr) {
-                    Swal.fire('Error', xhr.responseText || 'Failed.', 'error');
-                    btnStop('#btnSaveRole');
+                } else {
+                    Swal.fire('Error', res.message || 'Failed.', 'error');
                 }
+                btnStop('#btnSaveRole');
+            }, function () {
+                Swal.fire('Error', 'Request failed.', 'error');
+                btnStop('#btnSaveRole');
             });
         });
 
@@ -221,33 +215,28 @@
             if (!roleId) { Swal.fire('Info', 'Select a role first.', 'info'); return; }
 
             pageBlock('Loading menus...');
-            $.get('/Admin/GetMenus', function (menusRes) {
-                allMenus = menusRes.data || menusRes;
-                $.get('/Admin/GetMenuAccess?roleId=' + roleId, function (accessRes) {
-                    currentMenuAccess = accessRes.data || accessRes;
-                    var accessIds = {};
-                    $.each(currentMenuAccess, function (i, a) { accessIds[a.menu_id] = true; });
+            $.get('/Admin/GetMenuAccess?roleId=' + roleId, function (accessRes) {
+                var items = accessRes.data || accessRes;
 
-                    var tbody = $('#menuAccessBody');
-                    tbody.empty();
-                    $.each(allMenus, function (i, m) {
-                        var checked = accessIds[m.id] ? 'checked' : '';
-                        tbody.append(
-                            '<tr>' +
-                            '<td><input type="checkbox" class="menu-cb" value="' + m.id + '" ' + checked + ' /></td>' +
-                            '<td>' + (m.main_menu_name || '-') + '</td>' +
-                            '<td>' + (m.sub_menu_name || '-') + '</td>' +
-                            '<td><small>' + (m.page_url || '-') + '</small></td>' +
-                            '<td>' + (m.menu_order || 0) + '</td>' +
-                            '</tr>'
-                        );
-                    });
-
-                    $('#menuAccessPanel').show();
-                    $('#noRoleSelected').hide();
-                    $('#btnSaveAccess').show();
-                    pageUnblock();
+                var tbody = $('#menuAccessBody');
+                tbody.empty();
+                $.each(items, function (i, m) {
+                    var checked = (m.has_access == 1 || m.has_access === true) ? 'checked' : '';
+                    tbody.append(
+                        '<tr>' +
+                        '<td><input type="checkbox" class="menu-cb" value="' + m.id + '" ' + checked + ' /></td>' +
+                        '<td>' + (m.main_menu_name || '-') + '</td>' +
+                        '<td>' + (m.sub_menu_name || '-') + '</td>' +
+                        '<td><small>' + (m.page_url || '-') + '</small></td>' +
+                        '<td>' + (m.menu_order || 0) + '</td>' +
+                        '</tr>'
+                    );
                 });
+
+                $('#menuAccessPanel').show();
+                $('#noRoleSelected').hide();
+                $('#btnSaveAccess').show();
+                pageUnblock();
             });
         }
 

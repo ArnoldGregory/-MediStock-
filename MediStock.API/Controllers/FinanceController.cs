@@ -92,7 +92,7 @@ namespace MediStock.API.Controllers
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                bool ok = dbhandler.DeleteRecord(id, userId, "expenses");
+                bool ok = dbhandler.DeleteRecord(id, userId, "expense");
                 if (ok)
                 {
                     iloggermanager.LogInfo($"DeleteExpense: expenseId={id}");

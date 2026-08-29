@@ -1,0 +1,103 @@
+@{
+    ViewData["Title"] = "Platform Overview";
+    ViewBag.MenuLayout = "Side";
+}
+
+<h1 class="page-header"><i class="fa fa-globe"></i> Platform Overview <small>SuperAdmin Console</small></h1>
+
+<!-- Stat Cards -->
+<div class="row">
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-green">
+            <div class="stats-icon"><i class="fa fa-hospital-o"></i></div>
+            <div class="stats-info"><h4>PHARMACIES</h4><p id="statPharmacies"><i class="fa fa-spinner fa-spin"></i></p></div>
+            <div class="stats-link"><a href="/SuperAdmin/Pharmacies">Manage <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-blue">
+            <div class="stats-icon"><i class="fa fa-check-circle"></i></div>
+            <div class="stats-info"><h4>ACTIVE PHARMACIES</h4><p id="statActive"><i class="fa fa-spinner fa-spin"></i></p></div>
+            <div class="stats-link"><a href="/SuperAdmin/Pharmacies">View <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-orange">
+            <div class="stats-icon"><i class="fa fa-users"></i></div>
+            <div class="stats-info"><h4>USERS</h4><p id="statUsers"><i class="fa fa-spinner fa-spin"></i></p></div>
+            <div class="stats-link"><a href="/SuperAdmin/Users">View <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-purple">
+            <div class="stats-icon"><i class="fa fa-pills"></i></div>
+            <div class="stats-info"><h4>PRODUCTS</h4><p id="statProducts"><i class="fa fa-spinner fa-spin"></i></p></div>
+            <div class="stats-link"><a href="/SuperAdmin/Pharmacies">View <i class="fa fa-arrow-alt-circle-right"></i></a></div>
+        </div>
+    </div>
+</div>
+
+<!-- Secondary stats + quick actions -->
+<div class="row m-t-20">
+    <div class="col-md-8">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-bar-chart m-r-5"></i> Platform Statistics</h4>
+            </div>
+            <div class="panel-body">
+                <div class="row">
+                    <div class="col-md-4 text-center">
+                        <h2 id="statNewPharmacies" style="margin:0;">-</h2>
+                        <p class="text-muted">New Pharmacies (30d)</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h2 id="statNewUsers" style="margin:0;">-</h2>
+                        <p class="text-muted">New Users (30d)</p>
+                    </div>
+                    <div class="col-md-4 text-center">
+                        <h2 id="statSubscribed" style="margin:0;">-</h2>
+                        <p class="text-muted">Subscribed Pharmacies</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-bolt m-r-5"></i> Quick Actions</h4>
+            </div>
+            <div class="panel-body">
+                <a href="/SuperAdmin/Pharmacies" class="btn btn-primary btn-block m-b-10"><i class="fa fa-hospital-o"></i> Manage Pharmacies</a>
+                <a href="/SuperAdmin/Users" class="btn btn-info btn-block m-b-10"><i class="fa fa-users"></i> View All Users</a>
+                <a href="/SuperAdmin/Audit" class="btn btn-warning btn-block m-b-10"><i class="fa fa-history"></i> Audit Log</a>
+                <a href="/Admin/AccessControl" class="btn btn-success btn-block m-b-10"><i class="fa fa-shield"></i> Access Control</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script>
+        $(document).ready(function () {
+            loadStats();
+        });
+
+        function loadStats() {
+            $.get('/SuperAdmin/GetStats', function (data) {
+                data = data || {};
+                $('#statPharmacies').text(data.total_pharmacies || 0);
+                $('#statActive').text(data.active_pharmacies || 0);
+                $('#statUsers').text(data.total_users || 0);
+                $('#statProducts').text(data.total_products || 0);
+                $('#statNewPharmacies').text(data.new_pharmacies_30d || 0);
+                $('#statNewUsers').text(data.new_users_30d || 0);
+                $('#statSubscribed').text(data.subscribed_pharmacies || 0);
+            }).fail(function () {
+                $('#statPharmacies').text('0'); $('#statActive').text('0');
+                $('#statUsers').text('0'); $('#statProducts').text('0');
+                $('#statNewPharmacies').text('0'); $('#statNewUsers').text('0'); $('#statSubscribed').text('0');
+            });
+        }
+    </script>
+}

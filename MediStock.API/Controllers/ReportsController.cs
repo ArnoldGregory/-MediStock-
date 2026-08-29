@@ -94,6 +94,24 @@ namespace MediStock.API.Controllers
             catch (Exception ex) { iloggermanager.LogError("GetProductMargins: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
+        [Authorize]
+        [HttpGet("expensebreakdown")]
+        public ActionResult GetExpenseBreakdown([FromQuery] string? from_date, [FromQuery] string? to_date)
+        {
+            iloggermanager.LogInfo("******* GET EXPENSE BREAKDOWN REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                string p2 = from_date ?? "";
+                string p3 = to_date ?? "";
+                DataTable dt = dbhandler.GetRecords("report_expense_by_category", pharmacyId.ToString(), p2, p3);
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
+            }
+            catch (Exception ex) { iloggermanager.LogError("GetExpenseBreakdown: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
         [NonAction]
         private List<Dictionary<string, object>> ToRows(DataTable dt)
         {

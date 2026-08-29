@@ -58,7 +58,7 @@ namespace MediStock.API.Controllers
                     $"phone='{(model.phone ?? "").Replace("'", "''")}', " +
                     $"email='{(model.email ?? "").Replace("'", "''")}', " +
                     $"address='{(model.address ?? "").Replace("'", "''")}', " +
-                    $"license_no='{(model.license_number ?? "").Replace("'", "''")}', " +
+                    $"license_number='{(model.license_number ?? "").Replace("'", "''")}', " +
                     $"vat_number='{(model.vat_number ?? "").Replace("'", "''")}', " +
                     $"receipt_footer='{(model.receipt_footer ?? "").Replace("'", "''")}', " +
                     $"currency='{(model.currency).Replace("'", "''")}' " +

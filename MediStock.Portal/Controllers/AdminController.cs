@@ -165,6 +165,49 @@ namespace MediStock.Portal.Controllers
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to reset password" : result.Error });
         }
 
+        // ── Admin Dashboard Data ────────────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> GetStats()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/admin/stats");
+                return Json(result.IsSuccess ? result.Data : new { totalUsers = 0, totalProducts = 0, alertCount = 0 });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetSystemInfo()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/admin/system-info");
+                return Json(result.IsSuccess ? result.Data : new { version = "", databaseStatus = "", serverTime = "" });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetRecentLogins()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/admin/recent-logins");
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
         // ── Access Control Data ──────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetRolesList()
@@ -253,6 +296,18 @@ namespace MediStock.Portal.Controllers
                     ? new { success = true, message = "Role created" }
                     : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed" : result.Error });
             }
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> DeleteRole([FromBody] IdRequest model)
+        {
+            if (model == null || model.id <= 0)
+                return Json(new { success = false, message = "id is required" });
+
+            var result = await _api.DeleteAsync<object>($"api/access/roles/{model.id}");
+            return Json(result.IsSuccess
+                ? new { success = true, message = "Role deleted" }
+                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to delete role" : result.Error });
         }
 
         private string GetPharmacyId()

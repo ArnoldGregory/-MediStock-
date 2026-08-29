@@ -9,14 +9,14 @@
 <div class="panel panel-inverse">
     <div class="panel-heading">
         <div class="panel-heading-btn">
-            <a href="@Url.Action("Patients", "Clinical")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+            <button type="button" class="btn btn-xs btn-success" onclick="LoadPatients();"><i class="fa fa-repeat"></i></button>
         </div>
         <h4 class="panel-title">Patient Register</h4>
     </div>
     <div class="panel-body">
         <div class="row m-b-10">
             <div class="col-md-12">
-                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#patientModal" onclick="resetForm();">
+                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#patientModal">
                     <i class="fa fa-plus"></i> Add Patient
                 </button>
             </div>
@@ -27,14 +27,13 @@
                 <table id="patientsTable" class="table table-striped table-hover table-bordered table-condensed">
                     <thead>
                         <tr>
-                            <th>MRN</th>
                             <th>Full Name</th>
                             <th>Gender</th>
                             <th>DOB</th>
                             <th>Phone</th>
-                            <th>Allergies</th>
-                            <th>Last Visit</th>
-                            <th></th>
+                            <th>Email</th>
+                            <th>NHIF</th>
+                            <th>Registered On</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -44,82 +43,80 @@
     </div>
 </div>
 
-<!-- Add/Edit Patient Modal -->
+<!-- Add Patient Modal -->
 <div class="modal fade" id="patientModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <form asp-controller="Clinical" asp-action="SavePatient" method="POST" id="patientForm">
-                @Html.AntiForgeryToken()
-                <input type="hidden" id="patientId" name="patientId" value="" />
-                <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                    <h4 class="modal-title" id="modalLabel"><i class="fa fa-user-plus"></i> Add Patient</h4>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="firstName" name="firstName" required />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Middle Name</label>
-                                <input type="text" class="form-control" id="middleName" name="middleName" />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>Surname <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="surname" name="surname" required />
-                            </div>
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                <h4 class="modal-title"><i class="fa fa-user-plus"></i> Add Patient</h4>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>First Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ptFirstName" />
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label>Gender <span class="text-danger">*</span></label>
-                                <select class="form-control" id="gender" name="gender" required>
-                                    <option value="">-- Select --</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                </select>
-                            </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Last Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ptLastName" />
                         </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label>Date of Birth <span class="text-danger">*</span></label>
-                                <input type="date" class="form-control" id="dateOfBirth" name="dateOfBirth" required />
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label>Phone <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="phone" name="phone" required />
-                            </div>
-                        </div>
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label>Email</label>
-                                <input type="email" class="form-control" id="email" name="email" />
-                            </div>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Known Allergies</label>
-                        <textarea class="form-control" id="allergies" name="allergies" rows="2" placeholder="List any known drug or substance allergies"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Chronic Conditions</label>
-                        <textarea class="form-control" id="conditions" name="chronicConditions" rows="2" placeholder="e.g. Diabetes, Hypertension"></textarea>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save Patient</button>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Gender <span class="text-danger">*</span></label>
+                            <select class="form-control" id="ptGender">
+                                <option value="">-- Select --</option>
+                                <option value="Male">Male</option>
+                                <option value="Female">Female</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Date of Birth <span class="text-danger">*</span></label>
+                            <input type="date" class="form-control" id="ptDob" />
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group">
+                            <label>Phone <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="ptPhone" />
+                        </div>
+                    </div>
                 </div>
-            </form>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Email</label>
+                            <input type="email" class="form-control" id="ptEmail" />
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Address</label>
+                            <input type="text" class="form-control" id="ptAddress" />
+                        </div>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Known Allergies</label>
+                    <textarea class="form-control" id="ptAllergies" rows="2" placeholder="List any known drug or substance allergies"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Medical History</label>
+                    <textarea class="form-control" id="ptMedicalHistory" rows="2" placeholder="e.g. Diabetes, Hypertension"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                <button type="button" class="btn btn-success" id="btnSavePatient"><i class="fa fa-save"></i> Save Patient</button>
+            </div>
         </div>
     </div>
 </div>
@@ -130,62 +127,86 @@
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
-        var table;
-        $(document).ready(function () { loadPatients(); });
+        var _ptTable;
 
-        function loadPatients() {
-            table = $('#patientsTable').DataTable({
-                ajax: { url: '/api/patients', dataSrc: '' },
-                columns: [
-                    { data: 'mrn' },
-                    { data: 'fullName' },
-                    { data: 'gender', render: function (d) { return d === 'Male' ? '<i class="fa fa-mars"></i> M' : '<i class="fa fa-venus"></i> F'; } },
-                    { data: 'dateOfBirth', render: function (d) { return d ? formatDate(d) : '-'; } },
-                    { data: 'phone' },
-                    { data: 'allergies', render: function (d) { return d ? '<span class="label label-warning">Yes</span>' : '<span class="label label-success">NKDA</span>'; } },
-                    { data: 'lastVisitDate', render: function (d) { return d ? formatDate(d) : 'Never'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Clinical/PatientDetail/' + d.patientId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a> <button class="btn btn-xs btn-primary" onclick="editPatient(\'' + d.patientId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Clinical/Prescriptions?patientId=' + d.patientId + '" class="btn btn-xs btn-success"><i class="fa fa-prescription"></i> Rx</a>'; } }
+        $(document).ready(function () {
+            _ptTable = InitPatientTable();
+            LoadPatients();
+        });
+
+        function InitPatientTable() {
+            return $('#patientsTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: 'first_name',  autoWidth: true, sDefaultContent: '—', render: function (d, t, r) { return d + ' ' + (r.last_name || ''); } },
+                    { data: 'gender',      autoWidth: true, sDefaultContent: '—' },
+                    { data: 'date_of_birth', autoWidth: true, sDefaultContent: '—', render: function (d) { return d ? formatDate(d) : '—'; } },
+                    { data: 'phone',       autoWidth: true, sDefaultContent: '—' },
+                    { data: 'email',       autoWidth: true, sDefaultContent: '—' },
+                    { data: 'nhif_number', autoWidth: true, sDefaultContent: '—' },
+                    { data: 'created_on',  autoWidth: true, sDefaultContent: '—', render: function (d) { return d ? formatDate(d) : '—'; } },
+                    { bSortable: false, sDefaultContent: '<a href="#" class="btn btn-xs btn-info view-patient"><i class="fa fa-eye"></i></a>' }
                 ],
-                order: [[1, 'asc']]
+                order: [[0, 'asc']]
             });
         }
 
-        function resetForm() {
-            $('#patientForm')[0].reset();
-            $('#patientId').val('');
-            $('#modalLabel').html('<i class="fa fa-user-plus"></i> Add Patient');
-        }
-
-        function editPatient(id) {
-            $.get('/api/patients/' + id, function (data) {
-                $('#patientId').val(data.patientId);
-                $('#firstName').val(data.firstName);
-                $('#middleName').val(data.middleName);
-                $('#surname').val(data.surname);
-                $('#gender').val(data.gender);
-                $('#dateOfBirth').val(data.dateOfBirth ? data.dateOfBirth.split('T')[0] : '');
-                $('#phone').val(data.phone);
-                $('#email').val(data.email);
-                $('#allergies').val(data.allergies);
-                $('#conditions').val(data.chronicConditions);
-                $('#modalLabel').html('<i class="fa fa-edit"></i> Edit Patient');
-                $('#patientModal').modal('show');
+        function LoadPatients() {
+            ajaxGet('/Clinical/GetPatients', function (data) {
+                var t = _ptTable;
+                var s = t.fnSettings();
+                t.fnClearTable(true);
+                if (data && data.length) {
+                    for (var i = 0; i < data.length; i++) t.oApi._fnAddData(s, data[i]);
+                }
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                t.fnDraw();
             });
         }
 
-        function formatDate(d) { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
-
-        $('#patientForm').on('submit', function (e) {
+        $('#patientsTable').on('click', 'a.view-patient', function (e) {
             e.preventDefault();
-            var id = $('#patientId').val();
-            $.ajax({
-                url: id ? '/api/patients/' + id : '/api/patients',
-                type: id ? 'PUT' : 'POST',
-                data: $(this).serialize(),
-                success: function () { Swal.fire('Saved', 'Patient saved.', 'success'); $('#patientModal').modal('hide'); table.ajax.reload(); },
-                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error'); }
-            });
+            var d = _ptTable.fnGetData($(this).parents('tr')[0]);
+            window.location.href = '/Clinical/PatientDetail/' + d.id;
+        });
+
+        function formatDate(d) {
+            if (!d) return '—';
+            return new Date(d.indexOf('T') > -1 ? d : d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+
+        $('#btnSavePatient').on('click', function () {
+            var firstName = $('#ptFirstName').val().trim();
+            var lastName = $('#ptLastName').val().trim();
+            if (!firstName) { Swal.fire('Validation', 'First name is required.', 'warning'); return; }
+            if (!lastName) { Swal.fire('Validation', 'Last name is required.', 'warning'); return; }
+            if (!$('#ptGender').val()) { Swal.fire('Validation', 'Select a gender.', 'warning'); return; }
+            if (!$('#ptDob').val()) { Swal.fire('Validation', 'Date of birth is required.', 'warning'); return; }
+
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost('/Clinical/AddPatient', {
+                first_name: firstName,
+                last_name: lastName,
+                gender: $('#ptGender').val(),
+                date_of_birth: $('#ptDob').val(),
+                phone: $('#ptPhone').val().trim(),
+                email: $('#ptEmail').val().trim() || null,
+                address: $('#ptAddress').val().trim() || null,
+                allergies: $('#ptAllergies').val().trim() || null,
+                medical_history: $('#ptMedicalHistory').val().trim() || null
+            }, function (res) {
+                btnStop(btn);
+                if (res.success) {
+                    $('#patientModal').modal('hide');
+                    $('#patientModal input, #patientModal select, #patientModal textarea').val('');
+                    LoadPatients();
+                    Swal.fire('Saved', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
         });
     </script>
 }

@@ -1,16 +1,17 @@
 // ============================================================
 //  MediStock.Portal — ClinicalController
 //  Routes:
-//    GET  /Clinical/Patients          → patients list view
-//    GET  /Clinical/PatientDetail/{id} → patient detail view
-//    GET  /Clinical/Prescriptions     → prescriptions view
-//    GET  /Clinical/GetPatients       → JSON patients list
-//    GET  /Clinical/GetPatient?id=    → JSON single patient
-//    POST /Clinical/AddPatient        → proxy → api/clinical/addpatient
-//    POST /Clinical/UpdatePatient     → proxy → api/clinical/updatepatient
-//    GET  /Clinical/GetPrescriptions  → JSON prescriptions list
-//    POST /Clinical/AddPrescription   → proxy → api/clinical/addprescription
-//    GET  /Clinical/GetPatientHistory?id= → JSON patient history
+//    GET  /Clinical/Patients             → patients list view
+//    GET  /Clinical/PatientDetail/{id}   → patient detail view
+//    GET  /Clinical/Prescriptions        → prescriptions view
+//    GET  /Clinical/GetPatients          → JSON patients list
+//    GET  /Clinical/GetPatient?id=       → JSON single patient
+//    GET  /Clinical/GetPatientAllergies?id=  → JSON allergies
+//    GET  /Clinical/GetPatientConditions?id= → JSON conditions
+//    GET  /Clinical/GetPrescriptions     → JSON prescriptions list
+//    GET  /Clinical/GetPrescriptionItems?id= → JSON prescription items
+//    POST /Clinical/AddPatient           → proxy → api/clinical/patients
+//    POST /Clinical/AddPrescription      → proxy → api/clinical/prescriptions
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -53,13 +54,11 @@ namespace MediStock.Portal.Controllers
 
         // ── Patient Data ──────────────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> GetPatients(string? search)
+        public async Task<IActionResult> GetPatients()
         {
             try
             {
-                var qs = "api/clinical/patients?pharmacyId=" + GetPharmacyId();
-                if (!string.IsNullOrWhiteSpace(search)) qs += $"&search={search}";
-                var result = await _api.GetAsync<object>(qs);
+                var result = await _api.GetAsync<object>("api/clinical/patients?pharmacyId=" + GetPharmacyId());
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
@@ -71,11 +70,11 @@ namespace MediStock.Portal.Controllers
         [HttpGet]
         public async Task<IActionResult> GetPatient(long id)
         {
-            if (id <= 0) return Json(new { error = "id required" });
+            if (id <= 0) return Json(new { success = false, message = "id required" });
             try
             {
-                var result = await _api.GetAsync<object>($"api/clinical/getpatient?id={id}");
-                return Json(result.IsSuccess ? result.Data : null);
+                var result = await _api.GetAsync<object>("api/clinical/patients/" + id);
+                return Json(result.IsSuccess ? result.Data : new { success = false, message = result.Error });
             }
             catch (Exception ex)
             {
@@ -84,12 +83,27 @@ namespace MediStock.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetPatientHistory(long id)
+        public async Task<IActionResult> GetPatientAllergies(long id)
         {
             if (id <= 0) return Json(new List<object>());
             try
             {
-                var result = await _api.GetAsync<object>($"api/clinical/patienthistory?id={id}");
+                var result = await _api.GetAsync<object>("api/clinical/patients/" + id + "/allergies");
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPatientConditions(long id)
+        {
+            if (id <= 0) return Json(new List<object>());
+            try
+            {
+                var result = await _api.GetAsync<object>("api/clinical/patients/" + id + "/conditions");
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
@@ -101,51 +115,25 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> AddPatient([FromBody] AddPatientRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || string.IsNullOrWhiteSpace(model.first_name))
+                return Json(new { success = false, message = "First name is required" });
 
-            var result = await _api.PostAsync<object>("api/clinical/addpatient", new
+            var result = await _api.PostAsync<object>("api/clinical/patients", new
             {
-                pharmacy_id  = GetPharmacyId(),
-                first_name   = model.first_name,
-                last_name    = model.last_name,
-                date_of_birth = model.date_of_birth,
-                gender       = model.gender,
-                phone        = model.phone,
-                email        = model.email,
-                id_number    = model.id_number,
-                allergies    = model.allergies,
-                medical_notes = model.medical_notes
+                first_name     = model.first_name,
+                last_name      = model.last_name,
+                date_of_birth  = model.date_of_birth,
+                gender         = model.gender,
+                phone          = model.phone,
+                email          = model.email,
+                address        = model.address,
+                allergies      = model.allergies,
+                medical_history = model.medical_history
             });
 
             return Json(result.IsSuccess
                 ? new { success = true, message = "Patient added", data = result.Data }
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add patient" : result.Error, data = (object?)null });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> UpdatePatient([FromBody] UpdatePatientRequest model)
-        {
-            if (model == null || model.id <= 0)
-                return Json(new { success = false, message = "Invalid request" });
-
-            var result = await _api.PostAsync<object>("api/clinical/updatepatient", new
-            {
-                id           = model.id,
-                first_name   = model.first_name,
-                last_name    = model.last_name,
-                date_of_birth = model.date_of_birth,
-                gender       = model.gender,
-                phone        = model.phone,
-                email        = model.email,
-                id_number    = model.id_number,
-                allergies    = model.allergies,
-                medical_notes = model.medical_notes
-            });
-
-            return Json(result.IsSuccess
-                ? new { success = true, message = "Patient updated" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to update patient" : result.Error });
         }
 
         // ── Prescription Data ─────────────────────────────────────────────────
@@ -166,37 +154,40 @@ namespace MediStock.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetPrescriptionItems(long id)
+        {
+            if (id <= 0) return Json(new List<object>());
+            try
+            {
+                var result = await _api.GetAsync<object>("api/clinical/prescriptions/" + id + "/items");
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> AddPrescription([FromBody] AddPrescriptionRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || model.patient_id <= 0)
+                return Json(new { success = false, message = "Patient is required" });
 
-            var result = await _api.PostAsync<object>("api/clinical/addprescription", new
+            var result = await _api.PostAsync<object>("api/clinical/prescriptions", new
             {
-                pharmacy_id   = GetPharmacyId(),
-                patient_id    = model.patient_id,
-                doctor_name   = model.doctor_name,
-                diagnosis     = model.diagnosis,
-                items         = model.items,
-                notes         = model.notes
+                patient_id        = model.patient_id,
+                doctor_name       = model.doctor_name,
+                hospital          = model.hospital,
+                prescription_date = model.prescription_date,
+                notes             = model.notes,
+                items             = model.items
             });
 
             return Json(result.IsSuccess
                 ? new { success = true, message = "Prescription added", data = result.Data }
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add prescription" : result.Error, data = (object?)null });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> DispensePrescription([FromBody] IdRequest model)
-        {
-            if (model == null || model.id <= 0)
-                return Json(new { success = false, message = "id is required" });
-
-            var result = await _api.PostAsync<object>("api/clinical/dispenseprescription", new { id = model.id });
-            return Json(result.IsSuccess
-                ? new { success = true, message = "Prescription dispensed" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to dispense" : result.Error });
         }
 
         private string GetPharmacyId()
@@ -205,42 +196,38 @@ namespace MediStock.Portal.Controllers
         }
 
         // ── Request models ────────────────────────────────────────────────────
-        public class IdRequest { public long id { get; set; } }
-
         public class AddPatientRequest
         {
-            public string? first_name    { get; set; }
-            public string? last_name     { get; set; }
-            public string? date_of_birth { get; set; }
-            public string? gender        { get; set; }
-            public string? phone         { get; set; }
-            public string? email         { get; set; }
-            public string? id_number     { get; set; }
-            public string? allergies     { get; set; }
-            public string? medical_notes { get; set; }
+            public string? first_name      { get; set; }
+            public string? last_name       { get; set; }
+            public string? date_of_birth   { get; set; }
+            public string? gender          { get; set; }
+            public string? phone           { get; set; }
+            public string? email           { get; set; }
+            public string? address         { get; set; }
+            public string? allergies       { get; set; }
+            public string? medical_history { get; set; }
         }
 
-        public class UpdatePatientRequest
+        public class AddPrescriptionRequestItem
         {
-            public long    id             { get; set; }
-            public string? first_name     { get; set; }
-            public string? last_name      { get; set; }
-            public string? date_of_birth  { get; set; }
-            public string? gender         { get; set; }
-            public string? phone          { get; set; }
-            public string? email          { get; set; }
-            public string? id_number      { get; set; }
-            public string? allergies      { get; set; }
-            public string? medical_notes  { get; set; }
+            public long?   product_id      { get; set; }
+            public string? medication_name { get; set; }
+            public string? dosage          { get; set; }
+            public string? frequency       { get; set; }
+            public string? duration        { get; set; }
+            public int     quantity        { get; set; }
+            public string? notes           { get; set; }
         }
 
         public class AddPrescriptionRequest
         {
-            public long?          patient_id  { get; set; }
-            public string?        doctor_name { get; set; }
-            public string?        diagnosis   { get; set; }
-            public List<object>?  items       { get; set; }
-            public string?        notes       { get; set; }
+            public long?                          patient_id        { get; set; }
+            public string?                        doctor_name       { get; set; }
+            public string?                        hospital          { get; set; }
+            public string?                        prescription_date { get; set; }
+            public string?                        notes             { get; set; }
+            public List<AddPrescriptionRequestItem>? items          { get; set; }
         }
     }
 }

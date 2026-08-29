@@ -125,12 +125,13 @@ BEGIN
             ORDER BY first_name;
 
         WHEN 'prescriptions' THEN
-            SELECT pr.id, pr.prescription_number, pr.doctor_name, pr.prescription_date,
+            SELECT pr.id, pr.patient_id, pr.prescription_number, pr.doctor_name, pr.prescription_date,
                    pr.status, pr.created_on,
                    CONCAT(pt.first_name, ' ', COALESCE(pt.last_name, '')) AS patient_name
             FROM prescriptions pr
             JOIN patients pt ON pt.id = pr.patient_id
             WHERE pr.pharmacy_id = p_param1 AND pr.is_deleted = 0
+              AND (pr.patient_id = p_param2 OR p_param2 = '' OR p_param2 IS NULL)
             ORDER BY pr.created_on DESC;
 
         WHEN 'prescription_items' THEN
@@ -231,7 +232,99 @@ BEGIN
                    page_accessed, client_ip_address, created_on
             FROM audit_trail
             ORDER BY created_on DESC
-            LIMIT CAST(COALESCE(NULLIF(p_param2, ''), '50') AS UNSIGNED);
+            LIMIT 50;
+
+        WHEN 'roles' THEN
+            SELECT id, role_name, description, created_on
+            FROM roles
+            WHERE is_deleted = 0 AND (p_param1 = '0' OR id = p_param1)
+            ORDER BY id;
+
+        WHEN 'menus' THEN
+            SELECT id, main_menu_name, sub_menu_name, page_url, menu_icon,
+                   menu_order, sub_menu_order
+            FROM menu_access_data
+            ORDER BY menu_order, sub_menu_order;
+
+        WHEN 'pharmacy_settings' THEN
+            SELECT id, name, slug, phone, email, address,
+                   license_number, vat_number, receipt_footer, currency,
+                   owner_name, license_expiry, is_active
+            FROM pharmacies
+            WHERE id = p_param1 AND is_deleted = 0;
+
+        WHEN 'report_sales' THEN
+            SELECT d.sale_date, d.transactions, d.total_sales, d.vat_total, d.discounts,
+                   COALESCE(p.profit, 0) AS profit
+            FROM (SELECT DATE(s.created_on) AS sale_date, COUNT(*) AS transactions,
+                         COALESCE(SUM(s.total), 0) AS total_sales,
+                         COALESCE(SUM(s.vat_amount), 0) AS vat_total,
+                         COALESCE(SUM(s.discount), 0) AS discounts
+                  FROM sales s
+                  WHERE s.pharmacy_id = p_param1 AND s.is_deleted = 0
+                    AND (s.created_on >= STR_TO_DATE(p_param2, '%Y-%m-%d') OR p_param2 = '' OR p_param2 IS NULL)
+                    AND (s.created_on <= DATE_ADD(STR_TO_DATE(p_param3, '%Y-%m-%d'), INTERVAL 1 DAY) OR p_param3 = '' OR p_param3 IS NULL)
+                  GROUP BY DATE(s.created_on)) d
+            LEFT JOIN (SELECT DATE(s2.created_on) AS sale_date,
+                              COALESCE(SUM(si.total) - SUM(si.cost_price * si.quantity), 0) AS profit
+                       FROM sale_items si
+                       JOIN sales s2 ON s2.id = si.sale_id
+                       WHERE s2.pharmacy_id = p_param1 AND s2.is_deleted = 0
+                         AND (s2.created_on >= STR_TO_DATE(p_param2, '%Y-%m-%d') OR p_param2 = '' OR p_param2 IS NULL)
+                         AND (s2.created_on <= DATE_ADD(STR_TO_DATE(p_param3, '%Y-%m-%d'), INTERVAL 1 DAY) OR p_param3 = '' OR p_param3 IS NULL)
+                       GROUP BY DATE(s2.created_on)) p ON p.sale_date = d.sale_date
+            ORDER BY d.sale_date DESC;
+
+        WHEN 'report_stock' THEN
+            SELECT p.name, p.sku, p.stock_qty, p.reorder_level, p.cost_price, p.selling_price,
+                   ROUND(p.stock_qty * p.cost_price, 2) AS stock_value,
+                   ROUND(p.stock_qty * p.selling_price, 2) AS retail_value,
+                   c.name AS category_name
+            FROM products p
+            LEFT JOIN product_categories c ON c.id = p.category_id
+            WHERE p.pharmacy_id = p_param1 AND p.is_deleted = 0
+            ORDER BY p.name;
+
+        WHEN 'report_financial' THEN
+            SELECT
+                (SELECT COALESCE(SUM(total), 0) FROM sales
+                 WHERE pharmacy_id = p_param1 AND is_deleted = 0
+                   AND (created_on >= STR_TO_DATE(p_param2, '%Y-%m-%d') OR p_param2 = '' OR p_param2 IS NULL)
+                   AND (created_on <= DATE_ADD(STR_TO_DATE(p_param3, '%Y-%m-%d'), INTERVAL 1 DAY) OR p_param3 = '' OR p_param3 IS NULL)) AS total_sales,
+                (SELECT COALESCE(SUM(si.cost_price * si.quantity), 0) FROM sale_items si
+                 JOIN sales s ON s.id = si.sale_id
+                 WHERE s.pharmacy_id = p_param1 AND s.is_deleted = 0
+                   AND (s.created_on >= STR_TO_DATE(p_param2, '%Y-%m-%d') OR p_param2 = '' OR p_param2 IS NULL)
+                   AND (s.created_on <= DATE_ADD(STR_TO_DATE(p_param3, '%Y-%m-%d'), INTERVAL 1 DAY) OR p_param3 = '' OR p_param3 IS NULL)) AS cogs,
+                (SELECT COALESCE(SUM(amount), 0) FROM expenses
+                 WHERE pharmacy_id = p_param1 AND is_deleted = 0
+                   AND (expense_date >= STR_TO_DATE(p_param2, '%Y-%m-%d') OR p_param2 = '' OR p_param2 IS NULL)
+                   AND (expense_date <= DATE_ADD(STR_TO_DATE(p_param3, '%Y-%m-%d'), INTERVAL 1 DAY) OR p_param3 = '' OR p_param3 IS NULL)) AS total_expenses;
+
+        WHEN 'report_expense_by_category' THEN
+            SELECT ec.name AS category_name, COALESCE(SUM(e.amount), 0) AS amount
+            FROM expense_categories ec
+            LEFT JOIN expenses e ON e.category_id = ec.id
+               AND e.pharmacy_id = p_param1 AND e.is_deleted = 0
+               AND (e.expense_date >= STR_TO_DATE(p_param2, '%Y-%m-%d') OR p_param2 = '' OR p_param2 IS NULL)
+               AND (e.expense_date <= DATE_ADD(STR_TO_DATE(p_param3, '%Y-%m-%d'), INTERVAL 1 DAY) OR p_param3 = '' OR p_param3 IS NULL)
+            WHERE ec.pharmacy_id = p_param1
+            GROUP BY ec.name
+            ORDER BY amount DESC;
+
+        WHEN 'report_product_margins' THEN
+            SELECT p.name, p.sku,
+                   COALESCE(SUM(si.quantity), 0) AS units_sold,
+                   ROUND(COALESCE(SUM(si.total), 0), 2) AS revenue,
+                   ROUND(COALESCE(SUM(si.cost_price * si.quantity), 0), 2) AS cost,
+                   ROUND(COALESCE(SUM(si.total) - SUM(si.cost_price * si.quantity), 0), 2) AS profit,
+                   ROUND((COALESCE(SUM(si.total), 0) - COALESCE(SUM(si.cost_price * si.quantity), 0))
+                         / NULLIF(COALESCE(SUM(si.total), 0), 0) * 100, 2) AS margin_pct
+            FROM products p
+            LEFT JOIN sale_items si ON si.product_id = p.id
+            WHERE p.pharmacy_id = p_param1 AND p.is_deleted = 0
+            GROUP BY p.id, p.name, p.sku
+            ORDER BY units_sold DESC;
 
         ELSE
             SELECT 'Unknown module' AS error;
@@ -356,6 +449,12 @@ BEGIN
             UPDATE stock_take_sessions SET is_deleted = 1 WHERE id = p_recordid;
         WHEN 'pharmacy_user' THEN
             UPDATE pharmacy_users SET is_deleted = 1 WHERE id = p_recordid;
+        WHEN 'portal_user' THEN
+            UPDATE portal_users SET is_deleted = 1 WHERE id = p_recordid;
+        WHEN 'p_external_portal_user' THEN
+            UPDATE p_external_portal_user SET is_deleted = 1 WHERE id = p_recordid;
+        WHEN 'roles' THEN
+            UPDATE roles SET is_deleted = 1 WHERE id = p_recordid;
         WHEN 'notification' THEN
             UPDATE notifications SET is_deleted = 1 WHERE id = p_recordid;
         WHEN 'supplier_price_history' THEN

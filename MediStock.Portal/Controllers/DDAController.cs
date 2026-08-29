@@ -1,14 +1,12 @@
 // ============================================================
 //  MediStock.Portal — DDAController
-//  Drug and Drug Authority (DDA) compliance reporting.
+//  Drug and Drug Authority (DDA) compliance register.
 //  Routes:
 //    GET  /DDA/Register        → DDA register view
-//    GET  /DDA/Report          → DDA report view
+//    GET  /DDA/Report          → DDA report view (client-side filter)
 //    GET  /DDA/GetRegister     → JSON DDA register entries
-//    GET  /DDA/GetReport       → JSON DDA report data
-//    POST /DDA/AddEntry        → proxy → api/dda/addentry
-//    POST /DDA/UpdateEntry     → proxy → api/dda/updateentry
-//    GET  /DDA/DownloadReport  → Excel export DDA report
+//    GET  /DDA/GetEntry?id=    → JSON single DDA entry
+//    POST /DDA/AddEntry        → proxy → api/dda
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -44,13 +42,11 @@ namespace MediStock.Portal.Controllers
 
         // ── Data ──────────────────────────────────────────────────────────────
         [HttpGet]
-        public async Task<IActionResult> GetRegister(string? search)
+        public async Task<IActionResult> GetRegister()
         {
             try
             {
-                var qs = "api/dda/register?pharmacyId=" + GetPharmacyId();
-                if (!string.IsNullOrWhiteSpace(search)) qs += $"&search={search}";
-                var result = await _api.GetAsync<object>(qs);
+                var result = await _api.GetAsync<object>("api/dda?pharmacyId=" + GetPharmacyId());
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
@@ -65,25 +61,8 @@ namespace MediStock.Portal.Controllers
             if (id <= 0) return Json(new { error = "id required" });
             try
             {
-                var result = await _api.GetAsync<object>($"api/dda/getentry?id={id}");
+                var result = await _api.GetAsync<object>("api/dda/" + id);
                 return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetReport(string? from_date, string? to_date)
-        {
-            try
-            {
-                var qs = "api/dda/report?pharmacyId=" + GetPharmacyId();
-                if (!string.IsNullOrWhiteSpace(from_date)) qs += $"&from_date={from_date}";
-                if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
-                var result = await _api.GetAsync<object>(qs);
-                return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
             {
@@ -94,61 +73,23 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> AddEntry([FromBody] AddDdaEntryRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || model.product_id <= 0)
+                return Json(new { success = false, message = "Product is required" });
+            if (model.quantity <= 0)
+                return Json(new { success = false, message = "Quantity must be greater than 0" });
 
-            var result = await _api.PostAsync<object>("api/dda/addentry", new
+            var result = await _api.PostAsync<object>("api/dda", new
             {
-                pharmacy_id    = GetPharmacyId(),
                 product_id     = model.product_id,
-                dda_number     = model.dda_number,
-                drug_name      = model.drug_name,
-                strength       = model.strength,
-                form           = model.form,
-                schedule       = model.schedule,
-                manufacturer   = model.manufacturer,
-                expiry_date    = model.expiry_date
+                patient_id     = model.patient_id,
+                quantity       = model.quantity,
+                dispensed_date = model.dispensed_date,
+                notes          = model.notes
             });
 
             return Json(result.IsSuccess
                 ? new { success = true, message = "DDA entry added" }
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add DDA entry" : result.Error });
-        }
-
-        [HttpPost]
-        public async Task<IActionResult> UpdateEntry([FromBody] UpdateDdaEntryRequest model)
-        {
-            if (model == null || model.id <= 0)
-                return Json(new { success = false, message = "Invalid request" });
-
-            var result = await _api.PostAsync<object>("api/dda/updateentry", new
-            {
-                id             = model.id,
-                dda_number     = model.dda_number,
-                drug_name      = model.drug_name,
-                strength       = model.strength,
-                form           = model.form,
-                schedule       = model.schedule,
-                manufacturer   = model.manufacturer,
-                expiry_date    = model.expiry_date
-            });
-
-            return Json(result.IsSuccess
-                ? new { success = true, message = "DDA entry updated" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to update DDA entry" : result.Error });
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> DownloadReport(string? from_date, string? to_date)
-        {
-            var qs = $"api/dda/report/excel?pharmacyId={GetPharmacyId()}";
-            if (!string.IsNullOrWhiteSpace(from_date)) qs += $"&from_date={from_date}";
-            if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
-
-            var (bytes, contentType, fileName, error) = await _api.GetFileAsync(qs);
-            if (bytes == null) return BadRequest(error ?? "Failed to generate DDA report");
-            return File(bytes, contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        fileName ?? "dda_report.xlsx");
         }
 
         private string GetPharmacyId()
@@ -159,26 +100,11 @@ namespace MediStock.Portal.Controllers
         // ── Request models ────────────────────────────────────────────────────
         public class AddDdaEntryRequest
         {
-            public long?   product_id  { get; set; }
-            public string? dda_number  { get; set; }
-            public string? drug_name   { get; set; }
-            public string? strength    { get; set; }
-            public string? form        { get; set; }
-            public string? schedule    { get; set; }
-            public string? manufacturer { get; set; }
-            public string? expiry_date { get; set; }
-        }
-
-        public class UpdateDdaEntryRequest
-        {
-            public long    id           { get; set; }
-            public string? dda_number   { get; set; }
-            public string? drug_name    { get; set; }
-            public string? strength     { get; set; }
-            public string? form         { get; set; }
-            public string? schedule     { get; set; }
-            public string? manufacturer { get; set; }
-            public string? expiry_date  { get; set; }
+            public long?   product_id     { get; set; }
+            public long?   patient_id     { get; set; }
+            public int     quantity       { get; set; }
+            public string? dispensed_date { get; set; }
+            public string? notes          { get; set; }
         }
     }
 }

@@ -95,7 +95,7 @@ namespace MediStock.API.Controllers
                 if (!saleOk || model.id <= 0)
                     return Bad("Failed to create sale");
 
-                bool itemsOk = dbhandler.AddSaleItems(model.id, model.items);
+                bool itemsOk = dbhandler.AddSaleItems(model.id, model.pharmacy_id, model.items);
                 if (!itemsOk)
                     return Bad("Sale created but failed to add items");
 

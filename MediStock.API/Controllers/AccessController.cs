@@ -202,7 +202,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENU ACCESS — GET FOR ROLE
+        // MENU ACCESS — GET FOR ROLE (from master catalog with per-role flag)
         // =====================================================================
         [Authorize]
         [HttpGet("menu-access")]
@@ -216,7 +216,7 @@ namespace MediStock.API.Controllers
                 if (roleId <= 0)
                     return Bad("roleId is required");
 
-                DataTable dt = dbhandler.GetRecords("menu_access", roleId.ToString());
+                DataTable dt = dbhandler.GetMenuAccessWithState(roleId);
                 iloggermanager.LogInfo($"GetMenuAccess: roleId={roleId} returned {dt.Rows.Count} rows");
 
                 return Ok(new { success = true, message = "Menu access retrieved", action = "", data = ToRows(dt) });
@@ -225,7 +225,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENU ACCESS — SAVE FOR ROLE
+        // MENU ACCESS — SAVE FOR ROLE (reconciles against master catalog)
         // =====================================================================
         [Authorize]
         [HttpPost("menu-access")]
@@ -244,25 +244,34 @@ namespace MediStock.API.Controllers
                     return Bad("role_id is required");
 
                 JArray? menuIds = body["menu_ids"] as JArray;
-                if (menuIds == null || menuIds.Count == 0)
+                if (menuIds == null)
                     return Bad("menu_ids array is required");
 
-                // Delete existing access for this role, then re-insert
-                string deleteSql = "DELETE FROM menu_access WHERE role_id = " + roleId;
-                dbhandler.GetAdhocData(deleteSql);
-
-                int count = 0;
+                var checkedIds = new HashSet<long>();
                 foreach (var item in menuIds)
+                    checkedIds.Add(Convert.ToInt64(item));
+
+                // Reconcile against the master catalog: items in checkedIds => can_access 1, else 0.
+                DataTable catalog = dbhandler.GetMenuAccessWithState(roleId);
+                int count = 0;
+                foreach (DataRow row in catalog.Rows)
                 {
-                    int menuId = Convert.ToInt32(item);
-                    string insertSql = "INSERT INTO menu_access (role_id, menu_id, created_by, created_on) VALUES (" +
-                        roleId + ", " + menuId + ", " + userId + ", NOW())";
-                    dbhandler.GetAdhocData(insertSql);
-                    count++;
+                    long id = Convert.ToInt64(row["id"]);
+                    bool hasAccess = checkedIds.Contains(id);
+                    bool enabled = dbhandler.SetMenuAccess(
+                        roleId,
+                        row["main_menu_name"].ToString() ?? "",
+                        row["sub_menu_name"] == DBNull.Value ? "" : row["sub_menu_name"].ToString() ?? "",
+                        row["page_url"] == DBNull.Value ? "" : row["page_url"].ToString() ?? "",
+                        row["menu_icon"] == DBNull.Value ? "fa-circle" : row["menu_icon"].ToString() ?? "fa-circle",
+                        row["menu_order"] == DBNull.Value ? 0 : Convert.ToInt32(row["menu_order"]),
+                        row["sub_menu_order"] == DBNull.Value ? 0 : Convert.ToInt32(row["sub_menu_order"]),
+                        hasAccess);
+                    if (enabled) count++;
                 }
 
-                CaptureAuditTrail(userId.ToString(), "Save Menu Access", $"Saved {count} menu items for role {roleId}");
-                iloggermanager.LogInfo($"SaveMenuAccess: roleId={roleId} saved {count} items");
+                CaptureAuditTrail(userId.ToString(), "Save Menu Access", $"Saved menu access for role {roleId} ({count} items updated)");
+                iloggermanager.LogInfo($"SaveMenuAccess: roleId={roleId} updated {count} items");
 
                 return Ok(new { success = true, message = "Menu access saved", action = "", data = new JObject { { "role_id", roleId }, { "count", count } } });
             }

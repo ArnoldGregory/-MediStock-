@@ -138,6 +138,22 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
+        [HttpGet("stocktake")]
+        public ActionResult GetStockTakeSessions()
+        {
+            iloggermanager.LogInfo("******* GET STOCK TAKE SESSIONS REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                DataTable dt = dbhandler.GetRecords("stock_take_sessions", pharmacyId.ToString());
+                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
+                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
+            }
+            catch (Exception ex) { iloggermanager.LogError("GetStockTakeSessions: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
         [HttpPost("stocktake")]
         public ActionResult AddStockTakeSession([FromBody] StockTakeSessionModel model)
         {
@@ -207,7 +223,7 @@ namespace MediStock.API.Controllers
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                string sql = $"UPDATE stock_take_sessions SET status = 'Committed', committed_at = NOW(), committed_by = {userId} WHERE id = {sessionId}";
+                string sql = $"UPDATE stock_take_sessions SET status = 'Committed', committed_on = NOW(), committed_by = {userId} WHERE id = {sessionId}";
                 dbhandler.ExecuteNonQuery(sql);
 
                 iloggermanager.LogInfo($"CommitStockTake: sessionId={sessionId}");

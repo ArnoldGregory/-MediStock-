@@ -31,9 +31,8 @@
                             <th>Contact Person</th>
                             <th>Phone</th>
                             <th>Email</th>
-                            <th>Outstanding Balance</th>
+                            <th>Address</th>
                             <th>Status</th>
-                            <th></th>
                             <th></th>
                             <th></th>
                         </tr>
@@ -48,9 +47,8 @@
 <div class="modal fade" id="supplierModal" tabindex="-1" role="dialog">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
-            <form asp-controller="Suppliers" asp-action="Save" method="POST" id="supplierForm">
-                @Html.AntiForgeryToken()
-                <input type="hidden" id="supplierId" name="supplierId" value="" />
+            <form id="supplierForm">
+                <input type="hidden" id="supplierId" value="" />
                 <div class="modal-header">
                     <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
                     <h4 class="modal-title" id="modalLabel"><i class="fa fa-truck"></i> Add Supplier</h4>
@@ -60,79 +58,57 @@
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Supplier Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="supplierName" name="supplierName" required />
+                                <input type="text" class="form-control" id="supplierName" required />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
                                 <label>Contact Person</label>
-                                <input type="text" class="form-control" id="contactPerson" name="contactPerson" />
+                                <input type="text" class="form-control" id="contactPerson" />
                             </div>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="form-group">
-                                <label>Phone <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="phone" name="phone" required />
+                                <label>Phone</label>
+                                <input type="text" class="form-control" id="phone" />
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-6">
                             <div class="form-group">
                                 <label>Email</label>
-                                <input type="email" class="form-control" id="email" name="email" />
-                            </div>
-                        </div>
-                        <div class="col-md-4">
-                            <div class="form-group">
-                                <label>KRA PIN</label>
-                                <input type="text" class="form-control" id="kraPin" name="kraPin" />
+                                <input type="email" class="form-control" id="email" />
                             </div>
                         </div>
                     </div>
                     <div class="row">
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Payment Terms (Days)</label>
-                                <input type="number" class="form-control" id="paymentTerms" name="paymentTerms" value="30" min="0" />
+                                <label>City</label>
+                                <input type="text" class="form-control" id="city" />
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="form-group">
-                                <label>Credit Limit (KES)</label>
-                                <input type="number" class="form-control" id="creditLimit" name="creditLimit" step="0.01" min="0" value="0" />
+                                <label>Country</label>
+                                <input type="text" class="form-control" id="country" />
                             </div>
                         </div>
                     </div>
                     <div class="form-group">
                         <label>Address</label>
-                        <textarea class="form-control" id="address" name="address" rows="2"></textarea>
+                        <textarea class="form-control" id="address" rows="2"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" id="isActive" checked /> Active</label>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save</button>
+                    <button type="button" class="btn btn-success" id="btnSaveSupplier"><i class="fa fa-save"></i> Save</button>
                 </div>
             </form>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Modal -->
-<div class="modal fade" id="deleteModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-red">
-                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                <h4 class="modal-title" style="color:#fff;"><i class="fa fa-trash"></i> Delete Supplier</h4>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteName"></strong>?</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmDelete"><i class="fa fa-trash"></i> Delete</button>
-            </div>
         </div>
     </div>
 </div>
@@ -143,76 +119,134 @@
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
-        var table;
-        $(document).ready(function () { loadSuppliers(); });
+        // ============================================================
+        //  Suppliers — Index (Riziki BFF pattern)
+        // ============================================================
+        var _supTable;
 
-        function loadSuppliers() {
-            table = $('#suppliersTable').DataTable({
-                ajax: { url: '/api/suppliers', dataSrc: '' },
-                columns: [
-                    { data: 'supplierName' },
-                    { data: 'contactPerson', defaultContent: '-' },
-                    { data: 'phone' },
-                    { data: 'email', defaultContent: '-' },
-                    { data: 'outstandingBalance', render: function (d) {
-                        var v = parseFloat(d || 0);
-                        return v > 0 ? '<span class="text-danger"><strong>KES ' + v.toFixed(2) + '</strong></span>' : 'KES 0.00';
-                    }},
-                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<button class="btn btn-xs btn-primary" onclick="editItem(\'' + d.supplierId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Suppliers/Detail/' + d.supplierId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<button class="btn btn-xs btn-danger" onclick="deleteItem(\'' + d.supplierId + '\',\'' + d.supplierName + '\')"><i class="fa fa-trash"></i></button>'; } }
-                ],
-                order: [[0, 'asc']]
+        $(document).ready(function () {
+            _supTable = InitSupTable();
+            LoadSuppliers(_supTable);
+
+            $('#supplierModal').on('hidden.bs.modal', function () {
+                ResetSupplierForm();
+            });
+        });
+
+        function InitSupTable() {
+            var t = $('#suppliersTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: 'name',           autoWidth: true, sDefaultContent: '-' },
+                    { data: 'contact_person', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'phone',          autoWidth: true, sDefaultContent: '-' },
+                    { data: 'email',          autoWidth: true, sDefaultContent: '-' },
+                    { data: 'address',        autoWidth: true, sDefaultContent: '-' },
+                    { data: 'is_active',      autoWidth: true, sDefaultContent: 'Active', render: function (d) { return (d == 1 || d === true) ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-warning btn-xs edit-sup"><i class="fa fa-edit"></i> Edit</button>' },
+                    { bSortable: false, sDefaultContent: '<button class="btn btn-danger btn-xs delete-sup"><i class="fa fa-trash"></i> Delete</button>' }
+                ]
+            });
+            return t;
+        }
+
+        function LoadSuppliers(oTable) {
+            ajaxGet('/Suppliers/GetSuppliers', function (data) {
+                var t = oTable || _supTable;
+                var s = t.fnSettings();
+                t.fnClearTable(true);
+                if (data && data.length) {
+                    for (var i = 0; i < data.length; i++) t.oApi._fnAddData(s, data[i]);
+                }
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                t.fnDraw();
             });
         }
 
-        function resetForm() {
+        function ResetSupplierForm() {
             $('#supplierForm')[0].reset();
             $('#supplierId').val('');
+            $('#isActive').prop('checked', true);
             $('#modalLabel').html('<i class="fa fa-truck"></i> Add Supplier');
         }
 
-        function editItem(id) {
-            $.get('/api/suppliers/' + id, function (data) {
-                $('#supplierId').val(data.supplierId);
-                $('#supplierName').val(data.supplierName);
-                $('#contactPerson').val(data.contactPerson);
-                $('#phone').val(data.phone);
-                $('#email').val(data.email);
-                $('#kraPin').val(data.kraPin);
-                $('#paymentTerms').val(data.paymentTerms);
-                $('#creditLimit').val(data.creditLimit);
-                $('#address').val(data.address);
-                $('#modalLabel').html('<i class="fa fa-edit"></i> Edit Supplier');
-                $('#supplierModal').modal('show');
-            });
+        function GetSupplierForm() {
+            return {
+                name: $('#supplierName').val().trim(),
+                contact_person: $('#contactPerson').val().trim() || null,
+                phone: $('#phone').val().trim() || null,
+                email: $('#email').val().trim() || null,
+                address: $('#address').val().trim() || null,
+                city: $('#city').val().trim() || null,
+                country: $('#country').val().trim() || null,
+                is_active: $('#isActive').is(':checked')
+            };
         }
 
-        function deleteItem(id, name) {
-            $('#deleteName').text(name);
-            $('#confirmDelete').off('click').on('click', function () {
-                $.ajax({
-                    url: '/api/suppliers/' + id,
-                    type: 'DELETE',
-                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                    success: function () { Swal.fire('Deleted', 'Supplier deleted.', 'success'); table.ajax.reload(); $('#deleteModal').modal('hide'); },
-                    error: function () { Swal.fire('Error', 'Unable to delete.', 'error'); }
+        // ── Edit ─────────────────────────────────────────────────────────────
+        $('#suppliersTable').on('click', 'button.edit-sup', function (e) {
+            e.preventDefault();
+            var d = _supTable.fnGetData($(this).parents('tr')[0]);
+            $('#supplierId').val(d.id);
+            $('#supplierName').val(d.name || '');
+            $('#contactPerson').val(d.contact_person || '');
+            $('#phone').val(d.phone || '');
+            $('#email').val(d.email || '');
+            $('#address').val(d.address || '');
+            $('#city').val(d.city || '');
+            $('#country').val(d.country || '');
+            $('#isActive').prop('checked', !(d.is_active == 0 || d.is_active === false));
+            $('#modalLabel').html('<i class="fa fa-edit"></i> Edit Supplier');
+            $('#supplierModal').modal('show');
+        });
+
+        // ── Delete ───────────────────────────────────────────────────────────
+        $('#suppliersTable').on('click', 'button.delete-sup', function (e) {
+            e.preventDefault();
+            var d = _supTable.fnGetData($(this).parents('tr')[0]);
+            Swal.fire({
+                title: 'Delete Supplier?',
+                text: 'Delete "' + d.name + '"? This cannot be undone.',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                confirmButtonText: 'Yes, Delete',
+                reverseButtons: true
+            }).then(function (r) {
+                if (!r.isConfirmed) return;
+                ajaxPost('/Suppliers/DeleteSupplier', { id: d.id }, function (res) {
+                    if (res.success) {
+                        LoadSuppliers(_supTable);
+                        Swal.fire('Deleted', res.message, 'success');
+                    } else {
+                        Swal.fire('Error', res.message, 'error');
+                    }
                 });
             });
-            $('#deleteModal').modal('show');
-        }
+        });
 
-        $('#supplierForm').on('submit', function (e) {
+        // ── Save (add / update) ──────────────────────────────────────────────
+        $('#btnSaveSupplier').on('click', function (e) {
             e.preventDefault();
-            var id = $('#supplierId').val();
-            $.ajax({
-                url: id ? '/api/suppliers/' + id : '/api/suppliers',
-                type: id ? 'PUT' : 'POST',
-                data: $(this).serialize(),
-                success: function () { Swal.fire('Saved', 'Supplier saved.', 'success'); $('#supplierModal').modal('hide'); table.ajax.reload(); },
-                error: function (xhr) { Swal.fire('Error', xhr.responseText || 'Unable to save.', 'error'); }
-            });
+            var name = $('#supplierName').val().trim();
+            if (!name) { Swal.fire('Validation', 'Supplier name is required.', 'warning'); return; }
+            var id = parseInt($('#supplierId').val()) || 0;
+            var url = id ? '/Suppliers/UpdateSupplier' : '/Suppliers/AddSupplier';
+            var payload = GetSupplierForm();
+            if (id) payload.id = id;
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost(url, payload, function (res) {
+                btnStop(btn);
+                if (res.success) {
+                    $('#supplierModal').modal('hide');
+                    LoadSuppliers(_supTable);
+                    Swal.fire(id ? 'Updated' : 'Saved', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
+                }
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
         });
     </script>
 }

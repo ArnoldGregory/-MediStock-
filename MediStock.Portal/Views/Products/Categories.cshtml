@@ -9,16 +9,17 @@
 <div class="panel panel-inverse">
     <div class="panel-heading">
         <div class="panel-heading-btn">
-            <a href="@Url.Action("Categories", "Products")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+            <a href="@Url.Action("Categories","Products")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
         </div>
         <h4 class="panel-title">Product Categories</h4>
     </div>
     <div class="panel-body">
+
         <div class="row m-b-10">
             <div class="col-md-12">
-                <button class="btn btn-sm btn-success" data-toggle="modal" data-target="#categoryModal" onclick="resetCategoryForm();">
+                <a href="#" class="btn btn-sm btn-success" data-toggle="modal" data-target="#category-modal">
                     <i class="fa fa-plus"></i> Add Category
-                </button>
+                </a>
             </div>
         </div>
 
@@ -30,151 +31,49 @@
                             <th>#</th>
                             <th>Category Name</th>
                             <th>Description</th>
-                            <th>Product Count</th>
+                            <th>Created On</th>
                             <th>Status</th>
-                            <th></th>
                             <th></th>
                         </tr>
                     </thead>
                 </table>
             </div>
         </div>
-    </div>
-</div>
 
-<!-- Add/Edit Category Modal -->
-<div class="modal fade" id="categoryModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <form asp-controller="Products" asp-action="SaveCategory" method="POST" id="categoryForm">
-                @Html.AntiForgeryToken()
-                <input type="hidden" id="categoryId" name="categoryId" value="" />
-                <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                    <h4 class="modal-title" id="categoryModalLabel"><i class="fa fa-tag"></i> Add Category</h4>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Category Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" id="categoryName" name="categoryName" required />
+        <!-- ADD MODAL -->
+        <div class="modal fade" id="category-modal" tabindex="-1" role="dialog" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <button type="button" class="close" data-dismiss="modal"><i class="fa fa-times-circle"></i></button>
+                        <h4 class="modal-title"><i class="fa fa-tag"></i> Add Category</h4>
                     </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea class="form-control" id="categoryDescription" name="description" rows="3"></textarea>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label>Category Name <span class="text-danger">*</span></label>
+                            <input id="categoryName" type="text" class="form-control" placeholder="e.g. Antibiotics" />
+                        </div>
+                        <div class="form-group">
+                            <label>Description</label>
+                            <textarea id="categoryDescription" rows="3" class="form-control" placeholder="Optional description"></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="#" class="btn btn-white btn-sm" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</a>
+                        <a href="#" class="btn btn-success btn-sm" id="btnAddCat"><i class="fa fa-save"></i> Save Category</a>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save Category</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<!-- Delete Modal -->
-<div class="modal fade" id="deleteCategoryModal" tabindex="-1" role="dialog">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <div class="modal-header bg-red">
-                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                <h4 class="modal-title" style="color:#fff;"><i class="fa fa-trash"></i> Delete Category</h4>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete <strong id="deleteCategoryName"></strong>?</p>
-                <p class="text-danger"><i class="fa fa-warning"></i> Products in this category will need to be reassigned.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-default" data-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-danger" id="confirmDeleteCategory"><i class="fa fa-trash"></i> Delete</button>
             </div>
         </div>
+
+        <hr />
     </div>
 </div>
 
 @section PageScripts {
-    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.js"></script>
     <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
-    <script>
-        var table;
-        $(document).ready(function () {
-            loadCategories();
-        });
-
-        function loadCategories() {
-            table = $('#categoriesTable').DataTable({
-                ajax: { url: '/api/categories', dataSrc: '' },
-                columns: [
-                    { data: null, render: function (data, type, row, meta) { return meta.row + 1; } },
-                    { data: 'categoryName' },
-                    { data: 'description' },
-                    { data: 'productCount', defaultContent: '0' },
-                    { data: 'isActive', render: function (d) { return d ? '<span class="label label-success">Active</span>' : '<span class="label label-default">Inactive</span>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-primary" onclick="editCategory(\'' + data.categoryId + '\')"><i class="fa fa-edit"></i></button>'; } },
-                    { data: null, orderable: false, searchable: false, render: function (data) { return '<button class="btn btn-xs btn-danger" onclick="deleteCategory(\'' + data.categoryId + '\', \'' + data.categoryName + '\')"><i class="fa fa-trash"></i></button>'; } }
-                ],
-                order: [[1, 'asc']]
-            });
-        }
-
-        function resetCategoryForm() {
-            $('#categoryForm')[0].reset();
-            $('#categoryId').val('');
-            $('#categoryModalLabel').html('<i class="fa fa-tag"></i> Add Category');
-        }
-
-        function editCategory(id) {
-            $.get('/api/categories/' + id, function (data) {
-                $('#categoryId').val(data.categoryId);
-                $('#categoryName').val(data.categoryName);
-                $('#categoryDescription').val(data.description);
-                $('#categoryModalLabel').html('<i class="fa fa-edit"></i> Edit Category');
-                $('#categoryModal').modal('show');
-            });
-        }
-
-        function deleteCategory(id, name) {
-            $('#deleteCategoryName').text(name);
-            $('#confirmDeleteCategory').off('click').on('click', function () {
-                $.ajax({
-                    url: '/api/categories/' + id,
-                    type: 'DELETE',
-                    headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                    success: function () {
-                        Swal.fire('Deleted', 'Category deleted.', 'success');
-                        table.ajax.reload();
-                        $('#deleteCategoryModal').modal('hide');
-                    },
-                    error: function () {
-                        Swal.fire('Error', 'Unable to delete category.', 'error');
-                    }
-                });
-            });
-            $('#deleteCategoryModal').modal('show');
-        }
-
-        $('#categoryForm').on('submit', function (e) {
-            e.preventDefault();
-            var formData = $(this).serialize();
-            var id = $('#categoryId').val();
-            var url = id ? '/api/categories/' + id : '/api/categories';
-            var method = id ? 'PUT' : 'POST';
-
-            $.ajax({
-                url: url,
-                type: method,
-                data: formData,
-                success: function () {
-                    Swal.fire('Saved', 'Category saved successfully.', 'success');
-                    $('#categoryModal').modal('hide');
-                    table.ajax.reload();
-                },
-                error: function (xhr) {
-                    Swal.fire('Error', xhr.responseText || 'Unable to save category.', 'error');
-                }
-            });
-        });
-    </script>
+    <script src="~/assets/static/js/categories.js"></script>
 }

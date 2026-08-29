@@ -24,6 +24,37 @@ namespace MediStock.API.Controllers
             dbhandler = mydbhandler;
         }
 
+        public class AddProductRequest
+        {
+            public long category_id { get; set; }
+            public string name { get; set; } = "";
+            public string? sku { get; set; }
+            public string? barcode { get; set; }
+            public string? description { get; set; }
+            public decimal cost_price { get; set; }
+            public decimal selling_price { get; set; }
+            public int reorder_level { get; set; }
+            public string? unit_of_measure { get; set; }
+            public bool is_controlled_drug { get; set; }
+        }
+        public class UpdateProductRequest
+        {
+            public long id { get; set; }
+            public long category_id { get; set; }
+            public string name { get; set; } = "";
+            public string? sku { get; set; }
+            public string? barcode { get; set; }
+            public string? description { get; set; }
+            public decimal cost_price { get; set; }
+            public decimal selling_price { get; set; }
+            public int reorder_level { get; set; }
+            public string? unit_of_measure { get; set; }
+            public bool is_controlled_drug { get; set; }
+        }
+        public class DeleteRequest { public long id { get; set; } }
+        public class AddCategoryRequest { public string name { get; set; } = ""; public string? description { get; set; } }
+        public class DeleteCategoryRequest { public long id { get; set; } }
+
         [Authorize]
         [HttpGet]
         public ActionResult GetProducts()
@@ -41,35 +72,49 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
-        [HttpGet("{id}")]
-        public ActionResult GetProductById(Int64 id)
+        [HttpGet("getproduct")]
+        public ActionResult GetProduct(int id)
         {
-            iloggermanager.LogInfo("******* GET PRODUCT BY ID REQUEST **********");
+            iloggermanager.LogInfo("******* GET PRODUCT REQUEST **********");
             try
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
-                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                iloggermanager.LogInfo($"REQUEST: id={id}, user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (id <= 0) return Bad("id is required");
                 DataTable dt = dbhandler.GetRecordsById("product", id);
                 if (dt.Rows.Count == 0)
                     return StatusCode(StatusCodes.Status404NotFound, new { success = false, message = "Product not found", action = "", data = new JObject() });
                 return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }
-            catch (Exception ex) { iloggermanager.LogError("GetProductById: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+            catch (Exception ex) { iloggermanager.LogError("GetProduct: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
-        [HttpPost]
-        public ActionResult AddProduct([FromBody] ProductModel model)
+        [HttpPost("addproduct")]
+        public ActionResult AddProduct([FromBody] AddProductRequest req)
         {
             iloggermanager.LogInfo("******* ADD PRODUCT REQUEST **********");
             try
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                if (model == null || string.IsNullOrEmpty(model.name)) return Bad("Product name is required");
+                if (req == null || string.IsNullOrEmpty(req.name)) return Bad("name is required");
 
-                model.pharmacy_id = pharmacyId;
-                model.created_by = userId;
+                ProductModel model = new()
+                {
+                    pharmacy_id = pharmacyId,
+                    category_id = req.category_id,
+                    name = req.name,
+                    sku = req.sku,
+                    barcode = req.barcode,
+                    description = req.description,
+                    cost_price = req.cost_price,
+                    selling_price = req.selling_price,
+                    reorder_level = req.reorder_level,
+                    unit_of_measure = req.unit_of_measure,
+                    is_controlled_drug = req.is_controlled_drug,
+                    created_by = userId
+                };
 
                 bool ok = dbhandler.AddProduct(model);
                 if (ok && model.id > 0)
@@ -84,25 +129,39 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
-        [HttpPut("{id}")]
-        public ActionResult UpdateProduct(Int64 id, [FromBody] ProductModel model)
+        [HttpPost("updateproduct")]
+        public ActionResult UpdateProduct([FromBody] UpdateProductRequest req)
         {
             iloggermanager.LogInfo("******* UPDATE PRODUCT REQUEST **********");
             try
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
-                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                if (model == null || string.IsNullOrEmpty(model.name)) return Bad("Product name is required");
+                iloggermanager.LogInfo($"REQUEST: id={req?.id}, user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (req == null || req.id <= 0) return Bad("id is required");
+                if (string.IsNullOrEmpty(req.name)) return Bad("name is required");
 
-                model.id = id;
-                model.pharmacy_id = pharmacyId;
+                ProductModel model = new()
+                {
+                    id = req.id,
+                    pharmacy_id = pharmacyId,
+                    category_id = req.category_id,
+                    name = req.name,
+                    sku = req.sku,
+                    barcode = req.barcode,
+                    description = req.description,
+                    cost_price = req.cost_price,
+                    selling_price = req.selling_price,
+                    reorder_level = req.reorder_level,
+                    unit_of_measure = req.unit_of_measure,
+                    is_controlled_drug = req.is_controlled_drug
+                };
 
                 bool ok = dbhandler.UpdateProduct(model);
                 if (ok)
                 {
-                    iloggermanager.LogInfo($"UpdateProduct: productId={id}");
-                    CaptureAuditTrail(userId.ToString(), "Update Product", $"Updated product {id}");
-                    return Ok(new { success = true, message = "Product updated successfully", action = "", data = new JObject { { "id", id } } });
+                    iloggermanager.LogInfo($"UpdateProduct: productId={req.id}");
+                    CaptureAuditTrail(userId.ToString(), "Update Product", $"Updated product {req.id}");
+                    return Ok(new { success = true, message = "Product updated successfully", action = "", data = new JObject { { "id", req.id } } });
                 }
                 return Bad("Failed to update product");
             }
@@ -110,20 +169,21 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
-        [HttpDelete("{id}")]
-        public ActionResult DeleteProduct(Int64 id)
+        [HttpPost("deleteproduct")]
+        public ActionResult DeleteProduct([FromBody] DeleteRequest req)
         {
             iloggermanager.LogInfo("******* DELETE PRODUCT REQUEST **********");
             try
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
-                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                bool ok = dbhandler.DeleteRecord(id, userId, "products");
+                iloggermanager.LogInfo($"REQUEST: id={req?.id}, user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (req == null || req.id <= 0) return Bad("id is required");
+                bool ok = dbhandler.DeleteRecord(req.id, userId, "product");
                 if (ok)
                 {
-                    iloggermanager.LogInfo($"DeleteProduct: productId={id}");
-                    CaptureAuditTrail(userId.ToString(), "Delete Product", $"Deleted product {id}");
-                    return Ok(new { success = true, message = "Product deleted successfully", action = "", data = new JObject { { "id", id } } });
+                    iloggermanager.LogInfo($"DeleteProduct: productId={req.id}");
+                    CaptureAuditTrail(userId.ToString(), "Delete Product", $"Deleted product {req.id}");
+                    return Ok(new { success = true, message = "Product deleted successfully", action = "", data = new JObject { { "id", req.id } } });
                 }
                 return Bad("Failed to delete product");
             }
@@ -147,18 +207,23 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
-        [HttpPost("categories")]
-        public ActionResult AddCategory([FromBody] ProductCategoryModel model)
+        [HttpPost("addcategory")]
+        public ActionResult AddCategory([FromBody] AddCategoryRequest req)
         {
             iloggermanager.LogInfo("******* ADD CATEGORY REQUEST **********");
             try
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                if (model == null || string.IsNullOrEmpty(model.name)) return Bad("Category name is required");
+                if (req == null || string.IsNullOrEmpty(req.name)) return Bad("name is required");
 
-                model.pharmacy_id = pharmacyId;
-                model.created_by = userId;
+                ProductCategoryModel model = new()
+                {
+                    pharmacy_id = pharmacyId,
+                    name = req.name,
+                    description = req.description,
+                    created_by = userId
+                };
 
                 bool ok = dbhandler.AddCategory(model);
                 if (ok && model.id > 0)
@@ -170,6 +235,28 @@ namespace MediStock.API.Controllers
                 return Bad("Failed to add category");
             }
             catch (Exception ex) { iloggermanager.LogError("AddCategory: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
+        [HttpPost("deletecategory")]
+        public ActionResult DeleteCategory([FromBody] DeleteCategoryRequest req)
+        {
+            iloggermanager.LogInfo("******* DELETE CATEGORY REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: id={req?.id}, user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (req == null || req.id <= 0) return Bad("id is required");
+                bool ok = dbhandler.DeleteRecord(req.id, userId, "category");
+                if (ok)
+                {
+                    iloggermanager.LogInfo($"DeleteCategory: categoryId={req.id}");
+                    CaptureAuditTrail(userId.ToString(), "Delete Category", $"Deleted category {req.id}");
+                    return Ok(new { success = true, message = "Category deleted successfully", action = "", data = new JObject { { "id", req.id } } });
+                }
+                return Bad("Failed to delete category");
+            }
+            catch (Exception ex) { iloggermanager.LogError("DeleteCategory: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]

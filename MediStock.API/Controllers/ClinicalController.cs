@@ -117,14 +117,14 @@ namespace MediStock.API.Controllers
 
         [Authorize]
         [HttpGet("prescriptions")]
-        public ActionResult GetPrescriptions()
+        public ActionResult GetPrescriptions([FromQuery] Int64? patientId = null)
         {
             iloggermanager.LogInfo("******* GET PRESCRIPTIONS REQUEST **********");
             try
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                DataTable dt = dbhandler.GetRecords("prescriptions", pharmacyId.ToString());
+                DataTable dt = dbhandler.GetRecords("prescriptions", pharmacyId.ToString(), patientId?.ToString() ?? "");
                 iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
                 return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
             }

@@ -49,43 +49,15 @@
     </div>
 </div>
 
-<!-- ── Row 2: Sales Chart (8) + Top Products (4) ─── -->
-<div class="row m-t-20">
-    <div class="col-md-8">
-        <div class="panel panel-inverse">
-            <div class="panel-heading">
-                <h4 class="panel-title" style="color:#fff;">
-                    <i class="fa fa-chart-area m-r-5"></i> Sales Trend
-                    <small style="color:#adb5bd;">— last 7 days</small>
-                </h4>
-            </div>
-            <div class="panel-body p-t-0">
-                <div id="salesChart" style="height:300px;"><i class="fa fa-spinner fa-spin"></i> Loading chart...</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="panel panel-inverse">
-            <div class="panel-heading">
-                <h4 class="panel-title" style="color:#fff;">
-                    <i class="fa fa-trophy m-r-5"></i> Top Products
-                </h4>
-            </div>
-            <div class="panel-body p-t-0" id="topProductsList">
-                <i class="fa fa-spinner fa-spin"></i> Loading...
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- ── Row 3: Expiry Alerts (6) + Recent Activity (6) ─── -->
+<!-- ── Row 2: Expiry Alerts (6) + Alerts (6) ─── -->
 <div class="row m-t-20">
     <div class="col-md-6">
         <div class="panel panel-inverse">
             <div class="panel-heading">
-                <h4 class="panel-title" style="color:#fff;">
-                    <i class="fa fa-clock-o m-r-5"></i> Expiring Soon
-                </h4>
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="LoadPanels();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-clock-o m-r-5"></i> Expiring Soon</h4>
             </div>
             <div class="panel-body p-t-0" id="expiringProducts">
                 <i class="fa fa-spinner fa-spin"></i> Loading...
@@ -95,9 +67,10 @@
     <div class="col-md-6">
         <div class="panel panel-inverse">
             <div class="panel-heading">
-                <h4 class="panel-title" style="color:#fff;">
-                    <i class="fa fa-list m-r-5"></i> Recent Activity
-                </h4>
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="LoadPanels();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-bell m-r-5"></i> Alerts</h4>
             </div>
             <div class="panel-body p-t-0" id="recentActivity">
                 <i class="fa fa-spinner fa-spin"></i> Loading...
@@ -110,65 +83,54 @@
     <script>
         $(document).ready(function () {
             loadDashboardStats();
+            LoadPanels();
         });
 
         function loadDashboardStats() {
-            $.get('/Dashboard/Summary', function (resp) {
-                if (resp && resp.data) {
-                    var d = resp.data;
-                    $('#statProducts').text(d.total_products || 0);
-                    $('#statTodaySales').text('KES ' + numberWithCommas(d.today_sales || 0));
-                    $('#statCustomers').text(d.total_customers || 0);
-                    $('#statLowStock').text(d.low_stock_count || 0);
-                }
-            }).fail(function () {
+            ajaxGet('/Dashboard/Summary', function (d) {
+                $('#statProducts').text(d.total_products || 0);
+                $('#statTodaySales').text('KES ' + numberWithCommas(parseFloat(d.today_sales || 0).toFixed(2)));
+                $('#statCustomers').text(d.total_customers || 0);
+                $('#statLowStock').text(d.low_stock_count || 0);
+            }, function () {
                 $('#statProducts').text('0');
                 $('#statTodaySales').text('KES 0');
                 $('#statCustomers').text('0');
                 $('#statLowStock').text('0');
             });
+        }
 
-            $.get('/Dashboard/PharmacistStats', function (data) {
-                if (data) {
-                    if (data.totalProducts !== undefined) $('#statProducts').text(data.totalProducts);
-                    if (data.todaySales !== undefined) $('#statTodaySales').text('KES ' + numberWithCommas(data.todaySales));
-                }
-            });
-
-            $.get('/api/dashboard/expiringitems', function (resp) {
-                var items = resp.data || resp;
-                var html = '<table class="table table-condensed"><tbody>';
+        function LoadPanels() {
+            ajaxGet('/Dashboard/ExpiringItems', function (items) {
+                var html = '<table class="table table-condensed">';
                 if (items && items.length) {
                     $.each(items, function (i, item) {
-                        var expDate = item.expiry_date ? item.expiry_date.substring(0, 10) : '';
-                        var product = item.product_name || item.ProductName || '';
-                        var batch = item.batch_number || item.BatchNumber || '';
-                        html += '<tr><td>' + product + '</td><td>' + batch + '</td><td><span class="label label-warning">' + expDate + '</span></td></tr>';
+                        var expDate = item.expiry_date ? item.expiry_date.toString().substring(0, 10) : '';
+                        html += '<tr><td>' + (item.product_name || '—') + '</td><td>' + (item.batch_number || '—') + '</td><td><span class="label label-warning">' + expDate + '</span></td></tr>';
                     });
                 } else {
                     html += '<tr><td class="text-muted">No products expiring soon</td></tr>';
                 }
-                html += '</tbody></table>';
+                html += '</table>';
                 $('#expiringProducts').html(html);
-            }).fail(function () {
+            }, function () {
                 $('#expiringProducts').html('<p class="text-muted">Unable to load data</p>');
             });
 
-            $.get('/api/dashboard/alerts', function (resp) {
-                var items = resp.data || resp;
+            ajaxGet('/Dashboard/Alerts', function (items) {
                 var html = '<ul class="list-group">';
                 if (items && items.length) {
                     $.each(items, function (i, item) {
-                        var severity = item.severity || item.Severity || 'info';
+                        var severity = item.severity || 'info';
                         var icon = severity === 'danger' ? 'fa-exclamation-circle text-danger' : 'fa-exclamation-triangle text-warning';
-                        html += '<li class="list-group-item"><i class="fa ' + icon + ' m-r-5"></i>' + (item.title || item.Title || '') + ' <small class="text-muted">— ' + (item.description || item.Description || '') + '</small></li>';
+                        html += '<li class="list-group-item"><i class="fa ' + icon + ' m-r-5"></i>' + (item.title || '') + ' <small class="text-muted">— ' + (item.description || '') + '</small></li>';
                     });
                 } else {
                     html += '<li class="list-group-item text-muted">No alerts</li>';
                 }
                 html += '</ul>';
                 $('#recentActivity').html(html);
-            }).fail(function () {
+            }, function () {
                 $('#recentActivity').html('<p class="text-muted">Unable to load data</p>');
             });
         }

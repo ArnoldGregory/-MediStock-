@@ -105,7 +105,10 @@ namespace MediStock.API.Controllers
 
                 if (string.IsNullOrEmpty(email)) return Bad("Email is required");
 
-                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(password);
+                string storedPassword = newRoleId is 1 or 2
+                    ? new CryptoHelper.MediSecurity.Rijndael().Encrypt(password)
+                    : BCrypt.Net.BCrypt.HashPassword(password);
+
                 var user = new PharmacyUserModel
                 {
                     pharmacy_id = pharmacyId,
@@ -114,7 +117,8 @@ namespace MediStock.API.Controllers
                     last_name = lastName,
                     email = email,
                     mobile = phone,
-                    password = hashedPassword,
+                    phone = phone,
+                    password = storedPassword,
                     created_by = userId
                 };
 
@@ -182,6 +186,8 @@ namespace MediStock.API.Controllers
                 if (id <= 0) return Bad("id is required");
 
                 bool deleted = dbhandler.DeleteRecord(id, userId, "pharmacy_user");
+                if (!deleted)
+                    deleted = dbhandler.DeleteRecord(id, userId, "portal_user");
                 if (!deleted)
                     deleted = dbhandler.DeleteRecord(id, userId, "p_external_portal_user");
 

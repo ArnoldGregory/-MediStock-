@@ -21,11 +21,9 @@
                             <th>PO Number</th>
                             <th>Date</th>
                             <th>Supplier</th>
+                            <th>Expected Date</th>
                             <th>Total Amount</th>
-                            <th>Amount Paid</th>
-                            <th>Balance</th>
                             <th>Status</th>
-                            <th></th>
                         </tr>
                     </thead>
                 </table>
@@ -39,25 +37,43 @@
     <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script>
+        // ============================================================
+        //  Purchase Orders (Finance view) — (Riziki BFF pattern)
+        // ============================================================
+        var table;
+
         $(document).ready(function () {
-            $('#poTable').DataTable({
-                ajax: { url: '/api/purchase-orders', dataSrc: '' },
-                columns: [
-                    { data: 'poNumber' },
-                    { data: 'orderDate', render: function (d) { return formatDate(d); } },
-                    { data: 'supplierName' },
-                    { data: 'totalAmount', render: function (d) { return 'KES ' + parseFloat(d).toFixed(2); } },
-                    { data: 'amountPaid', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
-                    { data: null, render: function (d) { var bal = d.totalAmount - (d.amountPaid || 0); return bal > 0 ? '<span class="text-danger"><strong>KES ' + bal.toFixed(2) + '</strong></span>' : '<span class="text-success">KES 0.00</span>'; } },
-                    { data: 'status', render: function (d) {
-                        var cls = { 'Draft': 'label-default', 'Sent': 'label-info', 'Partial': 'label-warning', 'Received': 'label-success', 'Cancelled': 'label-danger' };
-                        return '<span class="label ' + (cls[d] || 'label-default') + '">' + d + '</span>';
-                    }},
-                    { data: null, orderable: false, searchable: false, render: function (d) { return '<a href="/Suppliers/PODetail/' + d.poId + '" class="btn btn-xs btn-info"><i class="fa fa-eye"></i></a>'; } }
-                ],
-                order: [[1, 'desc']]
-            });
+            table = initTable();
+            loadPurchaseOrders();
         });
+
+        function initTable() {
+            return $('#poTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: 'po_number', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'created_on', autoWidth: true, sDefaultContent: '-', render: function (d) { return formatDate(d); } },
+                    { data: 'supplier_name', autoWidth: true, sDefaultContent: '-' },
+                    { data: 'expected_date', autoWidth: true, sDefaultContent: '-', render: function (d) { return formatDate(d); } },
+                    { data: 'total', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return 'KES ' + parseFloat(d || 0).toFixed(2); } },
+                    { data: 'status', autoWidth: true, sDefaultContent: '-', render: function (d) {
+                        var cls = { 'Draft': 'label-default', 'Sent': 'label-info', 'Partial': 'label-warning', 'Received': 'label-success', 'Cancelled': 'label-danger' };
+                        return '<span class="label ' + (cls[d] || 'label-default') + '">' + (d || '-') + '</span>';
+                    } }
+                ]
+            });
+        }
+
+        function loadPurchaseOrders() {
+            ajaxGet('/Finance/GetPurchaseOrders', function (data) {
+                var s = table.fnSettings();
+                table.fnClearTable(true);
+                for (var i = 0; i < data.length; i++) table.oApi._fnAddData(s, data[i]);
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                table.fnDraw();
+            });
+        }
 
         function formatDate(d) {
             return d ? new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';

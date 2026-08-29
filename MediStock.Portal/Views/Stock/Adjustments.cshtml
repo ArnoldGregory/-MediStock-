@@ -2,7 +2,6 @@
     <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
     <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
     <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
-    <link href="~/assets/static/plugins/select2/dist/css/select2.min.css" rel="stylesheet" />
 }
 
 <h1 class="page-header"><i class="fa fa-sliders"></i> Stock Adjustments <small>Inventory</small></h1>
@@ -10,7 +9,7 @@
 <div class="panel panel-inverse">
     <div class="panel-heading">
         <div class="panel-heading-btn">
-            <a href="@Url.Action("Adjustments", "Stock")" class="btn btn-xs btn-icon btn-circle btn-success"><i class="fa fa-repeat"></i></a>
+            <button type="button" class="btn btn-xs btn-success" onclick="LoadAdjustments();"><i class="fa fa-repeat"></i></button>
         </div>
         <h4 class="panel-title">Stock Adjustments</h4>
     </div>
@@ -34,7 +33,6 @@
                             <th>Type</th>
                             <th>Quantity</th>
                             <th>Reason</th>
-                            <th>Adjusted By</th>
                         </tr>
                     </thead>
                 </table>
@@ -47,59 +45,50 @@
 <div class="modal fade" id="adjustmentModal" tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
-            <form asp-controller="Stock" asp-action="SaveAdjustment" method="POST" id="adjustmentForm">
-                @Html.AntiForgeryToken()
-                <div class="modal-header">
-                    <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
-                    <h4 class="modal-title"><i class="fa fa-sliders"></i> New Stock Adjustment</h4>
+            <div class="modal-header">
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+                <h4 class="modal-title"><i class="fa fa-sliders"></i> New Stock Adjustment</h4>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Product <span class="text-danger">*</span></label>
+                    <select class="form-control" id="adjProductId">
+                        <option value="">-- Select Product --</option>
+                    </select>
                 </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Product <span class="text-danger">*</span></label>
-                                <select class="form-control select2" id="adjProductId" name="productId" required>
-                                    <option value="">-- Select Product --</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Batch <span class="text-danger">*</span></label>
-                                <select class="form-control" id="adjBatchId" name="batchId" required>
-                                    <option value="">-- Select Product First --</option>
-                                </select>
-                            </div>
+                <div class="form-group">
+                    <label>Batch (optional)</label>
+                    <select class="form-control" id="adjBatchId">
+                        <option value="">-- Select Product First --</option>
+                    </select>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Adjustment Type <span class="text-danger">*</span></label>
+                            <select class="form-control" id="adjType">
+                                <option value="Addition">Addition (Stock In)</option>
+                                <option value="Reduction">Reduction (Stock Out)</option>
+                                <option value="WriteOff">Write Off</option>
+                            </select>
                         </div>
                     </div>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Adjustment Type <span class="text-danger">*</span></label>
-                                <select class="form-control" id="adjType" name="adjustmentType" required>
-                                    <option value="Addition">Addition (Stock In)</option>
-                                    <option value="Reduction">Reduction (Stock Out)</option>
-                                    <option value="WriteOff">Write Off</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Quantity <span class="text-danger">*</span></label>
-                                <input type="number" class="form-control" id="adjQuantity" name="quantity" min="1" required />
-                            </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Quantity <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="adjQuantity" min="1" placeholder="0" />
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label>Reason <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="adjReason" name="reason" rows="3" placeholder="e.g. Physical count correction, damaged goods, etc." required></textarea>
-                    </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
-                    <button type="submit" class="btn btn-success"><i class="fa fa-save"></i> Save Adjustment</button>
+                <div class="form-group">
+                    <label>Reason <span class="text-danger">*</span></label>
+                    <textarea class="form-control" id="adjReason" rows="3" placeholder="e.g. Physical count correction, damaged goods, etc."></textarea>
                 </div>
-            </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-default" data-dismiss="modal"><i class="fa fa-times"></i> Cancel</button>
+                <button type="button" class="btn btn-success" id="btnSaveAdjustment"><i class="fa fa-save"></i> Save Adjustment</button>
+            </div>
         </div>
     </div>
 </div>
@@ -109,82 +98,122 @@
     <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
     <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
-    <script src="~/assets/static/plugins/select2/dist/js/select2.full.min.js"></script>
     <script>
-        var table;
+        var _adjTable;
+        var allBatches = [];
+
         $(document).ready(function () {
-            $('.select2').select2({ width: '100%' });
-            loadAdjustments();
-            loadProducts();
+            _adjTable = InitAdjTable();
+            LoadAdjustments();
+            LoadAdjProducts();
+            LoadAdjBatches();
 
             $('#adjProductId').on('change', function () {
-                var pid = $(this).val();
-                if (pid) {
-                    $.get('/api/stock/batches?productId=' + pid, function (data) {
-                        var $sel = $('#adjBatchId');
-                        $sel.empty().append('<option value="">-- Select Batch --</option>');
-                        $.each(data, function (i, item) {
-                            $sel.append('<option value="' + item.batchId + '">' + item.batchNumber + ' (Qty: ' + item.quantity + ')</option>');
-                        });
-                    });
-                } else {
-                    $('#adjBatchId').empty().append('<option value="">-- Select Product First --</option>');
+                var pid = parseInt($(this).val()) || 0;
+                var $sel = $('#adjBatchId');
+                var opts = ['<option value="0">-- No Batch --</option>'];
+                if (pid && allBatches.length) {
+                    for (var i = 0; i < allBatches.length; i++) {
+                        if (parseInt(allBatches[i].product_id) === pid) {
+                            opts.push('<option value="' + allBatches[i].id + '">' + allBatches[i].batch_number + ' (Qty: ' + allBatches[i].quantity + ')</option>');
+                        }
+                    }
                 }
+                $sel.html(opts.join(''));
             });
         });
 
-        function loadAdjustments() {
-            table = $('#adjustmentsTable').DataTable({
-                ajax: { url: '/api/stock/adjustments', dataSrc: '' },
-                columns: [
-                    { data: 'adjustmentDate', render: function (d) { return formatDate(d); } },
-                    { data: 'productName' },
-                    { data: 'batchNumber' },
-                    { data: 'adjustmentType', render: function (d) {
-                        if (d === 'Addition') return '<span class="label label-success">Addition</span>';
-                        if (d === 'Reduction') return '<span class="label label-warning">Reduction</span>';
-                        return '<span class="label label-danger">Write Off</span>';
-                    }},
-                    { data: 'quantity' },
-                    { data: 'reason' },
-                    { data: 'adjustedByName' }
+        function InitAdjTable() {
+            return $('#adjustmentsTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.id); },
+                aoColumns: [
+                    { data: 'created_on',     autoWidth: true, sDefaultContent: '—', render: function (d) { return formatDate(d); } },
+                    { data: 'product_name',   autoWidth: true, sDefaultContent: '—' },
+                    { data: null,             autoWidth: true, sDefaultContent: '—', render: function (d) { return d.batch_number || '—'; } },
+                    { data: 'adjustment_type', autoWidth: true, sDefaultContent: '—', render: function (d) { return adjustmentLabel(d); } },
+                    { data: 'quantity',       autoWidth: true, sDefaultContent: '0' },
+                    { data: 'reason',         autoWidth: true, sDefaultContent: '—' }
                 ],
                 order: [[0, 'desc']]
             });
         }
 
-        function loadProducts() {
-            $.get('/api/products', function (data) {
-                var $sel = $('#adjProductId');
-                $sel.empty().append('<option value="">-- Select Product --</option>');
-                $.each(data, function (i, item) {
-                    $sel.append('<option value="' + item.productId + '">' + item.productName + '</option>');
-                });
+        function LoadAdjustments() {
+            ajaxGet('/Stock/GetAdjustments', function (data) {
+                var t = _adjTable;
+                var s = t.fnSettings();
+                t.fnClearTable(true);
+                if (data && data.length) {
+                    for (var i = 0; i < data.length; i++) t.oApi._fnAddData(s, data[i]);
+                }
+                s.aiDisplay = s.aiDisplayMaster.slice();
+                t.fnDraw();
             });
+        }
+
+        function LoadAdjProducts() {
+            ajaxGet('/Products/GetProducts', function (data) {
+                var $sel = $('#adjProductId');
+                var opts = ['<option value="">-- Select Product --</option>'];
+                if (data && data.length) {
+                    for (var i = 0; i < data.length; i++) {
+                        opts.push('<option value="' + data[i].id + '">' + data[i].name + ' (Stock: ' + data[i].stock_qty + ')</option>');
+                    }
+                }
+                $sel.html(opts.join(''));
+            });
+        }
+
+        function LoadAdjBatches() {
+            ajaxGet('/Stock/GetBatches', function (data) {
+                allBatches = data || [];
+            });
+        }
+
+        function adjustmentLabel(d) {
+            if (d === 'Addition') return '<span class="label label-success">Addition</span>';
+            if (d === 'Reduction') return '<span class="label label-warning">Reduction</span>';
+            if (d === 'WriteOff') return '<span class="label label-danger">Write Off</span>';
+            return '<span class="label label-default">' + (d || '—') + '</span>';
         }
 
         function formatDate(d) {
-            if (!d) return '-';
-            return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+            if (!d) return '—';
+            return new Date(d.indexOf('T') > -1 ? d : d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
         }
 
-        $('#adjustmentForm').on('submit', function (e) {
-            e.preventDefault();
-            $.ajax({
-                url: '/api/stock/adjustments',
-                type: 'POST',
-                data: $(this).serialize(),
-                success: function () {
-                    Swal.fire('Saved', 'Adjustment recorded successfully.', 'success');
+        $('#btnSaveAdjustment').on('click', function () {
+            var productId = parseInt($('#adjProductId').val()) || 0;
+            var batchId = parseInt($('#adjBatchId').val()) || 0;
+            var adjType = $('#adjType').val();
+            var quantity = parseInt($('#adjQuantity').val()) || 0;
+            var reason = $('#adjReason').val().trim();
+
+            if (!productId) { Swal.fire('Validation', 'Select a product.', 'warning'); return; }
+            if (!adjType) { Swal.fire('Validation', 'Select adjustment type.', 'warning'); return; }
+            if (quantity <= 0) { Swal.fire('Validation', 'Quantity must be greater than 0.', 'warning'); return; }
+            if (!reason) { Swal.fire('Validation', 'Reason is required.', 'warning'); return; }
+
+            var btn = this;
+            btnLoad(btn, 'Saving...');
+            ajaxPost('/Stock/AddAdjustment', {
+                product_id: productId,
+                batch_id: batchId,
+                adjustment_type: adjType,
+                quantity: quantity,
+                reason: reason
+            }, function (res) {
+                btnStop(btn);
+                if (res.success) {
                     $('#adjustmentModal').modal('hide');
-                    table.ajax.reload();
-                    $('#adjustmentForm')[0].reset();
-                    $('.select2').val(null).trigger('change');
-                },
-                error: function (xhr) {
-                    Swal.fire('Error', xhr.responseText || 'Unable to save adjustment.', 'error');
+                    $('#adjustmentModal input, #adjustmentModal select, #adjustmentModal textarea').val('');
+                    LoadAdjustments();
+                    Swal.fire('Saved', res.message, 'success');
+                } else {
+                    Swal.fire('Error', res.message, 'error');
                 }
-            });
+            }, function () { btnStop(btn); Swal.fire('Error', 'Request failed.', 'error'); });
         });
     </script>
 }

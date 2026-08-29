@@ -1,7 +1,7 @@
 // ============================================================
-//  MediStock.Portal — ProductsController
+//  MediStock.Portal — ProductsController (Riziki BFF pattern)
 //  Routes:
-//    GET  /Products/Index          → products list view
+//    GET  /Products/Index          → product register view
 //    GET  /Products/Categories     → categories view
 //    GET  /Products/GetProducts    → JSON proxy → api/products
 //    GET  /Products/GetCategories  → JSON proxy → api/products/categories
@@ -9,6 +9,8 @@
 //    POST /Products/AddProduct     → proxy → api/products/addproduct
 //    POST /Products/UpdateProduct  → proxy → api/products/updateproduct
 //    POST /Products/DeleteProduct  → proxy → api/products/deleteproduct
+//    POST /Products/AddCategory    → proxy → api/products/addcategory
+//    POST /Products/DeleteCategory → proxy → api/products/deletecategory
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -42,100 +44,78 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
-        // ── Data ──────────────────────────────────────────────────────────────
+        // ── Data proxies ──────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetProducts()
         {
-            try
-            {
-                var result = await _api.GetAsync<object>("api/products?pharmacyId=" + GetPharmacyId());
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetProduct(long id)
-        {
-            if (id <= 0) return Json(new { error = "id required" });
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/products/getproduct?id={id}");
-                return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
+            var result = await _api.GetAsync<object>("api/products");
+            return Json(result.IsSuccess ? result.Data : new List<object>());
         }
 
         [HttpGet]
         public async Task<IActionResult> GetCategories()
         {
-            try
-            {
-                var result = await _api.GetAsync<object>("api/products/categories?pharmacyId=" + GetPharmacyId());
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
+            var result = await _api.GetAsync<object>("api/products/categories");
+            return Json(result.IsSuccess ? result.Data : new List<object>());
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetProduct(long id)
+        {
+            if (id <= 0) return Json(new { success = false, message = "id required" });
+            var result = await _api.GetAsync<object>("api/products/getproduct?id=" + id);
+            return Json(result.IsSuccess ? result.Data : new { success = false, message = result.Error });
         }
 
         [HttpPost]
         public async Task<IActionResult> AddProduct([FromBody] AddProductRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || string.IsNullOrWhiteSpace(model.name))
+                return Json(new { success = false, message = "Product name is required" });
 
             var result = await _api.PostAsync<object>("api/products/addproduct", new
             {
-                pharmacy_id     = GetPharmacyId(),
-                product_name    = model.product_name,
-                generic_name    = model.generic_name,
-                category_id     = model.category_id,
-                unit_price      = model.unit_price,
-                cost_price      = model.cost_price,
-                quantity        = model.quantity,
-                reorder_level   = model.reorder_level,
-                expiry_date     = model.expiry_date,
-                batch_number    = model.batch_number,
-                manufacturer    = model.manufacturer,
-                supplier_id     = model.supplier_id
+                name = model.name,
+                sku = model.sku,
+                barcode = model.barcode,
+                description = model.description,
+                category_id = model.category_id,
+                cost_price = model.cost_price,
+                selling_price = model.selling_price,
+                reorder_level = model.reorder_level,
+                unit_of_measure = model.unit_of_measure,
+                is_controlled_drug = model.is_controlled_drug
             });
 
-            if (result.IsSuccess)
-                return Json(new { success = true, message = "Product added successfully" });
-
-            return Json(new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add product" : result.Error });
+            return Json(result.IsSuccess
+                ? new { success = true, message = "Product added" }
+                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add product" : result.Error });
         }
 
         [HttpPost]
-        public async Task<IActionResult> UpdateProduct([FromBody] UpdateProductRequest model)
+        public async Task<IActionResult> UpdateProduct([FromBody] AddProductRequest model)
         {
-            if (model == null || model.id <= 0)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || model.id <= 0 || string.IsNullOrWhiteSpace(model.name))
+                return Json(new { success = false, message = "id and name are required" });
 
             var result = await _api.PostAsync<object>("api/products/updateproduct", new
             {
-                id              = model.id,
-                product_name    = model.product_name,
-                generic_name    = model.generic_name,
-                category_id     = model.category_id,
-                unit_price      = model.unit_price,
-                cost_price      = model.cost_price,
-                reorder_level   = model.reorder_level,
-                manufacturer    = model.manufacturer
+                id = model.id,
+                name = model.name,
+                sku = model.sku,
+                barcode = model.barcode,
+                description = model.description,
+                category_id = model.category_id,
+                cost_price = model.cost_price,
+                selling_price = model.selling_price,
+                reorder_level = model.reorder_level,
+                unit_of_measure = model.unit_of_measure,
+                is_controlled_drug = model.is_controlled_drug
             });
 
-            if (result.IsSuccess)
-                return Json(new { success = true, message = "Product updated successfully" });
-
-            return Json(new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to update product" : result.Error });
+            return Json(result.IsSuccess
+                ? new { success = true, message = "Product updated" }
+                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to update product" : result.Error });
         }
 
         [HttpPost]
@@ -153,13 +133,13 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> AddCategory([FromBody] CategoryRequest model)
         {
-            if (model == null || string.IsNullOrWhiteSpace(model.category_name))
-                return Json(new { success = false, message = "category_name is required" });
+            if (model == null || string.IsNullOrWhiteSpace(model.name))
+                return Json(new { success = false, message = "Category name is required" });
 
             var result = await _api.PostAsync<object>("api/products/addcategory", new
             {
-                category_name = model.category_name.Trim(),
-                description   = model.description
+                name = model.name.Trim(),
+                description = model.description
             });
 
             return Json(result.IsSuccess
@@ -179,45 +159,28 @@ namespace MediStock.Portal.Controllers
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to delete category" : result.Error });
         }
 
-        private string GetPharmacyId()
-        {
-            return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";
-        }
-
         // ── Request models ────────────────────────────────────────────────────
         public class IdRequest { public long id { get; set; } }
 
         public class AddProductRequest
         {
-            public string? product_name { get; set; }
-            public string? generic_name { get; set; }
-            public long    category_id  { get; set; }
-            public decimal unit_price   { get; set; }
-            public decimal cost_price   { get; set; }
-            public int     quantity     { get; set; }
-            public int     reorder_level { get; set; }
-            public string? expiry_date  { get; set; }
-            public string? batch_number { get; set; }
-            public string? manufacturer { get; set; }
-            public long    supplier_id  { get; set; }
-        }
-
-        public class UpdateProductRequest
-        {
-            public long    id              { get; set; }
-            public string? product_name    { get; set; }
-            public string? generic_name    { get; set; }
-            public long    category_id     { get; set; }
-            public decimal unit_price      { get; set; }
-            public decimal cost_price      { get; set; }
-            public int     reorder_level   { get; set; }
-            public string? manufacturer    { get; set; }
+            public long    id                 { get; set; }
+            public long    category_id        { get; set; }
+            public string? name               { get; set; }
+            public string? sku                { get; set; }
+            public string? barcode            { get; set; }
+            public string? description        { get; set; }
+            public decimal cost_price         { get; set; }
+            public decimal selling_price      { get; set; }
+            public int     reorder_level      { get; set; }
+            public string? unit_of_measure    { get; set; }
+            public bool    is_controlled_drug { get; set; }
         }
 
         public class CategoryRequest
         {
-            public string? category_name { get; set; }
-            public string? description   { get; set; }
+            public string? name        { get; set; }
+            public string? description { get; set; }
         }
     }
 }

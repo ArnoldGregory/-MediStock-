@@ -54,11 +54,11 @@ namespace MediStock.API.Models
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@module", module);
-                cmd.Parameters.AddWithValue("@param1", param1);
-                cmd.Parameters.AddWithValue("@param2", param2);
-                cmd.Parameters.AddWithValue("@param3", param3);
-                cmd.Parameters.AddWithValue("@param4", param4);
+                cmd.Parameters.AddWithValue("@p_module", module);
+                cmd.Parameters.AddWithValue("@p_param1", param1);
+                cmd.Parameters.AddWithValue("@p_param2", param2);
+                cmd.Parameters.AddWithValue("@p_param3", param3);
+                cmd.Parameters.AddWithValue("@p_param4", param4);
                 sd.Fill(dt);
             }
             catch (Exception ex)
@@ -78,8 +78,8 @@ namespace MediStock.API.Models
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@module", module);
-                cmd.Parameters.AddWithValue("@record_id", id);
+                cmd.Parameters.AddWithValue("@p_module", module);
+                cmd.Parameters.AddWithValue("@p_record_id", id);
                 sd.Fill(dt);
             }
             catch (Exception ex)
@@ -99,9 +99,9 @@ namespace MediStock.API.Models
                     using MySqlCommand cmd = new MySqlCommand("delete_records", connect);
                     connect.Open();
                     cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.AddWithValue("@recordid", id);
-                    cmd.Parameters.AddWithValue("@in_deleted_by", deleted_by);
-                    cmd.Parameters.AddWithValue("@module", module);
+                    cmd.Parameters.AddWithValue("@p_recordid", id);
+                    cmd.Parameters.AddWithValue("@p_deleted_by", deleted_by);
+                    cmd.Parameters.AddWithValue("@p_module", module);
                     i = (int)cmd.ExecuteNonQuery();
                 }
                 if (i >= 1) return true;
@@ -174,17 +174,17 @@ namespace MediStock.API.Models
                         connect.Open();
                         cmd.CommandType = CommandType.StoredProcedure;
 
-                        MySqlParameter outputParam = new MySqlParameter("@id", MySqlDbType.Int32);
+                        MySqlParameter outputParam = new MySqlParameter("@p_id", MySqlDbType.Int32);
                         outputParam.Direction = ParameterDirection.Output;
                         cmd.Parameters.Add(outputParam);
 
-                        cmd.Parameters.AddWithValue("@in_user_name", model.user_name);
-                        cmd.Parameters.AddWithValue("@in_action_type", model.action_type);
-                        cmd.Parameters.AddWithValue("@in_action_description", model.action_description);
-                        cmd.Parameters.AddWithValue("@in_page_accessed", model.page_accessed);
-                        cmd.Parameters.AddWithValue("@in_client_ip_address", model.client_ip_address);
-                        cmd.Parameters.AddWithValue("@in_session_id", model.session_id);
-                        cmd.Parameters.AddWithValue("@in_created_on", model.created_on);
+                        cmd.Parameters.AddWithValue("@p_user_name", model.user_name);
+                        cmd.Parameters.AddWithValue("@p_action_type", model.action_type);
+                        cmd.Parameters.AddWithValue("@p_action_description", model.action_description);
+                        cmd.Parameters.AddWithValue("@p_page_accessed", model.page_accessed);
+                        cmd.Parameters.AddWithValue("@p_client_ip_address", model.client_ip_address);
+                        cmd.Parameters.AddWithValue("@p_session_id", model.session_id);
+                        cmd.Parameters.AddWithValue("@p_created_on", model.created_on);
 
                         i = cmd.ExecuteNonQuery();
                     }
@@ -435,7 +435,7 @@ namespace MediStock.API.Models
                         using MySqlCommand cmd = new MySqlCommand("revoke_refresh_token", connect);
                         connect.Open();
                         cmd.CommandType = CommandType.StoredProcedure;
-                        cmd.Parameters.AddWithValue("@p_hashed_token", storedHashed);
+                        cmd.Parameters.AddWithValue("@p_token", storedHashed);
                         cmd.Parameters.AddWithValue("@p_ip", ipAddress ?? "unknown");
                         int rows = cmd.ExecuteNonQuery();
                         success = rows > 0;
@@ -591,7 +591,7 @@ namespace MediStock.API.Models
                     cmd.CommandType = CommandType.StoredProcedure;
                     cmd.Parameters.AddWithValue("@p_email", email);
                     cmd.Parameters.AddWithValue("@p_password", password);
-                    cmd.Parameters.AddWithValue("@profiletype", profile_type);
+                    cmd.Parameters.AddWithValue("@p_profiletype", profile_type);
                     i = (int)cmd.ExecuteNonQuery();
                 }
                 if (i >= 1) return true;
@@ -614,7 +614,7 @@ namespace MediStock.API.Models
                     using MySqlCommand cmd = new MySqlCommand("update_jwt_token", connect);
                     connect.Open();
                     cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.AddWithValue("@in_id", user_id);
+                    cmd.Parameters.AddWithValue("@p_id", user_id);
                     cmd.Parameters.AddWithValue("@p_jwt", jwt);
                     i = (int)cmd.ExecuteNonQuery();
                 }
@@ -831,6 +831,10 @@ namespace MediStock.API.Models
                 cmd.Parameters.AddWithValue("@in_address", (object?)m.address ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@in_date_of_birth", (object?)m.date_of_birth ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@in_gender", (object?)m.gender ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_customer_type", (object?)m.customer_type ?? "Retail");
+                cmd.Parameters.AddWithValue("@in_credit_limit", m.credit_limit);
+                cmd.Parameters.AddWithValue("@in_payment_terms", (object?)m.payment_terms ?? "Cash");
+                cmd.Parameters.AddWithValue("@in_is_active", m.is_active ? 1 : 0);
                 cmd.Parameters.AddWithValue("@in_created_by", m.created_by);
                 cmd.ExecuteNonQuery();
 
@@ -886,6 +890,35 @@ namespace MediStock.API.Models
             }
         }
 
+        public bool UpdateSupplier(SupplierModel m)
+        {
+            logger.Info("******* Start UpdateSupplier Process *********");
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("update_supplier", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@in_id", m.id);
+                cmd.Parameters.AddWithValue("@in_pharmacy_id", m.pharmacy_id);
+                cmd.Parameters.AddWithValue("@in_name", (object?)m.name ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_contact_person", (object?)m.contact_person ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_email", (object?)m.email ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_phone", (object?)m.phone ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_address", (object?)m.address ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_city", (object?)m.city ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_country", (object?)m.country ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_is_active", m.is_active ? 1 : 0);
+                int rows = cmd.ExecuteNonQuery();
+                return rows >= 0;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("UpdateSupplier: " + ex.Message + " - " + ex.StackTrace + " - " + (ex.InnerException?.ToString() ?? ""));
+                return false;
+            }
+        }
+
         public bool AddSale(SaleModel m)
         {
             logger.Info("******* Start AddSale Process *********");
@@ -924,7 +957,7 @@ namespace MediStock.API.Models
             }
         }
 
-        public bool AddSaleItems(Int64 saleId, List<SaleItemModel> items)
+        public bool AddSaleItems(Int64 saleId, Int64 pharmacyId, List<SaleItemModel> items)
         {
             logger.Info("******* Start AddSaleItems Process *********");
             try
@@ -941,6 +974,19 @@ namespace MediStock.API.Models
                     cmd.Parameters.AddWithValue("@in_unit_price", item.unit_price);
                     cmd.Parameters.AddWithValue("@in_discount", item.discount);
                     cmd.Parameters.AddWithValue("@in_total", item.total);
+                    cmd.ExecuteNonQuery();
+                }
+
+                foreach (var item in items)
+                {
+                    using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                    using MySqlCommand cmd = new MySqlCommand("deduct_stock_on_sale", connect);
+                    connect.Open();
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                    cmd.Parameters.AddWithValue("@p_product_id", item.product_id);
+                    cmd.Parameters.AddWithValue("@p_batch_id", (object?)item.batch_id ?? DBNull.Value);
+                    cmd.Parameters.AddWithValue("@p_quantity", item.quantity);
                     cmd.ExecuteNonQuery();
                 }
                 logger.Info("******* End AddSaleItems Process *********");
@@ -1247,6 +1293,77 @@ namespace MediStock.API.Models
             return dt;
         }
 
+        // All master menu items from menu_access_data with a per-role access flag.
+        public DataTable GetMenuAccessWithState(int roleId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand(
+                    "SELECT mad.id, mad.main_menu_name, mad.sub_menu_name, mad.menu_icon, mad.menu_order, " +
+                    "mad.sub_menu_order, mad.page_url, mad.menu_type, " +
+                    "CASE WHEN ma.id IS NOT NULL THEN 1 ELSE 0 END AS has_access " +
+                    "FROM menu_access_data mad " +
+                    "LEFT JOIN menu_access ma ON ma.role_id = @p_role_id " +
+                    "  AND ma.main_menu_name = mad.main_menu_name " +
+                    "  AND COALESCE(ma.sub_menu_name,'') = COALESCE(mad.sub_menu_name,'') " +
+                    "  AND ma.can_access = 1 " +
+                    "ORDER BY mad.menu_order, mad.sub_menu_order", connect);
+                cmd.Parameters.AddWithValue("@p_role_id", roleId);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetMenuAccessWithState: " + ex.Message + " - " + ex.StackTrace);
+            }
+            return dt;
+        }
+
+        // Set / revoke access for a single menu item on a role (name-keyed, matches get_menu).
+        public bool SetMenuAccess(int roleId, string mainMenuName, string subMenuName,
+            string pageUrl, string menuIcon, int menuOrder, int subMenuOrder, bool canAccess)
+        {
+            try
+            {
+                mainMenuName = mainMenuName?.Replace("'", "''") ?? "";
+                subMenuName = (subMenuName ?? "").Replace("'", "''");
+                pageUrl = "~" + (pageUrl ?? "").Replace("~", "").Replace("'", "''");
+                menuIcon = (menuIcon ?? "fa-circle").Replace("'", "''");
+
+                string existsSql = $"SELECT id FROM menu_access WHERE role_id = {roleId} " +
+                    $"AND main_menu_name = '{mainMenuName}' AND COALESCE(sub_menu_name,'') = '{subMenuName}'";
+                DataTable exists = GetAdhocData(existsSql);
+
+                if (canAccess)
+                {
+                    if (exists.Rows.Count > 0)
+                    {
+                        GetAdhocData($"UPDATE menu_access SET can_access = 1, page_url = '{pageUrl}', " +
+                            $"menu_icon = '{menuIcon}', menu_order = {menuOrder}, sub_menu_order = {subMenuOrder} " +
+                            $"WHERE id = {exists.Rows[0]["id"]}");
+                    }
+                    else
+                    {
+                        GetAdhocData($"INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page_url, can_access, menu_order, sub_menu_order) " +
+                            $"VALUES ({roleId}, '{mainMenuName}', '{subMenuName}', '{menuIcon}', '{pageUrl}', 1, {menuOrder}, {subMenuOrder})");
+                    }
+                }
+                else
+                {
+                    GetAdhocData($"UPDATE menu_access SET can_access = 0, menu_order = {menuOrder}, sub_menu_order = {subMenuOrder} " +
+                        $"WHERE role_id = {roleId} AND main_menu_name = '{mainMenuName}' AND COALESCE(sub_menu_name,'') = '{subMenuName}'");
+                }
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("SetMenuAccess: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return false;
+            }
+        }
+
         #endregion
 
         #region Admin Methods
@@ -1299,8 +1416,8 @@ namespace MediStock.API.Models
                 using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
                 connect.Open();
                 using MySqlCommand cmd = new MySqlCommand(
-                    "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, is_active, avatar, " +
-                    "CONCAT(first_name, ' ', last_name) AS fullName, last_login_date " +
+                    "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, IF(locked=1,0,1) AS is_active, avatar, " +
+                    "CONCAT(first_name, ' ', last_name) AS fullName, created_on AS last_login_date " +
                     "FROM p_external_portal_user WHERE pharmacy_id = @pid AND is_deleted = 0", connect);
                 cmd.Parameters.AddWithValue("@pid", pharmacyId);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
@@ -1321,7 +1438,7 @@ namespace MediStock.API.Models
                 using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
                 connect.Open();
                 using MySqlCommand cmd = new MySqlCommand(
-                    "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, is_active, avatar " +
+                    "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, IF(locked=1,0,1) AS is_active, avatar " +
                     "FROM p_external_portal_user WHERE id = @id AND is_deleted = 0", connect);
                 cmd.Parameters.AddWithValue("@id", id);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
@@ -1377,6 +1494,157 @@ namespace MediStock.API.Models
             {
                 logger.Error("AdminResetPassword: " + ex.Message + " - " + ex.StackTrace);
                 return false;
+            }
+        }
+
+        #endregion
+
+        #region SuperAdmin Methods
+
+        public DataTable GetAllPharmacies()
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_all_pharmacies", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetAllPharmacies: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetAllUsers(Int64 excludeUserId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_all_users", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_exclude_user_id", excludeUserId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetAllUsers: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetPlatformStats()
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_platform_stats", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetPlatformStats: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public DataTable GetPlatformAudit(int limit)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_platform_audit", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_limit", limit);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetPlatformAudit: " + ex.Message + " - " + ex.StackTrace); }
+            return dt;
+        }
+
+        public (Int64 pharmacyId, Int64 userId, int errorCode, string errorDesc) AddPharmacyPlatform(
+            string name, string slug, string? phone, string? email, string? address,
+            string? licenseNumber, string currency, string? ownerFirst, string? ownerLast,
+            string ownerEmail, string? ownerMobile, string ownerPassword, string portalPassword, Int64 createdBy)
+        {
+            Int64 pharmacyId = 0;
+            Int64 userId = 0;
+            int errorCode = 0;
+            string errorDesc = "OK";
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("add_pharmacy_platform", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@p_pharmacy_id", MySqlDbType.Int64).Direction = ParameterDirection.Output;
+                cmd.Parameters.Add("@p_user_id", MySqlDbType.Int64).Direction = ParameterDirection.Output;
+                cmd.Parameters.Add("@p_error_code", MySqlDbType.Int32).Direction = ParameterDirection.Output;
+                cmd.Parameters.Add("@p_error_desc", MySqlDbType.VarChar, 500).Direction = ParameterDirection.Output;
+                cmd.Parameters.AddWithValue("@p_name", (object?)name ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_slug", (object?)slug ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_phone", (object?)phone ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_email", (object?)email ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_address", (object?)address ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_license_number", (object?)licenseNumber ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_currency", (object?)currency ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_owner_first", (object?)ownerFirst ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_owner_last", (object?)ownerLast ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_owner_email", (object?)ownerEmail ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_owner_mobile", (object?)ownerMobile ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_owner_password", (object?)ownerPassword ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_portal_password", (object?)portalPassword ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_created_by", createdBy);
+                cmd.ExecuteNonQuery();
+
+                if (cmd.Parameters["@p_pharmacy_id"].Value != null && cmd.Parameters["@p_pharmacy_id"].Value != DBNull.Value)
+                    pharmacyId = Convert.ToInt64(cmd.Parameters["@p_pharmacy_id"].Value);
+                if (cmd.Parameters["@p_user_id"].Value != null && cmd.Parameters["@p_user_id"].Value != DBNull.Value)
+                    userId = Convert.ToInt64(cmd.Parameters["@p_user_id"].Value);
+                if (cmd.Parameters["@p_error_code"].Value != null && cmd.Parameters["@p_error_code"].Value != DBNull.Value)
+                    errorCode = Convert.ToInt32(cmd.Parameters["@p_error_code"].Value);
+                if (cmd.Parameters["@p_error_desc"].Value != null && cmd.Parameters["@p_error_desc"].Value != DBNull.Value)
+                    errorDesc = cmd.Parameters["@p_error_desc"].Value.ToString() ?? "OK";
+            }
+            catch (Exception ex)
+            {
+                logger.Error("AddPharmacyPlatform: " + ex.Message + " - " + ex.StackTrace);
+                errorCode = -1;
+                errorDesc = "An unexpected error occurred";
+            }
+            return (pharmacyId, userId, errorCode, errorDesc);
+        }
+
+        public (bool success, string message) UpdatePharmacyStatus(Int64 pharmacyId, bool isActive)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("update_pharmacy_status", connect);
+                cmd.Parameters.Add("@p_error_code", MySqlDbType.Int32).Direction = ParameterDirection.Output;
+                cmd.Parameters.Add("@p_error_desc", MySqlDbType.VarChar, 500).Direction = ParameterDirection.Output;
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_is_active", isActive ? 1 : 0);
+                cmd.ExecuteNonQuery();
+
+                int errorCode = cmd.Parameters["@p_error_code"].Value != null && cmd.Parameters["@p_error_code"].Value != DBNull.Value
+                    ? Convert.ToInt32(cmd.Parameters["@p_error_code"].Value) : 0;
+                string errorDesc = cmd.Parameters["@p_error_desc"].Value != null && cmd.Parameters["@p_error_desc"].Value != DBNull.Value
+                    ? cmd.Parameters["@p_error_desc"].Value.ToString() ?? "OK" : "OK";
+
+                return (errorCode == 0, errorDesc);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("UpdatePharmacyStatus: " + ex.Message + " - " + ex.StackTrace);
+                return (false, "An unexpected error occurred");
             }
         }
 

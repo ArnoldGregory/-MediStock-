@@ -5,12 +5,12 @@
 //    GET  /Suppliers/PurchaseOrders    → purchase orders view
 //    GET  /Suppliers/ReceiveStock      → receive stock view
 //    GET  /Suppliers/GetSuppliers      → JSON suppliers list
-//    POST /Suppliers/AddSupplier       → proxy → api/suppliers/addsupplier
-//    POST /Suppliers/UpdateSupplier    → proxy → api/suppliers/updatesupplier
-//    POST /Suppliers/DeleteSupplier    → proxy → api/suppliers/deletesupplier
+//    POST /Suppliers/AddSupplier       → proxy → POST api/suppliers
+//    POST /Suppliers/UpdateSupplier    → proxy → PUT api/suppliers/{id}
+//    POST /Suppliers/DeleteSupplier    → proxy → DELETE api/suppliers/{id}
 //    GET  /Suppliers/GetPurchaseOrders → JSON purchase orders
-//    POST /Suppliers/CreatePurchaseOrder → proxy → api/suppliers/createpo
-//    POST /Suppliers/ReceivePurchaseOrder → proxy → api/suppliers/receivepo
+//    POST /Suppliers/CreatePurchaseOrder → proxy → POST api/suppliers/po
+//    POST /Suppliers/ReceivePurchaseOrder → proxy → POST api/suppliers/po/{id}/receive
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -44,8 +44,9 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
-        public async Task<IActionResult> ReceiveStock()
+        public async Task<IActionResult> ReceiveStock(long? id)
         {
+            ViewBag.PoId = id ?? 0;
             await _audit.LogViewAsync("Suppliers/ReceiveStock");
             return View();
         }
@@ -71,7 +72,7 @@ namespace MediStock.Portal.Controllers
             if (id <= 0) return Json(new { error = "id required" });
             try
             {
-                var result = await _api.GetAsync<object>($"api/suppliers/getsupplier?id={id}");
+                var result = await _api.GetAsync<object>($"api/suppliers/{id}");
                 return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
@@ -86,15 +87,17 @@ namespace MediStock.Portal.Controllers
             if (model == null)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/suppliers/addsupplier", new
+            var result = await _api.PostAsync<object>("api/suppliers", new
             {
                 pharmacy_id    = GetPharmacyId(),
-                supplier_name  = model.supplier_name,
+                name           = model.name,
                 contact_person = model.contact_person,
                 phone          = model.phone,
                 email          = model.email,
                 address        = model.address,
-                tax_number     = model.tax_number
+                city           = model.city,
+                country        = model.country,
+                is_active      = model.is_active
             });
 
             return Json(result.IsSuccess
@@ -108,15 +111,16 @@ namespace MediStock.Portal.Controllers
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/suppliers/updatesupplier", new
+            var result = await _api.PutAsync<object>($"api/suppliers/{model.id}", new
             {
-                id             = model.id,
-                supplier_name  = model.supplier_name,
+                name           = model.name,
                 contact_person = model.contact_person,
                 phone          = model.phone,
                 email          = model.email,
                 address        = model.address,
-                tax_number     = model.tax_number
+                city           = model.city,
+                country        = model.country,
+                is_active      = model.is_active
             });
 
             return Json(result.IsSuccess
@@ -130,7 +134,7 @@ namespace MediStock.Portal.Controllers
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "id is required" });
 
-            var result = await _api.PostAsync<object>("api/suppliers/deletesupplier", new { id = model.id });
+            var result = await _api.DeleteAsync<object>($"api/suppliers/{model.id}");
             return Json(result.IsSuccess
                 ? new { success = true, message = "Supplier deleted" }
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to delete supplier" : result.Error });
@@ -142,8 +146,8 @@ namespace MediStock.Portal.Controllers
         {
             try
             {
-                var qs = "api/suppliers/purchaseorders?pharmacyId=" + GetPharmacyId();
-                if (!string.IsNullOrWhiteSpace(status)) qs += $"&status={status}";
+                var qs = "api/suppliers/po";
+                if (!string.IsNullOrWhiteSpace(status)) qs += $"?status={status}";
                 var result = await _api.GetAsync<object>(qs);
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
@@ -159,7 +163,7 @@ namespace MediStock.Portal.Controllers
             if (id <= 0) return Json(new { error = "id required" });
             try
             {
-                var result = await _api.GetAsync<object>($"api/suppliers/getpo?id={id}");
+                var result = await _api.GetAsync<object>($"api/suppliers/po/{id}");
                 return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
@@ -171,15 +175,18 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> CreatePurchaseOrder([FromBody] CreatePoRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
+            if (model == null || model.supplier_id <= 0 || model.product_id <= 0)
+                return Json(new { success = false, message = "Supplier and product are required" });
 
-            var result = await _api.PostAsync<object>("api/suppliers/createpo", new
+            var result = await _api.PostAsync<object>("api/suppliers/po", new
             {
-                pharmacy_id  = GetPharmacyId(),
-                supplier_id  = model.supplier_id,
-                items        = model.items,
-                notes        = model.notes
+                supplier_id   = model.supplier_id,
+                product_id    = model.product_id,
+                quantity      = model.quantity,
+                unit_cost     = model.unit_cost,
+                total_cost    = model.quantity * model.unit_cost,
+                expected_date = model.expected_date,
+                notes         = model.notes
             });
 
             return Json(result.IsSuccess
@@ -193,10 +200,10 @@ namespace MediStock.Portal.Controllers
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "Invalid request" });
 
-            var result = await _api.PostAsync<object>("api/suppliers/receivepo", new
+            var result = await _api.PostAsync<object>($"api/suppliers/po/{model.id}/receive", new
             {
-                id    = model.id,
-                items = model.items
+                quantity_received = model.quantity_received,
+                notes             = model.notes
             });
 
             return Json(result.IsSuccess
@@ -214,36 +221,44 @@ namespace MediStock.Portal.Controllers
 
         public class AddSupplierRequest
         {
-            public string? supplier_name  { get; set; }
+            public string? name           { get; set; }
             public string? contact_person { get; set; }
             public string? phone          { get; set; }
             public string? email          { get; set; }
             public string? address        { get; set; }
-            public string? tax_number     { get; set; }
+            public string? city           { get; set; }
+            public string? country        { get; set; }
+            public bool    is_active      { get; set; } = true;
         }
 
         public class UpdateSupplierRequest
         {
             public long    id              { get; set; }
-            public string? supplier_name   { get; set; }
+            public string? name            { get; set; }
             public string? contact_person  { get; set; }
             public string? phone           { get; set; }
             public string? email           { get; set; }
             public string? address         { get; set; }
-            public string? tax_number      { get; set; }
+            public string? city            { get; set; }
+            public string? country         { get; set; }
+            public bool    is_active       { get; set; } = true;
         }
 
         public class CreatePoRequest
         {
-            public long?          supplier_id { get; set; }
-            public List<object>?  items       { get; set; }
-            public string?        notes       { get; set; }
+            public long     supplier_id     { get; set; }
+            public long     product_id      { get; set; }
+            public int      quantity        { get; set; }
+            public decimal  unit_cost       { get; set; }
+            public string?  expected_date   { get; set; }
+            public string?  notes           { get; set; }
         }
 
         public class ReceivePoRequest
         {
-            public long          id    { get; set; }
-            public List<object>? items { get; set; }
+            public long    id                 { get; set; }
+            public int     quantity_received  { get; set; }
+            public string? notes              { get; set; }
         }
     }
 }

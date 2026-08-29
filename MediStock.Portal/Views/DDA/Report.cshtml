@@ -1,5 +1,5 @@
 @section PageStyles {
-    <link href="~/assets/static/plugins/bootstrap-datepicker/css/bootstrap-datepicker.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
 }
 
 <h1 class="page-header"><i class="fa fa-shield"></i> DDA Compliance Report <small>Controlled Substances</small></h1>
@@ -12,44 +12,37 @@
         <div class="row">
             <div class="col-md-3">
                 <label>From</label>
-                <input type="text" class="form-control date-picker" id="dateFrom" />
+                <input type="date" class="form-control" id="dateFrom" />
             </div>
             <div class="col-md-3">
                 <label>To</label>
-                <input type="text" class="form-control date-picker" id="dateTo" />
+                <input type="date" class="form-control" id="dateTo" />
             </div>
             <div class="col-md-3">
                 <label>&nbsp;</label>
                 <div>
                     <button class="btn btn-primary" onclick="generateReport();"><i class="fa fa-cog"></i> Generate</button>
-                    <button class="btn btn-default" onclick="window.print();"><i class="fa fa-print"></i> Print</button>
+                    <button class="btn btn-default" onclick="ExportReportCsv();"><i class="fa fa-download"></i> Export CSV</button>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Summary -->
 <div class="row" id="summaryRow" style="display:none;">
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md-4 col-sm-6">
         <div class="widget widget-stats bg-blue">
             <div class="stats-icon"><i class="fa fa-shield"></i></div>
             <div class="stats-info"><h4>DDA PRODUCTS</h4><p id="rptDDAProducts">-</p></div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
-        <div class="widget widget-stats bg-green">
-            <div class="stats-icon"><i class="fa fa-arrow-down"></i></div>
-            <div class="stats-info"><h4>TOTAL RECEIVED</h4><p id="rptReceived">-</p></div>
-        </div>
-    </div>
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md-4 col-sm-6">
         <div class="widget widget-stats bg-orange">
             <div class="stats-icon"><i class="fa fa-arrow-up"></i></div>
             <div class="stats-info"><h4>TOTAL DISPENSED</h4><p id="rptDispensed">-</p></div>
         </div>
     </div>
-    <div class="col-md-3 col-sm-6">
+    <div class="col-md-4 col-sm-6">
         <div class="widget widget-stats bg-purple">
             <div class="stats-icon"><i class="fa fa-balance-scale"></i></div>
             <div class="stats-info"><h4>CLOSING STOCK</h4><p id="rptClosingStock">-</p></div>
@@ -57,7 +50,6 @@
     </div>
 </div>
 
-<!-- Product-wise breakdown -->
 <div class="row m-t-20" id="breakdownRow" style="display:none;">
     <div class="col-md-12">
         <div class="panel panel-inverse">
@@ -65,15 +57,12 @@
                 <h4 class="panel-title" style="color:#fff;"><i class="fa fa-table m-r-5"></i> DDA Product Summary</h4>
             </div>
             <div class="panel-body">
-                <table class="table table-striped table-condensed" id="ddaSummaryTable">
+                <table class="table table-striped table-condensed">
                     <thead>
                         <tr>
                             <th>Product</th>
-                            <th>Opening Stock</th>
-                            <th>Received</th>
-                            <th>Dispensed</th>
+                            <th>Dispensed In Period</th>
                             <th>Closing Stock</th>
-                            <th>Variance</th>
                         </tr>
                     </thead>
                     <tbody id="ddaSummaryBody"></tbody>
@@ -84,44 +73,99 @@
 </div>
 
 @section PageScripts {
-    <script src="~/assets/static/plugins/bootstrap-datepicker/js/bootstrap-datepicker.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
+        var reportEntries = [];
+        var productStock = {};
+        var lastSummaryRows = [];
+
         $(document).ready(function () {
-            $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'dd M yyyy' });
+            var now = new Date();
+            var first = new Date(now.getFullYear(), now.getMonth(), 1);
+            $('#dateFrom').val(first.toISOString().split('T')[0]);
+            $('#dateTo').val(now.toISOString().split('T')[0]);
+            ajaxGet('/DDA/GetRegister', function (data) {
+                reportEntries = data || [];
+            });
+            ajaxGet('/Products/GetProducts', function (data) {
+                for (var i = 0; i < (data || []).length; i++) productStock[data[i].id] = data[i].stock_qty;
+            });
         });
 
         function generateReport() {
             var from = $('#dateFrom').val();
             var to = $('#dateTo').val();
-            var url = '/api/dda/report?';
-            if (from) url += 'from=' + encodeURIComponent(from) + '&';
-            if (to) url += 'to=' + encodeURIComponent(to);
+            if (from && to && from > to) { Swal.fire('Validation', 'From date must be before To date.', 'warning'); return; }
 
-            $.get(url, function (data) {
-                $('#summaryRow, #breakdownRow').show();
-                $('#rptDDAProducts').text(data.totalDDAProducts || 0);
-                $('#rptReceived').text(data.totalReceived || 0);
-                $('#rptDispensed').text(data.totalDispensed || 0);
-                $('#rptClosingStock').text(data.closingStock || 0);
+            $('#summaryRow, #breakdownRow').show();
 
-                var html = '';
-                if (data.productSummary && data.productSummary.length) {
-                    $.each(data.productSummary, function (i, p) {
-                        var vClass = p.variance !== 0 ? 'text-danger font-bold' : '';
-                        html += '<tr class="' + vClass + '">';
-                        html += '<td>' + p.productName + '</td>';
-                        html += '<td>' + p.openingStock + '</td>';
-                        html += '<td>' + p.received + '</td>';
-                        html += '<td>' + p.dispensed + '</td>';
-                        html += '<td>' + p.closingStock + '</td>';
-                        html += '<td>' + (p.variance !== 0 ? p.variance : '-') + '</td>';
-                        html += '</tr>';
-                    });
-                } else {
-                    html = '<tr><td colspan="6" class="text-center text-muted">No DDA data for this period</td></tr>';
-                }
-                $('#ddaSummaryBody').html(html);
-            });
+            var rows = [];
+            var totalDispensed = 0;
+            var closingStockSum = 0;
+
+            for (var i = 0; i < reportEntries.length; i++) {
+                var e = reportEntries[i];
+                var d = e.created_on ? new Date(e.created_on.indexOf('T') > -1 ? e.created_on : e.created_on + 'T00:00:00') : null;
+                if (!d) continue;
+                var iso = d.toISOString().split('T')[0];
+                if (from && iso < from) continue;
+                if (to && iso > to) continue;
+
+                totalDispensed += (e.entry_type === 'Dispense' ? (parseInt(e.quantity) || 0) : 0);
+                rows.push(e);
+            }
+
+            var byProduct = {};
+            for (var i = 0; i < rows.length; i++) {
+                var e = rows[i];
+                if (!byProduct[e.product_id]) byProduct[e.product_id] = { name: e.product_name || ('#' + e.product_id), dispensed: 0, closing: 0 };
+                if (e.entry_type === 'Dispense') byProduct[e.product_id].dispensed += (parseInt(e.quantity) || 0);
+            }
+
+            var body = [];
+            var keys = Object.keys(byProduct);
+            for (var k = 0; k < keys.length; k++) {
+                var b = byProduct[keys[k]];
+                var closeQty = productStock[parseInt(keys[k])] !== undefined ? productStock[parseInt(keys[k])] : b.closing;
+                b.closing = closeQty;
+                closingStockSum += closeQty;
+                body.push('<tr><td>' + b.name + '</td><td>' + b.dispensed + '</td><td>' + closeQty + '</td></tr>');
+            }
+
+            $('#rptDDAProducts').text(keys.length);
+            $('#rptDispensed').text(totalDispensed);
+            $('#rptClosingStock').text(closingStockSum);
+            $('#ddaSummaryBody').html(body.length ? body.join('') : '<tr><td colspan="3" class="text-center text-muted">No DDA data for this period</td></tr>');
+
+            lastSummaryRows = [];
+            for (var k = 0; k < keys.length; k++) {
+                lastSummaryRows.push({ product: byProduct[keys[k]].name, dispensed: byProduct[keys[k]].dispensed, closing: productStock[parseInt(keys[k])] !== undefined ? productStock[parseInt(keys[k])] : 0 });
+            }
+        }
+
+        function ExportReportCsv() {
+            if (!lastSummaryRows.length) { Swal.fire('Info', 'Generate the report first.', 'info'); return; }
+            var rows = [['Product', 'Dispensed In Period', 'Closing Stock']];
+            for (var i = 0; i < lastSummaryRows.length; i++) {
+                rows.push([lastSummaryRows[i].product, lastSummaryRows[i].dispensed, lastSummaryRows[i].closing]);
+            }
+            downloadCsv('dda_report.csv', rows);
+        }
+
+        function downloadCsv(fileName, rows) {
+            var csv = rows.map(function (r) {
+                return r.map(function (c) {
+                    if (c === null || c === undefined) return '';
+                    return '"' + String(c).replace(/"/g, '""') + '"';
+                }).join(',');
+            }).join('\n');
+            var blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
     </script>
 }

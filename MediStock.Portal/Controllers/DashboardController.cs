@@ -124,6 +124,36 @@ namespace MediStock.Portal.Controllers
             }
         }
 
+        // ── GET /Dashboard/ExpiringItems ────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> ExpiringItems()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/dashboard/expiringitems?pharmacyId=" + GetPharmacyId());
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch
+            {
+                return Json(new List<object>());
+            }
+        }
+
+        // ── GET /Dashboard/Alerts ────────────────────────────────────────────
+        [HttpGet]
+        public async Task<IActionResult> Alerts()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/dashboard/alerts?pharmacyId=" + GetPharmacyId());
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch
+            {
+                return Json(new List<object>());
+            }
+        }
+
         private string GetPharmacyId()
         {
             return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";

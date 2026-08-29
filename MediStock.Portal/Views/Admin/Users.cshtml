@@ -143,7 +143,7 @@
         function loadUsers() {
             table = $('#usersTable').DataTable({
                 ajax: {
-                    url: '/api/admin/users',
+                    url: '/Admin/GetUsers',
                     dataSrc: function (json) {
                         return json.data || json;
                     }
@@ -170,9 +170,10 @@
                         }
                     },
                     {
-                        data: 'lastLoginDate',
+                        data: null,
                         render: function (d) {
-                            return d ? formatDate(d) : 'Never';
+                            var dt = d.last_login_date || d.created_on || d.lastLoginDate;
+                            return dt ? formatDate(dt) : 'Never';
                         }
                     },
                     {
@@ -209,7 +210,7 @@
         }
 
         function loadRoles() {
-            $.get('/api/admin/roles', function (res) {
+            $.get('/Admin/GetRoles', function (res) {
                 var data = res.data || res;
                 var $sel = $('#roleId');
                 $.each(data, function (i, r) {
@@ -230,7 +231,7 @@
         }
 
         function editUser(id) {
-            $.get('/api/admin/users/' + id, function (res) {
+            $.get('/Admin/GetUser?id=' + id, function (res) {
                 var data = res.data || res;
                 $('#userId').val(data.id || data.userId);
                 $('#firstName').val(data.first_name || data.firstName);
@@ -249,8 +250,10 @@
             $('#deleteName').text(name);
             $('#confirmDelete').off('click').on('click', function () {
                 $.ajax({
-                    url: '/api/admin/users/' + id,
-                    type: 'DELETE',
+                    url: '/Admin/DeleteUser',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ id: id }),
                     headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
                     success: function () {
                         Swal.fire('Deleted', 'User deleted.', 'success');
@@ -272,20 +275,30 @@
         $('#userForm').on('submit', function (e) {
             e.preventDefault();
             var id = $('#userId').val();
-            var payload = {
-                firstName: $('#firstName').val(),
-                lastName: $('#lastName').val(),
-                email: $('#email').val(),
-                phone: $('#phone').val(),
-                roleId: parseInt($('#roleId').val()) || 3,
-                password: $('#password').val() || 'password'
-            };
+            var payload = id
+                ? {
+                    id: parseInt(id),
+                    first_name: $('#firstName').val(),
+                    last_name: $('#lastName').val(),
+                    email: $('#email').val(),
+                    phone: $('#phone').val(),
+                    role_id: parseInt($('#roleId').val()) || 3,
+                    is_active: true
+                }
+                : {
+                    first_name: $('#firstName').val(),
+                    last_name: $('#lastName').val(),
+                    email: $('#email').val(),
+                    phone: $('#phone').val(),
+                    role_id: parseInt($('#roleId').val()) || 3,
+                    password: $('#password').val() || 'password'
+                };
 
             btnLoad('#btnSave', 'Saving...');
 
             $.ajax({
-                url: id ? '/api/admin/users/' + id : '/api/admin/users',
-                type: id ? 'PUT' : 'POST',
+                url: id ? '/Admin/UpdateUser' : '/Admin/AddUser',
+                type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(payload),
                 headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },

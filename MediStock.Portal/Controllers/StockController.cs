@@ -6,10 +6,11 @@
 //    GET  /Stock/StockTake        → stock take view
 //    GET  /Stock/GetBatches       → JSON batches
 //    GET  /Stock/GetAdjustments   → JSON adjustments
-//    GET  /Stock/GetStockTake     → JSON stock take items
-//    POST /Stock/AddBatch         → proxy → api/stock/addbatch
-//    POST /Stock/AddAdjustment    → proxy → api/stock/addadjustment
-//    POST /Stock/SaveStockTake    → proxy → api/stock/savestocktake
+//    GET  /Stock/GetStockTake     → JSON stock take sessions
+//    GET  /Stock/GetExpiringItems → JSON expiring batches
+//    POST /Stock/AddBatch         → proxy → api/stock/batches
+//    POST /Stock/AddAdjustment    → proxy → api/stock/adjustments
+//    POST /Stock/SaveStockTake    → proxy → api/stock/stocktake (session → items → commit)
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -93,11 +94,11 @@ namespace MediStock.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetExpiringItems(int days = 30)
+        public async Task<IActionResult> GetExpiringItems()
         {
             try
             {
-                var result = await _api.GetAsync<object>($"api/stock/expiring?pharmacyId={GetPharmacyId()}&days={days}");
+                var result = await _api.GetAsync<object>("api/dashboard/expiringitems?pharmacyId=" + GetPharmacyId());
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
@@ -109,61 +110,105 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> AddBatch([FromBody] AddBatchRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
-
-            var result = await _api.PostAsync<object>("api/stock/addbatch", new
+            try
             {
-                pharmacy_id   = GetPharmacyId(),
-                product_id    = model.product_id,
-                batch_number  = model.batch_number,
-                quantity      = model.quantity,
-                cost_price    = model.cost_price,
-                expiry_date   = model.expiry_date,
-                supplier_id   = model.supplier_id
-            });
+                if (model == null || model.product_id <= 0)
+                    return Json(new { success = false, message = "Product is required" });
+                if (string.IsNullOrEmpty(model.batch_number))
+                    return Json(new { success = false, message = "Batch number is required" });
 
-            return Json(result.IsSuccess
-                ? new { success = true, message = "Batch added successfully" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add batch" : result.Error });
+                var result = await _api.PostAsync<object>("api/stock/batches", new
+                {
+                    product_id   = model.product_id,
+                    batch_number = model.batch_number,
+                    expiry_date  = model.expiry_date,
+                    cost_price   = model.cost_price,
+                    quantity     = model.quantity
+                });
+
+                return Json(result.IsSuccess
+                    ? new { success = true, message = "Batch added successfully" }
+                    : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to add batch" : result.Error });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost]
         public async Task<IActionResult> AddAdjustment([FromBody] AdjustmentRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
-
-            var result = await _api.PostAsync<object>("api/stock/addadjustment", new
+            try
             {
-                pharmacy_id  = GetPharmacyId(),
-                product_id   = model.product_id,
-                batch_id     = model.batch_id,
-                quantity     = model.quantity,
-                adjustment_type = model.adjustment_type,
-                reason       = model.reason
-            });
+                if (model == null || model.product_id <= 0)
+                    return Json(new { success = false, message = "Product is required" });
+                if (string.IsNullOrEmpty(model.adjustment_type))
+                    return Json(new { success = false, message = "Adjustment type is required" });
 
-            return Json(result.IsSuccess
-                ? new { success = true, message = "Adjustment recorded" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to record adjustment" : result.Error });
+                var result = await _api.PostAsync<object>("api/stock/adjustments", new
+                {
+                    product_id      = model.product_id,
+                    batch_id        = model.batch_id,
+                    adjustment_type = model.adjustment_type,
+                    quantity        = model.quantity,
+                    reason          = model.reason
+                });
+
+                return Json(result.IsSuccess
+                    ? new { success = true, message = "Adjustment recorded" }
+                    : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to record adjustment" : result.Error });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
         }
 
         [HttpPost]
         public async Task<IActionResult> SaveStockTake([FromBody] StockTakeRequest model)
         {
-            if (model == null)
-                return Json(new { success = false, message = "Invalid request" });
-
-            var result = await _api.PostAsync<object>("api/stock/savestocktake", new
+            try
             {
-                pharmacy_id = GetPharmacyId(),
-                items       = model.items
-            });
+                if (model == null || string.IsNullOrEmpty(model.session_name))
+                    return Json(new { success = false, message = "Session name is required" });
+                if (model.items == null || model.items.Count == 0)
+                    return Json(new { success = false, message = "No items entered" });
 
-            return Json(result.IsSuccess
-                ? new { success = true, message = "Stock take saved" }
-                : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to save stock take" : result.Error });
+                var session = await _api.PostAsync<StockTakeSessionResponse>("api/stock/stocktake", new { session_name = model.session_name });
+                if (!session.IsSuccess)
+                    return Json(new { success = false, message = string.IsNullOrEmpty(session.Error) ? "Failed to create session" : session.Error });
+
+                long sessionId = session.Data?.id ?? 0;
+                if (sessionId <= 0)
+                    return Json(new { success = false, message = "Failed to create session" });
+
+                foreach (var item in model.items)
+                {
+                    int system = item.system_qty;
+                    int counted = item.counted_qty;
+                    var res = await _api.PostAsync<object>("api/stock/stocktake/items", new
+                    {
+                        session_id  = sessionId,
+                        product_id  = item.product_id,
+                        batch_id    = item.batch_id,
+                        system_qty  = system,
+                        counted_qty = counted,
+                        notes       = item.notes
+                    });
+                    if (!res.IsSuccess)
+                        return Json(new { success = false, message = "Item failed: " + (res.Error ?? "unknown error") });
+                }
+
+                var commit = await _api.PostAsync<object>("api/stock/stocktake/commit/" + sessionId, new { });
+                return Json(commit.IsSuccess
+                    ? new { success = true, message = "Stock take saved and committed" }
+                    : new { success = false, message = string.IsNullOrEmpty(commit.Error) ? "Failed to commit stock take" : commit.Error });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
         }
 
         private string GetPharmacyId()
@@ -179,7 +224,6 @@ namespace MediStock.Portal.Controllers
             public int     quantity     { get; set; }
             public decimal cost_price   { get; set; }
             public string? expiry_date  { get; set; }
-            public long    supplier_id  { get; set; }
         }
 
         public class AdjustmentRequest
@@ -191,9 +235,24 @@ namespace MediStock.Portal.Controllers
             public string? reason          { get; set; }
         }
 
+        public class StockTakeRequestItem
+        {
+            public long    product_id { get; set; }
+            public long    batch_id   { get; set; }
+            public int     system_qty { get; set; }
+            public int     counted_qty { get; set; }
+            public string? notes      { get; set; }
+        }
+
         public class StockTakeRequest
         {
-            public List<object>? items { get; set; }
+            public string?                    session_name { get; set; }
+            public List<StockTakeRequestItem>? items       { get; set; }
+        }
+
+        public class StockTakeSessionResponse
+        {
+            public long id { get; set; }
         }
     }
 }

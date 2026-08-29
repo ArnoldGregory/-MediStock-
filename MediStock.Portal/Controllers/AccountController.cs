@@ -317,6 +317,11 @@ namespace MediStock.Portal.Controllers
 
         // ── role-based landing ───────────────────────────────────────────────
         private IActionResult RedirectToDashboard()
-            => RedirectToAction("Index", "Dashboard");
+        {
+            var profileId = User.FindFirstValue("profile_id");
+            if (profileId == "1")
+                return RedirectToAction("Index", "SuperAdmin");
+            return RedirectToAction("Index", "Dashboard");
+        }
     }
 }

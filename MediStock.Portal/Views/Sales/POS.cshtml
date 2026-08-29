@@ -125,21 +125,20 @@
 
         $(document).ready(function () {
             $('.select2').select2({ width: '100%' });
+            loadProducts();
             loadCustomers();
             $('#paymentMethod').on('change', function () {
                 $('#mpesaRefGroup').toggle($(this).val() === 'Mpesa');
             });
 
             $('#productSearch').on('keyup', function () {
-                var q = $(this).val().trim();
-                if (q.length >= 2) searchProducts(q);
+                renderProductGrid(searchProducts($(this).val().trim()));
             });
 
             $('#productSearch').on('keypress', function (e) {
                 if (e.which === 13) {
                     e.preventDefault();
-                    var q = $(this).val().trim();
-                    if (q.length >= 2) searchProducts(q);
+                    renderProductGrid(searchProducts($(this).val().trim()));
                 }
             });
 
@@ -147,10 +146,24 @@
             $('#processSaleBtn').on('click', processSale);
         });
 
+        function loadProducts() {
+            var $grid = $('#productGrid');
+            $grid.html('<div class="col-md-12 text-center text-muted"><i class="fa fa-spinner fa-spin fa-3x"></i><p>Loading products...</p></div>');
+            ajaxGet('/Sales/GetPOSProducts', function (data) {
+                products = data || [];
+                renderProductGrid(products);
+            }, function () {
+                $grid.html('<div class="col-md-12 text-center text-muted"><p>Failed to load products.</p></div>');
+            });
+        }
+
         function searchProducts(query) {
-            $.get('/api/products/search?q=' + encodeURIComponent(query), function (data) {
-                products = data;
-                renderProductGrid(data);
+            q = (query || '').toLowerCase();
+            if (!q) return products;
+            return products.filter(function (p) {
+                return (p.name && p.name.toLowerCase().indexOf(q) >= 0)
+                    || (p.sku && p.sku.toLowerCase().indexOf(q) >= 0)
+                    || (p.barcode && p.barcode.toLowerCase().indexOf(q) >= 0);
             });
         }
 
@@ -160,10 +173,10 @@
                 html = '<div class="col-md-12 text-center text-muted"><p>No products found</p></div>';
             } else {
                 $.each(items, function (i, p) {
-                    html += '<div class="col-md-4 col-sm-6"><div class="product-card" onclick="addToCart(\'' + p.productId + '\')">';
-                    html += '<div class="name">' + p.productName + '</div>';
-                    html += '<div class="price">KES ' + parseFloat(p.sellingPrice).toFixed(2) + '</div>';
-                    html += '<div class="stock">Stock: ' + p.currentStock + '</div>';
+                    html += '<div class="col-md-4 col-sm-6"><div class="product-card" onclick="addToCart(' + p.id + ')">';
+                    html += '<div class="name">' + p.name + '</div>';
+                    html += '<div class="price">KES ' + parseFloat(p.selling_price || 0).toFixed(2) + '</div>';
+                    html += '<div class="stock">Stock: ' + (p.stock_qty || 0) + '</div>';
                     html += '</div></div>';
                 });
             }
@@ -171,28 +184,31 @@
         }
 
         function addToCart(productId) {
-            var product = products.find(function (p) { return p.productId === productId; });
+            var product = null;
+            for (var i = 0; i < products.length; i++) if (products[i].id == productId) { product = products[i]; break; }
             if (!product) return;
 
-            if (product.currentStock <= 0) {
-                Swal.fire('Out of Stock', product.productName + ' is out of stock.', 'warning');
+            var maxStock = parseInt(product.stock_qty) || 0;
+            if (maxStock <= 0) {
+                Swal.fire('Out of Stock', product.name + ' is out of stock.', 'warning');
                 return;
             }
 
-            var existing = cart.find(function (c) { return c.productId === productId; });
+            var existing = null;
+            for (var j = 0; j < cart.length; j++) if (cart[j].productId == productId) { existing = cart[j]; break; }
             if (existing) {
-                if (existing.quantity >= product.currentStock) {
-                    Swal.fire('Insufficient Stock', 'Only ' + product.currentStock + ' units available.', 'warning');
+                if (existing.quantity >= maxStock) {
+                    Swal.fire('Insufficient Stock', 'Only ' + maxStock + ' units available.', 'warning');
                     return;
                 }
                 existing.quantity++;
             } else {
                 cart.push({
-                    productId: product.productId,
-                    productName: product.productName,
-                    sellingPrice: parseFloat(product.sellingPrice),
+                    productId: product.id,
+                    productName: product.name,
+                    sellingPrice: parseFloat(product.selling_price || 0),
                     quantity: 1,
-                    maxStock: product.currentStock
+                    maxStock: maxStock
                 });
             }
             renderCart();
@@ -248,10 +264,12 @@
         }
 
         function loadCustomers() {
-            $.get('/api/customers', function (data) {
+            ajaxGet('/Sales/GetCustomers', function (data) {
                 var $sel = $('#posCustomer');
+                data = data || [];
                 $.each(data, function (i, c) {
-                    $sel.append('<option value="' + c.customerId + '">' + c.customerName + '</option>');
+                    var name = (c.first_name || '') + ' ' + (c.last_name || '');
+                    $sel.append('<option value="' + c.id + '">' + name.trim() + (c.customer_type ? ' (' + c.customer_type + ')' : '') + '</option>');
                 });
             });
         }
@@ -259,16 +277,34 @@
         function processSale() {
             if (cart.length === 0) return;
 
-            var discount = parseFloat($('#cartDiscount').val()) || 0;
+            var subtotal = 0;
             var items = cart.map(function (c) {
-                return { productId: c.productId, quantity: c.quantity, unitPrice: c.sellingPrice };
+                var total = c.sellingPrice * c.quantity;
+                subtotal += total;
+                return {
+                    product_id: c.productId,
+                    quantity: c.quantity,
+                    unit_price: c.sellingPrice,
+                    discount: 0,
+                    total: parseFloat(total.toFixed(2)),
+                    batch_id: null
+                };
             });
 
+            var discount = parseFloat($('#cartDiscount').val()) || 0;
+            var total = subtotal - discount;
+            var method = $('#paymentMethod').val();
             var payload = {
-                customerId: $('#posCustomer').val() || null,
-                paymentMethod: $('#paymentMethod').val(),
-                mpesaReference: $('#mpesaRef').val() || null,
-                discount: discount,
+                customer_id: $('#posCustomer').val() ? parseInt($('#posCustomer').val()) : null,
+                sale_type: 'Retail',
+                subtotal: parseFloat(subtotal.toFixed(2)),
+                discount: parseFloat(discount.toFixed(2)),
+                tax: 0,
+                net_amount: parseFloat(total.toFixed(2)),
+                amount_paid: method === 'Credit' ? 0 : parseFloat(total.toFixed(2)),
+                payment_method: method,
+                payment_reference: method === 'Mpesa' ? ($('#mpesaRef').val() || null) : null,
+                notes: null,
                 items: items
             };
 
@@ -280,28 +316,28 @@
                 confirmButtonColor: '#28a745',
                 confirmButtonText: 'Confirm & Pay'
             }).then(function (result) {
-                if (result.isConfirmed) {
-                    $.ajax({
-                        url: '/api/sales',
-                        type: 'POST',
-                        contentType: 'application/json',
-                        data: JSON.stringify(payload),
-                        headers: { 'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val() },
-                        success: function (data) {
-                            Swal.fire({
-                                title: 'Sale Complete!',
-                                html: 'Receipt #: <strong>' + data.receiptNumber + '</strong>',
-                                icon: 'success',
-                                confirmButtonText: 'Print Receipt'
-                            });
-                            clearCart();
-                            $('#productSearch').val('').focus();
-                        },
-                        error: function (xhr) {
-                            Swal.fire('Error', xhr.responseText || 'Unable to process sale.', 'error');
-                        }
-                    });
-                }
+                if (!result.isConfirmed) return;
+                var btn = $('#processSaleBtn')[0];
+                btnLoad(btn, 'Processing...');
+                ajaxPost('/Sales/ProcessSale', payload, function (res) {
+                    btnStop(btn);
+                    if (res.success) {
+                        var saleId = res.data ? res.data.id : 0;
+                        Swal.fire({
+                            title: 'Sale Complete!',
+                            html: 'Receipt #: <strong>' + saleId + '</strong><br/><a href="/Sales/Receipt/' + saleId + '" class="btn btn-sm btn-info m-t-10"><i class="fa fa-print"></i> Print Receipt</a>',
+                            icon: 'success',
+                            confirmButtonText: 'OK'
+                        });
+                        clearCart();
+                        $('#productSearch').val('').focus();
+                    } else {
+                        Swal.fire('Error', res.message, 'error');
+                    }
+                }, function () {
+                    btnStop(btn);
+                    Swal.fire('Error', 'Unable to process sale.', 'error');
+                });
             });
         }
 
