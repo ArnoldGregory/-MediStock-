@@ -1246,7 +1246,7 @@ namespace MediStock.API.Models
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@in_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
                 sd.Fill(dt);
             }
             catch (Exception ex)
@@ -1266,7 +1266,7 @@ namespace MediStock.API.Models
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@in_slug", slug);
+                cmd.Parameters.AddWithValue("@p_slug", slug);
                 sd.Fill(dt);
             }
             catch (Exception ex)

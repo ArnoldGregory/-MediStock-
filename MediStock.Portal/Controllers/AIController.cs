@@ -49,9 +49,47 @@ namespace MediStock.Portal.Controllers
             }
         }
 
+        [HttpPost]
+        public async Task<IActionResult> CreateReorderPo([FromBody] CreatePoRequest? model)
+        {
+            try
+            {
+                if (model == null || model.lines == null || model.lines.Count == 0)
+                    return Json(new { success = false, message = "No items to order" });
+
+                var result = await _api.PostAsync<object>("api/ai/reorder-po", new
+                {
+                    supplier_id = model.supplier_id,
+                    expected_date = model.expected_date,
+                    lines = model.lines.Select(l => new { product_id = l.product_id, quantity = l.quantity }).ToList()
+                });
+
+                return Json(result.IsSuccess
+                    ? new { success = true, message = "Success", data = result.Data }
+                    : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to create purchase order" : result.Error });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
         public class PredictRequest
         {
             public int lead_days { get; set; } = 7;
+        }
+
+        public class CreatePoRequest
+        {
+            public long supplier_id { get; set; }
+            public string? expected_date { get; set; }
+            public List<CreatePoLine> lines { get; set; } = new();
+        }
+
+        public class CreatePoLine
+        {
+            public long product_id { get; set; }
+            public int quantity { get; set; }
         }
     }
 }

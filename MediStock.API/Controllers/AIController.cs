@@ -4,6 +4,7 @@ using MediStock.API.Helpers;
 using MediStock.API.Models;
 using Newtonsoft.Json.Linq;
 using System.Data;
+using System.Globalization;
 
 namespace MediStock.API.Controllers
 {
@@ -135,6 +136,92 @@ namespace MediStock.API.Controllers
                 });
             }
             catch (Exception ex) { iloggermanager.LogError("PredictReorder: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
+        [HttpPost("reorder-po")]
+        public ActionResult CreateReorderPo([FromBody] Newtonsoft.Json.Linq.JObject jobject)
+        {
+            iloggermanager.LogInfo("******* AI REORDER->PO REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (jobject == null)
+                    return Bad("Request body is required");
+
+                long supplierId = jobject["supplier_id"] != null ? Convert.ToInt64(jobject["supplier_id"].ToString()) : 0;
+                if (supplierId <= 0)
+                    return Bad("Select a supplier for the purchase order");
+
+                var rawLines = jobject["lines"] as JArray;
+                if (rawLines == null || rawLines.Count == 0)
+                    return Bad("No items to order");
+
+                // product cost lookup for this pharmacy only
+                var costs = new Dictionary<long, decimal>();
+                DataTable products = dbhandler.GetRecords("products", pharmacyId.ToString());
+                foreach (DataRow r in products.Rows)
+                {
+                    long pid = r["id"] != DBNull.Value ? Convert.ToInt64(r["id"]) : 0;
+                    if (pid > 0)
+                        costs[pid] = r["cost_price"] != DBNull.Value ? Convert.ToDecimal(r["cost_price"]) : 0;
+                }
+
+                var lines = new List<(long productId, int quantity, decimal unitCost)>();
+                foreach (var raw in rawLines)
+                {
+                    long productId = raw["product_id"] != null ? Convert.ToInt64(raw["product_id"].ToString()) : 0;
+                    int qty = raw["quantity"] != null ? Convert.ToInt32(raw["quantity"].ToString()) : 0;
+                    if (productId <= 0 || qty <= 0)
+                    {
+                        iloggermanager.LogInfo($"reorder-po: skipped invalid line product_id={productId} qty={qty}");
+                        continue;
+                    }
+                    if (!costs.ContainsKey(productId))
+                        return Bad($"Product ID {productId} does not belong to this pharmacy");
+                    lines.Add((productId, qty, costs[productId]));
+                }
+                if (lines.Count == 0)
+                    return Bad("No valid order lines");
+
+                DateTime? expectedDate = null;
+                if (jobject["expected_date"] != null
+                    && DateTime.TryParse(jobject["expected_date"].ToString(), CultureInfo.InvariantCulture, DateTimeStyles.None, out DateTime ed))
+                    expectedDate = ed;
+
+                decimal total = lines.Sum(l => l.quantity * l.unitCost);
+
+                long poId = 0; string poNumber = "";
+                for (int attempt = 0; attempt < 3 && poId <= 0; attempt++)
+                {
+                    poNumber = $"PO-{DateTime.Now:yyyyMMddHHmmss}-{new Random().Next(1000, 9999)}";
+                    poId = dbhandler.ExecuteInsertReturnId(
+                        "INSERT INTO purchase_orders (pharmacy_id, supplier_id, po_number, status, total, expected_date, created_by, created_on) " +
+                        "VALUES (@pharmacy_id, @supplier_id, @po_number, 'Pending', @total, @expected_date, @created_by, NOW())",
+                        new { pharmacy_id = pharmacyId, supplier_id = supplierId, po_number = poNumber, total = total, expected_date = expectedDate, created_by = userId });
+                }
+                if (poId <= 0)
+                    return Bad("Failed to save purchase order");
+
+                foreach (var l in lines)
+                {
+                    _ = dbhandler.ExecuteNonQuery(
+                        "INSERT INTO po_items (po_id, product_id, quantity, received_qty, unit_cost, total) " +
+                        "VALUES (@po_id, @product_id, @quantity, 0, @unit_cost, @total)",
+                        new { po_id = poId, product_id = l.productId, quantity = l.quantity, unit_cost = l.unitCost, total = l.quantity * l.unitCost });
+                }
+
+                CaptureAuditTrail(userId.ToString(), "CREATE", $"Draft PO {poNumber} created from AI reorder ({lines.Count} items, total KES {total:F2})");
+
+                iloggermanager.LogInfo($"CreateReorderPo: poId={poId} poNumber={poNumber} lines={lines.Count} total={total}");
+                return Ok(new
+                {
+                    success = true, message = "Draft purchase order created", action = "",
+                    data = new { po_id = poId, po_number = poNumber, total = total, line_count = lines.Count, status = "Pending" }
+                });
+            }
+            catch (Exception ex) { iloggermanager.LogError("CreateReorderPo: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
         [Authorize]
