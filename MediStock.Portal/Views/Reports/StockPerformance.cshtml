@@ -1,0 +1,134 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/DataTables/media/css/dataTables.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/DataTables/extensions/Responsive/css/responsive.bootstrap.min.css" rel="stylesheet" />
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-area-chart"></i> Stock Performance <small>Movement & Margin Analysis</small></h1>
+
+<!-- Summary Cards -->
+<div class="row" id="summaryCards" style="display:none;">
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-blue">
+            <div class="stats-icon"><i class="fa fa-cube"></i></div>
+            <div class="stats-info"><h4>ACTIVE PRODUCTS</h4><p id="statProducts">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-green">
+            <div class="stats-icon"><i class="fa fa-percent"></i></div>
+            <div class="stats-info"><h4>AVG MARGIN</h4><p id="statMargin">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-orange">
+            <div class="stats-icon"><i class="fa fa-hourglass-half"></i></div>
+            <div class="stats-info"><h4>SLOW MOVERS</h4><p id="statSlow">-</p></div>
+        </div>
+    </div>
+    <div class="col-md-3 col-sm-6">
+        <div class="widget widget-stats bg-red">
+            <div class="stats-icon"><i class="fa fa-money"></i></div>
+            <div class="stats-info"><h4>SLOW STOCK VALUE</h4><p id="statSlowValue">-</p></div>
+        </div>
+    </div>
+</div>
+
+<!-- Detail -->
+<div class="row m-t-20" id="detailRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="LoadReport();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-table m-r-5"></i> Product Movement</h4>
+            </div>
+            <div class="panel-body">
+                <table id="perfTable" class="table table-striped table-hover table-bordered table-condensed">
+                    <thead>
+                        <tr>
+                            <th>Product</th>
+                            <th>Category</th>
+                            <th>Stock</th>
+                            <th>Cost</th>
+                            <th>Sell</th>
+                            <th>Margin KES</th>
+                            <th>Margin %</th>
+                            <th>Units (30d)</th>
+                            <th>Days of Stock</th>
+                            <th>Inv. Value</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/DataTables/media/js/jquery.dataTables.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/media/js/dataTables.bootstrap.min.js"></script>
+    <script src="~/assets/static/plugins/DataTables/extensions/Responsive/js/dataTables.responsive.min.js"></script>
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        // ============================================================
+        //  Stock Performance — movement & margin (BFF pattern)
+        // ============================================================
+        var perfTable;
+
+        $(document).ready(function () {
+            perfTable = $('#perfTable').dataTable({
+                responsive: true,
+                createdRow: function (row, data) { $(row).attr('recid', data.product_id); },
+                aoColumns: [
+                    { data: 'name', autoWidth: true, sDefaultContent: '-', render: function (d, t, r) { return d + (r.sku ? '<br/><small class="text-muted">' + r.sku + '</small>' : ''); } },
+                    { data: 'category', autoWidth: true, sDefaultContent: '-', render: function (d) { return d || '-'; } },
+                    { data: 'stock', autoWidth: true, sDefaultContent: '0' },
+                    { data: 'cost', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return numKes(d); } },
+                    { data: 'sell', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return numKes(d); } },
+                    { data: 'margin_kes', autoWidth: true, sDefaultContent: '0.00', render: function (d, t, r) { return '<strong>' + numKes(r.margin_kes) + '</strong>'; } },
+                    { data: 'margin_pct', autoWidth: true, sDefaultContent: '-', render: function (d) { return d === null || d === undefined ? '-' : num(d) + '%'; } },
+                    { data: 'units_30d', autoWidth: true, sDefaultContent: '0', render: function (d) { return parseFloat(d || 0); } },
+                    { data: 'days_of_stock', autoWidth: true, sDefaultContent: '-', render: function (d) { return d === null || d === undefined || d === '' ? '-' : d + 'd'; } },
+                    { data: 'inventory_value', autoWidth: true, sDefaultContent: '0.00', render: function (d) { return numKes(d); } },
+                    { data: 'status', autoWidth: true, sDefaultContent: '-', render: function (d) {
+                        var cls = { 'Healthy': 'label-success', 'Slow': 'label-warning', 'Out of Stock': 'label-danger' };
+                        return '<span class="label ' + (cls[d] || 'label-default') + '">' + (d || '-') + '</span>';
+                    } }
+                ]
+            });
+            LoadReport();
+        });
+
+        function LoadReport() {
+            ajaxGet('/Reports/GetStockPerformance', function (d) {
+                if (!d) { RenderEmpty('header'); return; }
+                var s = d.summary || {};
+                $('#summaryCards').css('display', '');
+                $('#statProducts').text(s.product_count || 0);
+                $('#statMargin').text(s.avg_margin_pct === null || s.avg_margin_pct === undefined ? '-' : num(s.avg_margin_pct) + '%');
+                $('#statSlow').text(s.slow_count || 0);
+                $('#statSlowValue').text('KES ' + num(s.slow_stock_value || 0));
+
+                var rows = d.products || [];
+                var t = perfTable;
+                var st = t.fnSettings();
+                t.fnClearTable(true);
+                for (var i = 0; i < rows.length; i++) t.oApi._fnAddData(st, rows[i]);
+                st.aiDisplay = st.aiDisplayMaster.slice();
+                t.fnDraw();
+                $('#detailRow').css('display', '');
+            }, function () { RenderEmpty('row'); });
+        }
+
+        function RenderEmpty(where) {
+            if (where === 'row') { $('#detailRow').css('display', 'none'); }
+            Swal.fire('Error', 'Unable to load stock performance.', 'error');
+        }
+
+        function num(v) { return parseFloat(v || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+        function numKes(v) { return 'KES ' + num(v); }
+    </script>
+}

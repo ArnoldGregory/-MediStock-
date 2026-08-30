@@ -326,16 +326,22 @@ namespace MediStock.API.Controllers
                 }
 
                 int created = 0, matched = 0;
+                var categories = new List<(long id, string name)>();
+                foreach (DataRow row in dbhandler.GetRecords("product_categories", pharmacyId.ToString()).Rows)
+                {
+                    categories.Add((Convert.ToInt64(row["id"]), row["name"]?.ToString() ?? ""));
+                }
+
                 foreach (var line in lines)
                 {
-                    bool isNew = false;
                     long productId = MatchProduct(existing, line.product_name);
                     if (productId <= 0)
                     {
-                        // New product — create it with sensible defaults
+                        // New product — create it with sensible defaults + auto category
                         var pm = new ProductModel
                         {
                             pharmacy_id = pharmacyId,
+                            category_id = MatchCategory(categories, line.product_name),
                             name = line.product_name,
                             sku = GenerateSku(pharmacyId, created),
                             cost_price = line.unit_cost,
@@ -432,6 +438,45 @@ namespace MediStock.API.Controllers
         }
 
         [NonAction]
+        private static long MatchCategory(List<(long id, string name)> categories, string productName)
+        {
+            string n = Normalize(productName);
+            if (categories.Count == 0) return 0;
+
+            // Explicit category name appearing in the product name wins.
+            foreach (var c in categories)
+            {
+                string cn = Normalize(c.name);
+                if (cn.Length > 2 && n.Contains(cn)) return c.id;
+            }
+
+            // Keyword lookup — only assigns if the matched category already exists.
+            foreach (var kv in CategoryKeywords)
+            {
+                foreach (string kw in kv.Value)
+                {
+                    if (!n.Contains(kw)) continue;
+                    foreach (var c in categories)
+                        if (Normalize(c.name) == kv.Key) return c.id;
+                }
+            }
+            return 0;
+        }
+
+        private static readonly Dictionary<string, string[]> CategoryKeywords = new()
+        {
+            ["Antibiotics"] = new[] { "ampiclox", "amoxi", "ampicil", "augmentin", "cloxa", "cephalexin", "cef", "cipro", "azithro", "erythro", "doxy", "tetra", "penicil", "metronidazole", "flagyl", "co-amoxiclav", "clavulanate", "mycin" },
+            ["Pain & Inflammation"] = new[] { "paracetamol", "acetaminophen", "ibuprofen", "diclofenac", "naproxen", "aspirin", "tramadol", "morphine", "codeine", "panadol", "gesic", "ketorolac", "meloxicam", "diclof" },
+            ["Antimalarials"] = new[] { "artemether", "lumefantrine", "artesunate", "coartem", "quinine", "malaria", "pyrimethamine", "fansidar" },
+            ["Hypertension"] = new[] { "lisinopril", "enalapril", "losartan", "valsartan", "amlodipine", "nifedipine", "captopril", "atenolol", "propranolol", "metoprolol", "telmisartan", "bisoprolol" },
+            ["Diabetes"] = new[] { "metformin", "glibenclamide", "glimepiride", "gliclazide", "insulin", "sitagliptin", "vildagliptin", "pioglitazone" },
+            ["Gastrointestinal"] = new[] { "omeprazole", "pantoprazole", "esomeprazole", "lansoprazole", "ranitidine", "domperidone", "metoclopramide", "buscopan", "hyoscine", "loperamide", "antacid", "maalox" },
+            ["Antihistamines"] = new[] { "cetirizine", "loratadine", "chlorpheniramine", "diphenhydramine", "fexofenadine", "desloratadine", "promethazine", "piriton" },
+            ["Respiratory"] = new[] { "salbutamol", "ventolin", "beclomethasone", "budesonide", "montelukast", "aminophylline", "theophylline", "serevent", "prednisone" },
+            ["Vitamins & Supplements"] = new[] { "vitamin", "vit b", "vit c", "multivitamin", "ferrous", "folic", "calcium", "zinc", "magnesium", "omega", "supplement" }
+        };
+
+        [NonAction]
         private List<Dictionary<string, object>> ToRows(DataTable dt)
         {
             var rows = new List<Dictionary<string, object>>();
@@ -475,7 +520,7 @@ namespace MediStock.API.Controllers
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
                 client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
-                session_id = "TODO"
+                session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);
         }

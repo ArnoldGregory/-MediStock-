@@ -112,6 +112,96 @@ namespace MediStock.API.Controllers
             catch (Exception ex) { iloggermanager.LogError("GetExpenseBreakdown: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
 
+        [Authorize]
+        [HttpGet("stock-performance")]
+        public ActionResult GetStockPerformance()
+        {
+            iloggermanager.LogInfo("******* GET STOCK PERFORMANCE REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+
+                DataTable products = dbhandler.GetRecords("products", pharmacyId.ToString());
+                DataTable demand = dbhandler.GetRecords("sales_demand", pharmacyId.ToString());
+
+                var demandByProduct = new Dictionary<long, double>();
+                foreach (DataRow r in demand.Rows)
+                {
+                    long pid = r["product_id"] != DBNull.Value ? Convert.ToInt64(r["product_id"]) : 0;
+                    double units = r["units_30d"] != DBNull.Value ? Convert.ToDouble(r["units_30d"]) : 0;
+                    if (pid > 0) demandByProduct[pid] = units;
+                }
+
+                var rows = new List<object>();
+                decimal marginTotal = 0; int marginCount = 0; int slowCount = 0; int outCount = 0; decimal invValue = 0;
+                decimal slowValue = 0;
+
+                foreach (DataRow r in products.Rows)
+                {
+                    long pid = r["id"] != DBNull.Value ? Convert.ToInt64(r["id"]) : 0;
+                    string name = r["name"]?.ToString() ?? "";
+                    string sku = r["sku"]?.ToString() ?? "";
+                    string cat = r["category_name"]?.ToString() ?? "";
+                    int stock = r["stock_qty"] != DBNull.Value ? Convert.ToInt32(r["stock_qty"]) : 0;
+                    decimal cost = r["cost_price"] != DBNull.Value ? Convert.ToDecimal(r["cost_price"]) : 0;
+                    decimal sell = r["selling_price"] != DBNull.Value ? Convert.ToDecimal(r["selling_price"]) : 0;
+
+                    demandByProduct.TryGetValue(pid, out double units30);
+
+                    decimal marginKes = sell - cost;
+                    decimal? marginPct = cost > 0 ? Math.Round(marginKes / cost * 100, 1) : (decimal?)null;
+                    double avgDaily = units30 / 30.0;
+                    double? daysOfStock = avgDaily > 0 ? Math.Round(stock / avgDaily, 1) : null;
+                    decimal inv = Math.Round(stock * cost, 2);
+
+                    string status;
+                    if (stock <= 0) { status = "Out of Stock"; outCount++; }
+                    else if (units30 <= 0) { status = "Slow"; slowCount++; slowValue += inv; }
+                    else if (daysOfStock >= 120) { status = "Slow"; slowCount++; slowValue += inv; }
+                    else { status = "Healthy"; }
+
+                    if (marginPct.HasValue) { marginTotal += marginPct.Value; marginCount++; }
+                    invValue += inv;
+
+                    rows.Add(new
+                    {
+                        product_id = pid,
+                        name, sku, category = cat,
+                        stock, cost, sell,
+                        margin_kes = Math.Round(marginKes, 2),
+                        margin_pct = marginPct,
+                        units_30d = units30,
+                        avg_daily_sales = Math.Round(avgDaily, 2),
+                        days_of_stock = daysOfStock,
+                        inventory_value = inv,
+                        status
+                    });
+                }
+
+                iloggermanager.LogInfo($"GetStockPerformance: products={rows.Count}");
+                return Ok(new
+                {
+                    success = true, message = "Success", action = "",
+                    data = new
+                    {
+                        generated_at = DateTime.UtcNow,
+                        summary = new
+                        {
+                            product_count = rows.Count,
+                            avg_margin_pct = marginCount > 0 ? Math.Round(marginTotal / marginCount, 1) : (decimal?)null,
+                            slow_count = slowCount,
+                            out_count = outCount,
+                            inventory_value = invValue,
+                            slow_stock_value = Math.Round(slowValue, 2)
+                        },
+                        products = rows
+                    }
+                });
+            }
+            catch (Exception ex) { iloggermanager.LogError("GetStockPerformance: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
         [NonAction]
         private List<Dictionary<string, object>> ToRows(DataTable dt)
         {
@@ -156,7 +246,7 @@ namespace MediStock.API.Controllers
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
                 client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
-                session_id = "TODO"
+                session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);
         }

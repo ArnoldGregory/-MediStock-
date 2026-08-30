@@ -114,54 +114,6 @@ namespace MediStock.API.Models
             }
         }
 
-        public DataTable GetUnapprovedRecords(string module, string param1 = "")
-        {
-            DataTable dt = new DataTable();
-            try
-            {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new MySqlCommand("get_records_unapproved", connect);
-                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
-                connect.Open();
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@module", module);
-                cmd.Parameters.AddWithValue("@param1", param1);
-                sd.Fill(dt);
-            }
-            catch (Exception ex)
-            {
-                logger.Error("GetUnapprovedRecords: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-            }
-            return dt;
-        }
-
-        public bool ApproveRecord(Int64 id, Int64 approved_by, string module, string action_flag = "")
-        {
-            try
-            {
-                int i = 0;
-                using (MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
-                {
-                    using MySqlCommand cmd = new MySqlCommand("approve_records", connect);
-                    connect.Open();
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.AddWithValue("@in_record_id", id);
-                    cmd.Parameters.AddWithValue("@in_approved_by", approved_by);
-                    cmd.Parameters.AddWithValue("@in_module", module);
-                    cmd.Parameters.AddWithValue("@in_comment", module);
-                    cmd.Parameters.AddWithValue("@in_action_flag", action_flag);
-                    i = (int)cmd.ExecuteNonQuery();
-                }
-                if (i >= 1) return true;
-                else return false;
-            }
-            catch (Exception ex)
-            {
-                logger.Error("ApproveRecord: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-                return false;
-            }
-        }
-
         public bool AddAuditTrail(AuditTrailModel model)
         {
             try

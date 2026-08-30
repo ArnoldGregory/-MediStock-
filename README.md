@@ -30,6 +30,9 @@ MediStock is split into two .NET 10 applications:
 ### Finance & Reports
 - Expenses, purchase orders overview
 - Sales, stock and financial reports
+- **Stock Performance** — movement & margin report: per-product margin (KES & %), 30-day
+  units sold, days-of-stock and a Healthy / Slow / Out of Stock flag, with summary cards
+  for product count, average margin, slow movers and the value (cost) tied up in slow stock.
 
 ### AI & Automation
 - **Smart Reorder** — forecasts demand from the last 30 days of sales
@@ -44,8 +47,8 @@ MediStock is split into two .NET 10 applications:
     confidence scores, then a review grid lets you correct names and **type the selling
     price** before importing → creates/matches products, adds batches, increments stock,
     records a Received PO and supplier price history.
-- **Drug Interactions** — basic knowledge-base check endpoint (Warfarin, Metformin,
-  Lisinopril, …).
+- **Drug Interactions** — web page (check multiple products at once, severity labels)
+  backed by a 35+ pair knowledge base (Warfarin, Metformin, Lisinopril, Simvastatin, …).
 
 ### Platform
 - Role-based access (Admin / Pharmacist / Clerk) with a driven menu
@@ -174,13 +177,21 @@ All endpoints require `Authorization: Bearer <jwt>`.
 
 ## Roadmap / Known Follow-ups
 
-- Drug-interactions **page** (API exists) + a larger interaction database
-- Margin / slow-mover / dead-stock report
 - Barcode scanning for receiving & sales
 - Wholesale credit handling / printed receipts
-- Category auto-matching on invoice import (new products currently get no category)
-- Remove unused `GetUnapprovedRecords` / `ApproveRecord` API surface
-- Fill audit-trail `session_id` (currently `"TODO"`)
+- Stock expiry warnings in more surfaces (currently inside Smart Reorder)
+
+> ### What was recently built (and shipped)
+> - **Stock Performance report** (API + page + menu) — margin, 30-day movement, days-of-stock.
+> - **Drug Interactions page** — knowledge base expanded to 35+ pairs with severity + recommendation.
+> - **Reorder → Draft PO** — Smart Reorder now creates a real Pending purchase order.
+> - **Import Supplier Invoice** shortcut from the Products page.
+> - Dashboard summary bug fixed (stored-proc parameter names).
+> - **Category auto-matching** on invoice import — new products inherit a category from their name
+>   (e.g. “Ampiclox…” → Antibiotics) when one exists.
+> - Audit `session_id` filled (per-request identifier) instead of `"TODO"`.
+> - Removed dead `GetUnapprovedRecords` / `ApproveRecord` API surface.
+> - DB connection string can be overridden with the `MEDISTOCK_DBCONN` environment variable.
 
 ---
 

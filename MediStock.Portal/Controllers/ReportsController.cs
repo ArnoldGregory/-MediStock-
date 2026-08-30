@@ -48,6 +48,12 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
+        public async Task<IActionResult> StockPerformance()
+        {
+            await _audit.LogViewAsync("Reports/StockPerformance");
+            return View();
+        }
+
         // ── Data ──────────────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetSalesReport(string? from_date, string? to_date)
@@ -121,6 +127,20 @@ namespace MediStock.Portal.Controllers
                 if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
                 var result = await _api.GetAsync<object>(qs);
                 return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetStockPerformance()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/reports/stock-performance?pharmacyId=" + GetPharmacyId());
+                return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
             {

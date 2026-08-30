@@ -64,7 +64,10 @@ try
     builder.Services.AddScoped(sp =>
     {
         var config = sp.GetRequiredService<IConfiguration>();
-        return new DBHandler(config.GetConnectionString("DefaultConnection")!);
+        var conn = Environment.GetEnvironmentVariable("MEDISTOCK_DBCONN");
+        if (string.IsNullOrWhiteSpace(conn))
+            conn = config.GetConnectionString("DefaultConnection")!;
+        return new DBHandler(conn);
     });
 
     var app = builder.Build();
