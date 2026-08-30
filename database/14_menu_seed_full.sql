@@ -36,6 +36,7 @@ INSERT INTO menu_access_data (main_menu_name, sub_menu_name, menu_icon, menu_ord
 ('Inventory','Stock Take','fa-cube',10,5,'~/Stock/StockTake','ALL'),
 ('Sales','POS','fa-shopping-cart',20,1,'~/Sales/POS','ALL'),
 ('Sales','Sales History','fa-shopping-cart',20,2,'~/Sales/History','ALL'),
+('Sales','Returns','fa-undo',20,3,'~/Sales/Returns','ALL'),
 ('Customers','Retail','fa-users',30,1,'~/Customers/Retail','ALL'),
 ('Customers','Wholesale','fa-users',30,2,'~/Customers/Wholesale','ALL'),
 ('Suppliers','Suppliers','fa-truck',40,1,'~/Suppliers/Index','ALL'),
@@ -56,6 +57,7 @@ INSERT INTO menu_access_data (main_menu_name, sub_menu_name, menu_icon, menu_ord
 ('DDA','Report','fa-balance-scale',75,2,'~/DDA/Report','ALL'),
 ('Settings','Profile','fa-cog',80,1,'~/Settings/Profile','ALL'),
 ('Settings','Pharmacy','fa-cog',80,2,'~/Settings/Pharmacy','ALL'),
+('Settings','Setup Checklist','fa-check-square-o',80,3,'~/Settings/Setup','ALL'),
 ('Admin','Users','fa-user-secret',90,1,'~/Admin/Users','ALL'),
 ('Admin','Access Control','fa-shield',90,2,'~/Admin/AccessControl','ALL'),
 ('Platform','Overview','fa-globe',95,1,'~/SuperAdmin/Index','SUPERADMIN'),
@@ -88,6 +90,7 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (2,'Inventory','Stock Take','fa-cube','~/Stock/StockTake',1,10,5),
 (2,'Sales','POS','fa-shopping-cart','~/Sales/POS',1,20,1),
 (2,'Sales','Sales History','fa-shopping-cart','~/Sales/History',1,20,2),
+(2,'Sales','Returns','fa-undo','~/Sales/Returns',1,20,3),
 (2,'Customers','Retail','fa-users','~/Customers/Retail',1,30,1),
 (2,'Customers','Wholesale','fa-users','~/Customers/Wholesale',1,30,2),
 (2,'Suppliers','Suppliers','fa-truck','~/Suppliers/Index',1,40,1),
@@ -108,6 +111,7 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (2,'DDA','Report','fa-balance-scale','~/DDA/Report',1,75,2),
 (2,'Settings','Profile','fa-cog','~/Settings/Profile',1,80,1),
 (2,'Settings','Pharmacy','fa-cog','~/Settings/Pharmacy',1,80,2),
+(2,'Settings','Setup Checklist','fa-check-square-o','~/Settings/Setup',1,80,3),
 (2,'Admin','Users','fa-user-secret','~/Admin/Users',1,90,1),
 (2,'Admin','Access Control','fa-shield','~/Admin/AccessControl',1,90,2);
 
@@ -120,6 +124,7 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (3,'Inventory','Stock Adjustments','fa-cube','~/Stock/Adjustments',1,10,4),
 (3,'Sales','POS','fa-shopping-cart','~/Sales/POS',1,20,1),
 (3,'Sales','Sales History','fa-shopping-cart','~/Sales/History',1,20,2),
+(3,'Sales','Returns','fa-undo','~/Sales/Returns',1,20,3),
 (3,'Customers','Retail','fa-users','~/Customers/Retail',1,30,1),
 (3,'Customers','Wholesale','fa-users','~/Customers/Wholesale',1,30,2),
 (3,'Suppliers','Suppliers','fa-truck','~/Suppliers/Index',1,40,1),
@@ -134,7 +139,8 @@ INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page
 (3,'Clinical','Prescriptions','fa-heartbeat','~/Clinical/Prescriptions',1,70,2),
 (3,'DDA','Register','fa-balance-scale','~/DDA/Register',1,75,1),
 (3,'DDA','Report','fa-balance-scale','~/DDA/Report',1,75,2),
-(3,'Settings','Profile','fa-cog','~/Settings/Profile',1,80,1);
+(3,'Settings','Profile','fa-cog','~/Settings/Profile',1,80,1),
+(3,'Settings','Setup Checklist','fa-check-square-o','~/Settings/Setup',1,80,3);
 
 -- Role 4 (Staff)
 INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page_url, can_access, menu_order, sub_menu_order) VALUES

@@ -21,6 +21,9 @@ MediStock is split into two .NET 10 applications:
 ### Sales & Customers
 - POS screen with sales history
 - Retail and wholesale customers with credit limit / payment terms
+- **Sales Returns** — record a return against a sale (reason + per-line quantities),
+  gets an automatic `RET-…` number, restores stock to the product and batch, tracks
+  `returned_qty` against the original line, and refuses quantities over what was sold.
 
 ### Suppliers, Purchasing & Receiving
 - Supplier register and **supplier price history**
@@ -33,6 +36,8 @@ MediStock is split into two .NET 10 applications:
 - **Stock Performance** — movement & margin report: per-product margin (KES & %), 30-day
   units sold, days-of-stock and a Healthy / Slow / Out of Stock flag, with summary cards
   for product count, average margin, slow movers and the value (cost) tied up in slow stock.
+- **Excel export** — every report (Sales, Stock, Financial, Stock Performance, Margins,
+  Expiring batches) downloads as a formatted `.xlsx` from the server.
 
 ### AI & Automation
 - **Smart Reorder** — forecasts demand from the last 30 days of sales
@@ -54,6 +59,9 @@ MediStock is split into two .NET 10 applications:
 - Role-based access (Admin / Pharmacist / Clerk) with a driven menu
 - JWT auth with refresh tokens, password hashing (BCrypt), NLog logging
 - Audit-trail capture on key actions
+- **Setup Checklist** — a readiness page (Settings → Setup Checklist) that points out
+  missing suppliers, uncategorised/unpriced products, unbatch-tracked stock and expired
+  or expiring batches, with one-click links to fix each item.
 
 ---
 
@@ -182,6 +190,10 @@ All endpoints require `Authorization: Bearer <jwt>`.
 - Stock expiry warnings in more surfaces (currently inside Smart Reorder)
 
 > ### What was recently built (and shipped)
+> - **Sales Returns** (API + page + menu) — atomic return SP restores stock, tracks
+>   `returned_qty`, refuses over-returns.
+> - **Excel report exports** — server-side `.xlsx` download for all reports.
+> - **Setup Checklist** page (Settings → Setup Checklist) — readiness checks with fix links.
 > - **Stock Performance report** (API + page + menu) — margin, 30-day movement, days-of-stock.
 > - **Drug Interactions page** — knowledge base expanded to 35+ pairs with severity + recommendation.
 > - **Reorder → Draft PO** — Smart Reorder now creates a real Pending purchase order.

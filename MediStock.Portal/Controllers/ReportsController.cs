@@ -148,6 +148,26 @@ namespace MediStock.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> ExportExcel(string report, string? from_date = null, string? to_date = null)
+        {
+            try
+            {
+                var qs = $"api/reports/export?report={report}";
+                if (!string.IsNullOrWhiteSpace(from_date)) qs += $"&from_date={Uri.EscapeDataString(from_date)}";
+                if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={Uri.EscapeDataString(to_date)}";
+
+                var (bytes, contentType, fileName, error) = await _api.GetFileAsync(qs);
+                if (bytes == null)
+                    return Content(error ?? "Export failed");
+                return File(bytes, contentType ?? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", fileName ?? $"{report}_report.xlsx");
+            }
+            catch (Exception ex)
+            {
+                return Content("Export failed: " + ex.Message);
+            }
+        }
+
         private string GetPharmacyId()
         {
             return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";

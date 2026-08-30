@@ -32,6 +32,7 @@
                         <button class="btn btn-primary" onclick="GenerateReport();"><i class="fa fa-cog"></i> Generate</button>
                         <button class="btn btn-default" onclick="window.print();"><i class="fa fa-print"></i> Print</button>
                         <button class="btn btn-default" onclick="ExportCsv();"><i class="fa fa-download"></i> Export CSV</button>
+                        <button class="btn btn-success" onclick="ExportExcel();"><i class="fa fa-file-excel-o"></i> Export Excel</button>
                     </div>
                 </div>
             </div>
@@ -161,6 +162,13 @@
                 rows.push([(r.sale_date || ''), r.transactions, r.total_sales, r.vat_total, r.discounts, r.profit]);
             }
             downloadCsv('sales_report.csv', rows);
+        }
+
+        function ExportExcel() {
+            var qs = '/Reports/ExportExcel?report=sales';
+            if ($('#dateFrom').val()) qs += '&from_date=' + encodeURIComponent($('#dateFrom').val());
+            if ($('#dateTo').val()) qs += '&to_date=' + encodeURIComponent($('#dateTo').val());
+            window.location.href = qs;
         }
 
         function downloadCsv(fileName, rows) {

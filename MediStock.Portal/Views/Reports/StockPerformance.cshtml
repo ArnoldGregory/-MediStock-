@@ -40,6 +40,7 @@
         <div class="panel panel-inverse">
             <div class="panel-heading">
                 <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="ExportExcel();"><i class="fa fa-file-excel-o"></i> Excel</button>
                     <button type="button" class="btn btn-xs btn-success" onclick="LoadReport();"><i class="fa fa-repeat"></i></button>
                 </div>
                 <h4 class="panel-title" style="color:#fff;"><i class="fa fa-table m-r-5"></i> Product Movement</h4>
@@ -121,6 +122,10 @@
                 t.fnDraw();
                 $('#detailRow').css('display', '');
             }, function () { RenderEmpty('row'); });
+        }
+
+        function ExportExcel() {
+            window.location.href = '/Reports/ExportExcel?report=stockperformance';
         }
 
         function RenderEmpty(where) {

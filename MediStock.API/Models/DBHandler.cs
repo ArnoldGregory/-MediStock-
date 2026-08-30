@@ -981,6 +981,87 @@ namespace MediStock.API.Models
             }
         }
 
+        public DataTable GetSaleReturns(Int64 pharmacyId)
+        {
+            DataTable dt = new();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_sale_returns", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetSaleReturns: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); }
+            return dt;
+        }
+
+        public DataTable GetSaleReturnableItems(Int64 saleId)
+        {
+            DataTable dt = new();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_sale_returnable_items", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_sale_id", saleId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetSaleReturnableItems: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); }
+            return dt;
+        }
+
+        public DataTable GetSaleReturnItems(Int64 returnId)
+        {
+            DataTable dt = new();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("get_sale_return_items", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_return_id", returnId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex) { logger.Error("GetSaleReturnItems: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); }
+            return dt;
+        }
+
+        public (Int64 id, string number)? CreateSaleReturn(Int64 pharmacyId, Int64 saleId, Int64? customerId,
+            string? reason, decimal totalRefund, Int64 userId, string itemsJson)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                connect.Open();
+                using MySqlCommand cmd = new MySqlCommand("create_sale_return", connect);
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_sale_id", saleId);
+                cmd.Parameters.AddWithValue("@p_customer_id", (object?)customerId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_reason", (object?)reason ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_total_refund", totalRefund);
+                cmd.Parameters.AddWithValue("@p_created_by", userId);
+                cmd.Parameters.AddWithValue("@p_items_json", itemsJson);
+                using (MySqlDataReader rdr = cmd.ExecuteReader())
+                {
+                    if (rdr.Read())
+                        return (Convert.ToInt64(rdr["id"]), rdr["return_number"]?.ToString() ?? "");
+                }
+                return null;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("CreateSaleReturn: " + ex.Message + " - " + ex.StackTrace + " - " + (ex.InnerException?.ToString() ?? ""));
+                return null;
+            }
+        }
+
         public bool ReceiveStock(Int64 poId, ReceiveStockModel m)
         {
             logger.Info("******* Start ReceiveStock Process *********");

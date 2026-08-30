@@ -49,6 +49,7 @@
                     <div class="col-md-12">
                         <button class="btn btn-sm btn-default" onclick="window.print();"><i class="fa fa-print"></i> Print</button>
                         <button class="btn btn-sm btn-default" onclick="ExportCsv();"><i class="fa fa-download"></i> Export CSV</button>
+                        <button class="btn btn-sm btn-success" onclick="ExportExcel();"><i class="fa fa-file-excel-o"></i> Export Excel</button>
                     </div>
                 </div>
                 <table id="stockReportTable" class="table table-striped table-hover table-bordered table-condensed">
@@ -141,6 +142,10 @@
                            r.stock_qty === 0 ? 'Out of Stock' : (r.stock_qty <= r.reorder_level ? 'Low Stock' : 'OK')]);
             }
             downloadCsv('stock_report.csv', rows);
+        }
+
+        function ExportExcel() {
+            window.location.href = '/Reports/ExportExcel?report=stock';
         }
 
         function downloadCsv(fileName, rows) {

@@ -1,0 +1,98 @@
+@section PageStyles {
+    <style>
+        .setup-card { min-height: 150px; }
+        .setup-card .fa { font-size: 18px; }
+        .setup-card.ok .setup-icon { color: #2ecc71; }
+        .setup-card.warn .setup-icon { color: #e67e22; }
+        .setup-card.pend .setup-icon { color: #e74c3c; }
+        .setup-hint { font-size: 12px; color: #888; }
+    </style>
+}
+
+<h1 class="page-header"><i class="fa fa-check-square-o"></i> Setup Checklist <small>Get your pharmacy ready</small></h1>
+
+<div class="row" id="readyBanner" style="display:none;">
+    <div class="col-md-12">
+        <div class="alert alert-success">
+            <h4><i class="fa fa-check-circle"></i> Everything looks set up</h4>
+            Your pharmacy data is complete. Run this checklist any time to spot issues like expired batches or missing prices.
+        </div>
+    </div>
+</div>
+
+<div class="row m-b-10" id="progressRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading"><h4 class="panel-title"><i class="fa fa-tasks"></i> Readiness</h4></div>
+            <div class="panel-body">
+                <div class="text-center m-b-5">
+                    <strong><span id="chkDone">0</span> / <span id="chkTotal">0</span> checks passed</strong>
+                </div>
+                <div class="progress">
+                    <div id="chkBar" class="progress-bar progress-bar-success progress-bar-striped active" role="progressbar" style="width:0%"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row" id="checksRow"></div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        var jumpMap = {
+            'start': '/Settings/Pharmacy',
+            'suppliers': '/Suppliers/Index',
+            'products': '/Products/Index',
+            'categories': '/Products/Categories',
+            'batches': '/Stock/Batches',
+            'pharmacy': '/Settings/Pharmacy'
+        };
+
+        $(document).ready(function () {
+            LoadChecklist();
+        });
+
+        function LoadChecklist() {
+            ajaxGet('/Settings/GetSetupChecklist', function (data) {
+                if (!data || !data.checks) { RenderEmpty(); return; }
+
+                $('#progressRow').css('display', '');
+                var total = data.total || data.checks.length;
+                var done = data.done || 0;
+                $('#chkDone').text(done);
+                $('#chkTotal').text(total);
+                var pct = total ? Math.round(done / total * 100) : 0;
+                $('#chkBar').css('width', pct + '%').text(pct + '%');
+
+                if (data.ready) $('#readyBanner').css('display', '');
+
+                var html = '';
+                for (var i = 0; i < data.checks.length; i++) {
+                    var c = data.checks[i];
+                    var cls = c.ok ? 'ok' : 'pend';
+                    var icon = c.ok ? 'fa-check-circle' : 'fa-exclamation-triangle';
+                    var btn = c.ok
+                        ? '<span class="label label-success">OK</span>'
+                        : '<a href="' + (jumpMap[c.jump_to] || '#') + '" class="btn btn-xs btn-warning"><i class="fa fa-arrow-right"></i> Fix it</a>';
+                    html +=
+                        '<div class="col-md-4 col-sm-6">' +
+                            '<div class="panel panel-' + (c.ok ? 'success' : 'warning') + ' setup-card">' +
+                                '<div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><i class="fa setup-icon ' + icon + ' m-r-5"></i> ' + c.label + '</h4></div>' +
+                                '<div class="panel-body">' +
+                                    '<p class="setup-hint">' + (c.hint || '') + '</p>' +
+                                    '<div class="m-t-10">' + btn + '</div>' +
+                                '</div>' +
+                            '</div>' +
+                        '</div>';
+                }
+                $('#checksRow').html(html);
+            });
+        }
+
+        function RenderEmpty() {
+            $('#checksRow').html('<div class="col-md-12"><div class="alert alert-danger">Could not load the checklist.</div></div>');
+        }
+    </script>
+}

@@ -28,6 +28,7 @@
                     <div>
                         <button class="btn btn-primary" onclick="GenerateReport();"><i class="fa fa-cog"></i> Generate</button>
                         <button class="btn btn-default" onclick="window.print();"><i class="fa fa-print"></i> Print</button>
+                        <button class="btn btn-success" onclick="ExportExcel();"><i class="fa fa-file-excel-o"></i> Export Excel</button>
                     </div>
                 </div>
             </div>
@@ -106,6 +107,13 @@
             });
             $('.date-picker').datepicker({ autoclose: true, todayHighlight: true, format: 'yyyy-mm-dd' });
         });
+
+        function ExportExcel() {
+            var qs = '/Reports/ExportExcel?report=financial';
+            if ($('#dateFrom').val()) qs += '&from_date=' + encodeURIComponent($('#dateFrom').val());
+            if ($('#dateTo').val()) qs += '&to_date=' + encodeURIComponent($('#dateTo').val());
+            window.location.href = qs;
+        }
 
         function GenerateReport() {
             var qs = '';

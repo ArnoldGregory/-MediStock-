@@ -44,6 +44,26 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
+        public async Task<IActionResult> Setup()
+        {
+            await _audit.LogViewAsync("Settings/Setup");
+            return View();
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetSetupChecklist()
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>("api/setup/checklist");
+                return Json(result.IsSuccess ? result.Data : null);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
         // ── Pharmacy data ─────────────────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> GetPharmacy()
