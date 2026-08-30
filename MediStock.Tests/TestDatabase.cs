@@ -29,6 +29,13 @@ public static class TestDatabase
     private static string ScriptConnectionString
         => TestConnectionString + ";Allow User Variables=True";
 
+    private static MySqlConnection Open(string conn)
+    {
+        var c = new MySqlConnection(conn);
+        c.Open();
+        return c;
+    }
+
     private static readonly object _lock = new();
 
     public static void Provision()
@@ -48,22 +55,32 @@ public static class TestDatabase
             foreach (var file in Directory.GetFiles(migrations, "*.sql")
                          .OrderBy(f => int.Parse(Path.GetFileName(f).Split('_')[0]), Comparer<int>.Default))
             {
-                RunScript(ScriptConnectionString, File.ReadAllText(file));
+                RunScript(ScriptConnectionString, Path.GetFileName(file), File.ReadAllText(file));
             }
 
             Seed();
         }
     }
 
-    private static void RunScript(string conn, string script)
+    private static void RunScript(string conn, string file, string script)
     {
-        using var connection = new MySqlConnection(conn);
-        connection.Open();
+        bool dbg = Environment.GetEnvironmentVariable("MEDISTOCK_TEST_DEBUG") == "1";
+        using var connection = Open(conn);
         foreach (var statement in SplitScript(script))
         {
+            if (dbg)
+            {
+                using var diag = new MySqlCommand("SELECT DATABASE() FROM DUAL", connection);
+                Console.WriteLine($"DBG {file} [{diag.ExecuteScalar()}] " + statement.Replace("\n", " ")[..Math.Min(120, statement.Length)]);
+            }
             using var cmd = new MySqlCommand(statement, connection);
             cmd.CommandTimeout = 120;
-            cmd.ExecuteNonQuery();
+            try { cmd.ExecuteNonQuery(); }
+            catch (Exception ex)
+            {
+                string snippet = statement.Length > 300 ? statement[..300] : statement;
+                throw new Exception($"{file} -> {snippet}  ... ERROR: {ex.Message}", ex);
+            }
         }
     }
 
@@ -77,8 +94,15 @@ public static class TestDatabase
             var line = raw.TrimEnd('\r');
             var trimmed = line.Trim();
 
-            // A USE statement would redirect the connection to the live DB — drop it.
-            if (System.Text.RegularExpressions.Regex.IsMatch(trimmed, @"^USE\s+\w+;?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+            // A USE statement would redirect the connection to the live DB — drop
+            // any standalone USE / CREATE DATABASE line (bare, backticked, or
+            // carrying the $DELIMITER suffix), regardless of the active delimiter.
+            string useTest = trimmed.Replace("`", "");
+            foreach (var d in new[] { delim, ";", "$$", "//" })
+                if (useTest.EndsWith(d, StringComparison.Ordinal))
+                    { useTest = useTest[..^d.Length].TrimEnd(); break; }
+            if (System.Text.RegularExpressions.Regex.IsMatch(useTest, @"^USE\s+\w+$", System.Text.RegularExpressions.RegexOptions.IgnoreCase) ||
+                System.Text.RegularExpressions.Regex.IsMatch(useTest, @"^CREATE\s+DATABASE\b", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
                 continue;
 
             if (trimmed.StartsWith("DELIMITER ", StringComparison.OrdinalIgnoreCase))
@@ -108,8 +132,7 @@ public static class TestDatabase
         string adminHash = BCrypt.Net.BCrypt.HashPassword(Password);
         string superHash = adminHash;
 
-        using var conn = new MySqlConnection(TestConnectionString);
-        conn.Open();
+        using var conn = Open(TestConnectionString);
 
         using (var ph = new MySqlCommand(
             "INSERT INTO pharmacies (id, name, slug, phone, email, address, license_number, currency, is_active, is_deleted, created_on) " +
@@ -137,8 +160,7 @@ public static class TestDatabase
 
     public static void Cleanup(params string[] sql)
     {
-        using var conn = new MySqlConnection(TestConnectionString);
-        conn.Open();
+        using var conn = Open(TestConnectionString);
         foreach (var s in sql)
         {
             if (string.IsNullOrWhiteSpace(s)) continue;
@@ -149,8 +171,7 @@ public static class TestDatabase
 
     public static object? Scalar(string sql)
     {
-        using var conn = new MySqlConnection(TestConnectionString);
-        conn.Open();
+        using var conn = Open(TestConnectionString);
         using var cmd = new MySqlCommand(sql, conn);
         return cmd.ExecuteScalar();
     }

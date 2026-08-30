@@ -1,4 +1,4 @@
-using MySqlConnector;
+﻿using MySqlConnector;
 using Newtonsoft.Json;
 using NLog;
 using MediStock.API.Helpers;
@@ -16,9 +16,13 @@ namespace MediStock.API.Models
 
         public DBHandler(string connstring)
         {
-            connection = new MySqlConnection(connstring);
-            this.connection.Open();
+            connection = OpenSession(connstring);
             connectionstring = connstring;
+        }
+
+        public static MySqlConnection OpenSession(string connstring)
+        {
+            return new MySqlConnection(connstring);
         }
 
         public void Dispose()
@@ -49,7 +53,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_records", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -73,7 +77,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_records_by_id", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -94,7 +98,7 @@ namespace MediStock.API.Models
             try
             {
                 int i = 0;
-                using (MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     using MySqlCommand cmd = new MySqlCommand("delete_records", connect);
                     connect.Open();
@@ -118,7 +122,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("void_sale", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -148,7 +152,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand(
                     "SELECT id, pharmacy_id, COALESCE(user_id,0) AS user_id, title, message, notification_type, is_read, created_on " +
                     "FROM notifications WHERE pharmacy_id = @pid AND is_deleted = 0 ORDER BY created_on DESC, id DESC LIMIT 50", connect);
@@ -167,7 +171,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand(
                     "SELECT COUNT(*) FROM notifications WHERE pharmacy_id = @pid AND is_read = 0 AND is_deleted = 0", connect);
                 connect.Open();
@@ -186,7 +190,7 @@ namespace MediStock.API.Models
             try
             {
                 int i = 0;
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("mark_notification_read", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -205,7 +209,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand(
                     "UPDATE notifications SET is_read = 1 WHERE pharmacy_id = @pid AND is_read = 0 AND is_deleted = 0", connect);
                 connect.Open();
@@ -225,7 +229,7 @@ namespace MediStock.API.Models
             try
             {
                 Int64 id = 0;
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_notification", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -252,7 +256,7 @@ namespace MediStock.API.Models
             try
             {
                 int i = 0;
-                using (MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     using (MySqlCommand cmd = new MySqlCommand("add_audit_trail", connect))
                     {
@@ -289,7 +293,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand(sql, connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 sd.Fill(dt);
@@ -304,7 +308,7 @@ namespace MediStock.API.Models
         public DataTable GetAdhocData(string query, MySqlParameter[] parameters)
         {
             DataTable dataTable = new DataTable();
-            using (MySqlConnection conn = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+            using (MySqlConnection conn = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
             {
                 using (MySqlCommand cmd = new MySqlCommand(query, conn))
                 {
@@ -323,7 +327,7 @@ namespace MediStock.API.Models
             string scalaritem = "";
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand command = new MySqlCommand(sql, connect);
                 connect.Open();
                 scalaritem = command.ExecuteScalar()?.ToString() ?? "";
@@ -340,7 +344,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using (MySqlConnection connection = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connection = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     await connection.OpenAsync();
                     using (MySqlCommand command = new MySqlCommand(query, connection))
@@ -378,7 +382,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using (MySqlConnection connection = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connection = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     using (MySqlCommand command = new MySqlCommand(query, connection))
                     {
@@ -405,7 +409,7 @@ namespace MediStock.API.Models
             var dataTable = new DataTable();
             try
             {
-                using (MySqlConnection connection = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connection = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     await connection.OpenAsync();
                     using (MySqlCommand command = new MySqlCommand(query, connection))
@@ -439,7 +443,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("validate_login", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -461,7 +465,7 @@ namespace MediStock.API.Models
             Int64 newId = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_refresh_token", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -487,7 +491,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_active_refresh_tokens", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -546,7 +550,7 @@ namespace MediStock.API.Models
                     string storedHashed = row["token"].ToString();
                     if (BCrypt.Net.BCrypt.Verify(plainToken, storedHashed))
                     {
-                        using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                        using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                         using MySqlCommand cmd = new MySqlCommand("revoke_refresh_token", connect);
                         connect.Open();
                         cmd.CommandType = CommandType.StoredProcedure;
@@ -573,7 +577,7 @@ namespace MediStock.API.Models
             bool success = false;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("revoke_all_user_refresh_tokens", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -596,7 +600,7 @@ namespace MediStock.API.Models
             Int64 newId = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("riziki_save_otp", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -623,7 +627,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("riziki_verify_otp", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -699,7 +703,7 @@ namespace MediStock.API.Models
             try
             {
                 int i = 0;
-                using (MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     using MySqlCommand cmd = new MySqlCommand("client_password_reset", connect);
                     connect.Open();
@@ -724,7 +728,7 @@ namespace MediStock.API.Models
             try
             {
                 int i = 0;
-                using (MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     using MySqlCommand cmd = new MySqlCommand("update_jwt_token", connect);
                     connect.Open();
@@ -753,7 +757,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_pharmacy", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -789,7 +793,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_user", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -826,7 +830,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_product", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -866,7 +870,7 @@ namespace MediStock.API.Models
             try
             {
                 int i = 0;
-                using (MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
                 {
                     using MySqlCommand cmd = new MySqlCommand("update_product", connect);
                     connect.Open();
@@ -901,7 +905,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_category", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -933,7 +937,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_customer", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -974,7 +978,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_supplier", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1010,7 +1014,7 @@ namespace MediStock.API.Models
             logger.Info("******* Start UpdateSupplier Process *********");
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("update_supplier", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1040,7 +1044,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("create_sale", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1079,7 +1083,7 @@ namespace MediStock.API.Models
             {
                 foreach (var item in items)
                 {
-                    using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                    using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                     using MySqlCommand cmd = new MySqlCommand("add_sale_item", connect);
                     connect.Open();
                     cmd.CommandType = CommandType.StoredProcedure;
@@ -1094,7 +1098,7 @@ namespace MediStock.API.Models
 
                 foreach (var item in items)
                 {
-                    using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                    using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                     using MySqlCommand cmd = new MySqlCommand("deduct_stock_on_sale", connect);
                     connect.Open();
                     cmd.CommandType = CommandType.StoredProcedure;
@@ -1119,7 +1123,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_sale_returns", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1136,7 +1140,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_sale_returnable_items", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1153,7 +1157,7 @@ namespace MediStock.API.Models
             DataTable dt = new();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_sale_return_items", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1170,7 +1174,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 connect.Open();
                 using MySqlCommand cmd = new MySqlCommand("create_sale_return", connect);
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1200,7 +1204,7 @@ namespace MediStock.API.Models
             logger.Info("******* Start ReceiveStock Process *********");
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("receive_stock", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1225,7 +1229,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_purchase_order", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1262,7 +1266,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_expense", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1298,7 +1302,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_patient", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1337,7 +1341,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_prescription", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1372,7 +1376,7 @@ namespace MediStock.API.Models
             Int64 i = 0;
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_dda_entry", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1407,7 +1411,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_dashboard_summary", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1427,7 +1431,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_pharmacy_by_slug", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1447,7 +1451,7 @@ namespace MediStock.API.Models
             string callerId = "";
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand(
                     "SELECT id FROM p_external_portal_user WHERE email = @email LIMIT 1", connect);
                 connect.Open();
@@ -1472,7 +1476,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_menu", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1495,7 +1499,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand(
                     "SELECT mad.id, mad.main_menu_name, mad.sub_menu_name, mad.menu_icon, mad.menu_order, " +
                     "mad.sub_menu_order, mad.page_url, mad.menu_type, " +
@@ -1569,7 +1573,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_users_by_pharmacy", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1589,7 +1593,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_user_by_id", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1609,7 +1613,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 connect.Open();
                 using MySqlCommand cmd = new MySqlCommand(
                     "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, IF(locked=1,0,1) AS is_active, avatar, " +
@@ -1631,7 +1635,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 connect.Open();
                 using MySqlCommand cmd = new MySqlCommand(
                     "SELECT id, pharmacy_id, first_name, last_name, email, mobile, role_id, IF(locked=1,0,1) AS is_active, avatar " +
@@ -1652,7 +1656,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("update_user", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1677,7 +1681,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("admin_reset_password", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1702,7 +1706,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_all_pharmacies", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1718,7 +1722,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_all_users", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1735,7 +1739,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_platform_stats", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1751,7 +1755,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_platform_audit", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1774,7 +1778,7 @@ namespace MediStock.API.Models
             string errorDesc = "OK";
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("add_pharmacy_platform", connect);
                 connect.Open();
                 cmd.CommandType = CommandType.StoredProcedure;
@@ -1820,7 +1824,7 @@ namespace MediStock.API.Models
         {
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("update_pharmacy_status", connect);
                 cmd.Parameters.Add("@p_error_code", MySqlDbType.Int32).Direction = ParameterDirection.Output;
                 cmd.Parameters.Add("@p_error_desc", MySqlDbType.VarChar, 500).Direction = ParameterDirection.Output;
@@ -1853,7 +1857,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_stock_summary", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1870,7 +1874,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_sales_stats", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1887,7 +1891,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_expiring_items", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1904,7 +1908,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_alerts", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1921,7 +1925,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_my_sales", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
@@ -1939,7 +1943,7 @@ namespace MediStock.API.Models
             DataTable dt = new DataTable();
             try
             {
-                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
                 using MySqlCommand cmd = new MySqlCommand("get_pending_orders", connect);
                 using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
                 connect.Open();
