@@ -1,0 +1,134 @@
+@section PageStyles {
+    <link href="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.min.css" rel="stylesheet" />
+}
+
+<h1 class="page-header"><i class="fa fa-medkit"></i> Drug Interactions <small>AI Medication Screen</small></h1>
+
+<div class="panel panel-inverse">
+    <div class="panel-heading">
+        <h4 class="panel-title" style="color:#fff;"><i class="fa fa-pills m-r-5"></i> Medications to Screen</h4>
+    </div>
+    <div class="panel-body">
+        <div class="row">
+            <div class="col-md-10">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="medInput" placeholder="Type a medication name, e.g. Warfarin" onkeypress="if (event.key === 'Enter') { event.preventDefault(); AddMedication(); }" />
+                    <span class="input-group-btn">
+                        <button class="btn btn-primary" onclick="AddMedication();"><i class="fa fa-plus"></i> Add</button>
+                    </span>
+                </div>
+                <p class="text-muted m-t-10 m-b-0" id="medHint" style="line-height:1.5;">Examples to try: Warfarin + Aspirin, Simvastatin + Clarithromycin, Lisinopril + Spironolactone, Metformin + Alcohol, Tramadol + Sertraline.</p>
+            </div>
+            <div class="col-md-2">
+                <div class="form-group">
+                    <label>&nbsp;</label>
+                    <div>
+                        <button class="btn btn-success btn-block" id="btnCheck" onclick="CheckInteractions();"><i class="fa fa-search"></i> Check</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row m-t-15">
+            <div class="col-md-12">
+                <ul id="medList" class="list-inline m-b-0"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results -->
+<div class="row m-t-20" id="resultsRow" style="display:none;">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <div class="panel-heading-btn">
+                    <button type="button" class="btn btn-xs btn-success" onclick="CheckInteractions();"><i class="fa fa-repeat"></i></button>
+                </div>
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-exclamation-triangle m-r-5"></i> Interaction Results</h4>
+            </div>
+            <div class="panel-body p-t-0" id="resultsBody">
+                <i class="fa fa-spinner fa-spin"></i> Checking...
+            </div>
+        </div>
+    </div>
+</div>
+
+@section PageScripts {
+    <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
+    <script>
+        // ============================================================
+        //  Drug Interactions — AI Medication Screen (BFF pattern)
+        // ============================================================
+        var meds = [];
+
+        function AddMedication() {
+            var v = $.trim($('#medInput').val());
+            if (!v) return;
+            if (meds.some(function (m) { return m.toLowerCase() === v.toLowerCase(); })) {
+                $('#medInput').val('');
+                return;
+            }
+            meds.push(v);
+            RenderList();
+            $('#medInput').val('').focus();
+        }
+
+        function RemoveMedication(i) {
+            meds.splice(i, 1);
+            RenderList();
+            if (!meds.length) $('#resultsRow').css('display', 'none');
+        }
+
+        function RenderList() {
+            var ul = $('#medList').empty();
+            if (!meds.length) {
+                ul.append('<li class="text-muted">No medications added yet.</li>');
+                return;
+            }
+            $.each(meds, function (i, m) {
+                ul.append('<li><span class="label label-info" style="font-size:100%;font-weight:500;">' + $('<span>').text(m).html() +
+                    ' &nbsp;<a href="javascript:void(0)" onclick="RemoveMedication(' + i + ')" style="color:#fff;" title="Remove"><i class="fa fa-times-circle"></i></a></span></li>');
+            });
+        }
+
+        function CheckInteractions() {
+            if (!meds.length) { Swal.fire('No medications', 'Add at least one medication to check.', 'warning'); return; }
+            $('#resultsRow').css('display', '');
+            $('#resultsBody').html('<i class="fa fa-spinner fa-spin"></i> Checking...');
+            var btn = document.getElementById('btnCheck');
+            btnLoad(btn, 'Checking...');
+            ajaxPost('/AI/CheckDrugInteractions', { medications: meds }, function (res) {
+                btnStop(btn);
+                if (!res.success) {
+                    $('#resultsBody').html('<p class="text-danger m-b-0">' + (res.message || 'Failed to check interactions.') + '</p>');
+                    return;
+                }
+                RenderResults(res.data || {});
+            }, function () {
+                btnStop(btn);
+                $('#resultsBody').html('<p class="text-danger m-b-0">Request failed. Please try again.</p>');
+            });
+        }
+
+        function RenderResults(d) {
+            var items = d.interactions || [];
+            var html = '';
+            if (!items.length) {
+                html += '<div class="alert alert-success m-b-0" role="alert"><i class="fa fa-check-circle m-r-5"></i><strong>No known interactions</strong> detected between the screened medications.</div>';
+            } else {
+                html += '<table class="table table-striped table-bordered table-condensed m-b-0">' +
+                    '<thead><tr><th>Medication A</th><th>Medication B</th><th>Severity</th><th>Recommendation</th></tr></thead><tbody>';
+                $.each(items, function (i, it) {
+                    var cls = it.severity === 'Severe' ? 'label-danger' : 'label-warning';
+                    html += '<tr><td>' + $('<span>').text(it.medication_a).html() + '</td>' +
+                        '<td>' + $('<span>').text(it.medication_b).html() + '</td>' +
+                        '<td><span class="label ' + cls + '">' + (it.severity || 'Moderate') + '</span></td>' +
+                        '<td>' + $('<span>').text(it.recommendation || '').html() + '</td></tr>';
+                });
+                html += '</tbody></table>';
+            }
+            html += '<p class="text-muted m-t-10 m-b-0" style="font-size:12px;line-height:1.5;"><i class="fa fa-info-circle m-r-5"></i>' + (d.disclaimer || '') + '</p>';
+            $('#resultsBody').html(html);
+        }
+    </script>
+}

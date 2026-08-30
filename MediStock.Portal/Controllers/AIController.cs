@@ -1,8 +1,10 @@
 // ============================================================
 //  MediStock.Portal — AIController
 //  Routes:
-//    GET  /AI/Index             → smart reorder view
-//    POST /AI/PredictReorder    → proxy → POST api/ai/predict-reorder
+//    GET  /AI/Index                  → smart reorder view
+//    POST /AI/PredictReorder         → proxy → POST api/ai/predict-reorder
+//    GET  /AI/DrugInteractions       → interaction checker view
+//    POST /AI/CheckDrugInteractions  → proxy → POST api/ai/drug-interactions
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -27,6 +29,40 @@ namespace MediStock.Portal.Controllers
         {
             await _audit.LogViewAsync("AI/Index");
             return View();
+        }
+
+        public async Task<IActionResult> DrugInteractions()
+        {
+            await _audit.LogViewAsync("AI/DrugInteractions");
+            return View();
+        }
+
+        [HttpPost]
+        public async Task<IActionResult> CheckDrugInteractions([FromBody] InteractionsRequest? model)
+        {
+            try
+            {
+                if (model == null || model.medications == null || model.medications.Count == 0)
+                    return Json(new { success = false, message = "Add at least one medication" });
+
+                var result = await _api.PostAsync<object>("api/ai/drug-interactions", new
+                {
+                    medications = model.medications
+                });
+
+                return Json(result.IsSuccess
+                    ? new { success = true, message = "Success", data = result.Data }
+                    : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to check interactions" : result.Error });
+            }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, message = ex.Message });
+            }
+        }
+
+        public class InteractionsRequest
+        {
+            public List<string> medications { get; set; } = new();
         }
 
         [HttpPost]

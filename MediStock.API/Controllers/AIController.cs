@@ -236,39 +236,113 @@ namespace MediStock.API.Controllers
                 if (jobject == null || !jobject.ContainsKey("medications"))
                     return Bad("Medications list is required");
 
-                var medications = jobject["medications"]?.ToObject<List<string>>() ?? new List<string>();
+                var raw = jobject["medications"]?.ToObject<List<string>>() ?? new List<string>();
+                var medications = raw
+                    .Where(m => !string.IsNullOrWhiteSpace(m))
+                    .Select(m => m.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                if (medications.Count == 0)
+                    return Bad("Medications list is required");
 
                 var interactions = new List<object>();
-                var knownInteractions = new Dictionary<string, string[]>
+                foreach (var def in KnownInteractions)
                 {
-                    { "Warfarin", new[] { "Aspirin", "Ibuprofen", "Paracetamol" } },
-                    { "Metformin", new[] { "Alcohol", "Contrast Dye" } },
-                    { "Lisinopril", new[] { "Potassium", "NSAIDs" } }
-                };
-
-                foreach (var med in medications)
-                {
-                    if (knownInteractions.ContainsKey(med))
+                    bool hasA = medications.Contains(def.A, StringComparer.OrdinalIgnoreCase);
+                    bool hasB = medications.Contains(def.B, StringComparer.OrdinalIgnoreCase);
+                    if (hasA && hasB)
                     {
-                        var conflicting = knownInteractions[med].Where(m => medications.Contains(m, StringComparer.OrdinalIgnoreCase)).ToArray();
-                        if (conflicting.Length > 0)
+                        interactions.Add(new
                         {
-                            interactions.Add(new
-                            {
-                                medication = med,
-                                interacts_with = conflicting,
-                                severity = "Moderate",
-                                recommendation = "Consult a healthcare professional before concurrent use"
-                            });
-                        }
+                            medication_a = def.A,
+                            medication_b = def.B,
+                            severity = def.Severity,
+                            recommendation = def.Recommendation
+                        });
                     }
                 }
 
                 iloggermanager.LogInfo($"CheckDrugInteractions: medications={medications.Count} interactions={interactions.Count}");
-                return Ok(new { success = true, message = "Success", action = "", data = new { interactions = interactions, checked_at = DateTime.UtcNow, disclaimer = "This is a basic interaction check. Always consult a pharmacist or physician." } });
+                return Ok(new
+                {
+                    success = true, message = "Success", action = "",
+                    data = new
+                    {
+                        interactions = interactions,
+                        count = interactions.Count,
+                        checked_at = DateTime.UtcNow,
+                        disclaimer = "Automated interaction screening cannot replace clinical judgement. Always verify against a pharmacist or physician."
+                    }
+                });
             }
             catch (Exception ex) { iloggermanager.LogError("CheckDrugInteractions: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }
+
+        private sealed class InteractionDef
+        {
+            public string A { get; }
+            public string B { get; }
+            public string Severity { get; }
+            public string Recommendation { get; }
+
+            public InteractionDef(string a, string b, string severity, string recommendation)
+            {
+                A = a; B = b; Severity = severity; Recommendation = recommendation;
+            }
+        }
+
+        private static readonly InteractionDef[] KnownInteractions =
+        {
+            // Anticoagulants / antiplatelets
+            new("Warfarin", "Aspirin", "Severe", "Markedly increased bleeding risk. Avoid combined use."),
+            new("Warfarin", "Ibuprofen", "Severe", "Additive bleeding risk and GI injury. Use paracetamol instead (with monitoring)."),
+            new("Warfarin", "Diclofenac", "Severe", "Additive bleeding risk. Avoid; consider alternative analgesia."),
+            new("Warfarin", "Ciprofloxacin", "Severe", "Antibiotic increases INR and bleeding risk. Monitor INR closely."),
+            new("Warfarin", "Metronidazole", "Severe", "Strongly increases warfarin effect. Reduce dose and monitor INR."),
+            new("Warfarin", "Fluconazole", "Severe", "Inhibits warfarin metabolism — elevated INR and bleeding risk."),
+            new("Warfarin", "Simvastatin", "Moderate", "Additive effect on INR. Monitor and adjust warfarin dose."),
+            new("Warfarin", "Paracetamol", "Moderate", "Frequent high doses may increase INR. Keep paracetamol low and monitor."),
+
+            // Statins
+            new("Simvastatin", "Clarithromycin", "Severe", "Risk of rhabdomyolysis. Do not combine; hold statin during therapy."),
+            new("Simvastatin", "Itraconazole", "Severe", "Severe myopathy risk. Avoid combined use."),
+            new("Simvastatin", "Gemfibrozil", "Severe", "Increased myopathy/rhabdomyolysis risk. Prefer fenofibrate or avoid."),
+            new("Simvastatin", "Fluconazole", "Moderate", "Elevated statin levels. Limit simvastatin dose to 20 mg/day."),
+
+            // Metformin
+            new("Metformin", "Alcohol", "Moderate", "Excessive alcohol raises lactic acidosis risk. Limit intake, especially on empty stomach."),
+            new("Metformin", "Iodinated Contrast", "Moderate", "Increased lactic acidosis risk with contrast studies. Temporarily hold metformin."),
+
+            // ACE inhibitors / diuretics
+            new("Lisinopril", "Spironolactone", "Severe", "Risk of dangerous hyperkalemia. Monitor potassium frequently."),
+            new("Lisinopril", "Potassium", "Moderate", "Potassium supplements raise hyperkalemia risk when combined."),
+            new("Lisinopril", "Ibuprofen", "Moderate", "NSAIDs reduce antihypertensive effect and impair renal function."),
+            new("Lisinopril", "Diclofenac", "Moderate", "NSAIDs reduce antihypertensive effect and impair renal function."),
+
+            // Antibiotics
+            new("Amoxicillin", "Methotrexate", "Severe", "May elevate methotrexate levels to toxic range. Avoid if possible."),
+            new("Ciprofloxacin", "Tizanidine", "Severe", "Dangerous drop in blood pressure and sedation. Contraindicated."),
+            new("Ciprofloxacin", "Theophylline", "Moderate", "Raises theophylline levels — risk of seizures. Monitor levels."),
+            new("Ciprofloxacin", "Antacids", "Moderate", "Calcium/magnesium/iron reduce ciprofloxacin absorption. Separate by 2–4 hours."),
+            new("Doxycycline", "Antacids", "Moderate", "Calcium/iron/magnesium bind doxycycline. Separate by 2 hours."),
+            new("Doxycycline", "Warfarin", "Moderate", "May increase INR. Monitor."),
+            new("Clarithromycin", "Digoxin", "Severe", "Raises digoxin levels. Monitor and reduce digoxin dose."),
+            new("Clarithromycin", "Colchicine", "Severe", "Risk of severe colchicine toxicity. Avoid combined use."),
+            new("Metronidazole", "Alcohol", "Moderate", "Disulfiram-like reaction: flushing, palpitations, nausea. Avoid alcohol during and 48h after."),
+
+            // Cardiac
+            new("Digoxin", "Amiodarone", "Severe", "Doubles digoxin levels — toxicity risk. Reduce digoxin dose and monitor."),
+            new("Digoxin", "Furosemide", "Moderate", "Low potassium from furosemide increases digoxin toxicity. Monitor potassium."),
+            new("Clopidogrel", "Omeprazole", "Moderate", "Omeprazole may reduce clopidogrel activation. Consider pantoprazole."),
+            new("Digoxin", "Omeprazole", "Moderate", "Reduced digoxin absorption. Monitor levels."),
+
+            // Respiratory / CNS
+            new("Salbutamol", "Propranolol", "Moderate", "Non-selective beta-blockers antagonize salbutamol in airways. Use cardioselective agent."),
+            new("Tramadol", "Sertraline", "Severe", "Serotonin syndrome risk. Avoid; choose alternative analgesia."),
+            new("Tramadol", "Fluoxetine", "Severe", "Serotonin syndrome risk. Avoid combined use."),
+            new("Prednisone", "Ibuprofen", "Moderate", "Increased risk of GI bleeding when combined."),
+            new("Prednisone", "Diclofenac", "Moderate", "Increased risk of GI bleeding when combined.")
+        };
 
         [NonAction]
         private List<Dictionary<string, object>> ToRows(DataTable dt)
