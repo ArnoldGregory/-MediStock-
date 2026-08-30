@@ -251,6 +251,123 @@ namespace MediStock.API.Models
             }
         }
 
+        #region M-Pesa payments
+
+        public long AddMpesaPayment(Int64 pharmacyId, Int64 userId, string phone, decimal amount, string accountReference, string transactionDesc)
+        {
+            try
+            {
+                long id = 0;
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("mpesa_add_payment", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@p_id", MySqlDbType.Int64).Direction = ParameterDirection.Output;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_user_id", userId <= 0 ? DBNull.Value : userId);
+                cmd.Parameters.AddWithValue("@p_phone", phone);
+                cmd.Parameters.AddWithValue("@p_account_reference", accountReference);
+                cmd.Parameters.AddWithValue("@p_transaction_desc", transactionDesc);
+                cmd.Parameters.Add("@p_amount", MySqlDbType.Decimal).Value = amount;
+                cmd.ExecuteNonQuery();
+                if (cmd.Parameters["@p_id"].Value != null && cmd.Parameters["@p_id"].Value != DBNull.Value)
+                    id = Convert.ToInt64(cmd.Parameters["@p_id"].Value);
+                return id;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("AddMpesaPayment: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return 0;
+            }
+        }
+
+        public bool SetMpesaCheckoutStatus(long paymentId, string? checkoutRequestId, string? merchantRequestId, string status)
+        {
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("mpesa_set_checkout", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_payment_id", paymentId);
+                cmd.Parameters.AddWithValue("@p_checkout_request_id", (object?)checkoutRequestId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_merchant_request_id", (object?)merchantRequestId ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_status", status);
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("SetMpesaCheckout: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return false;
+            }
+        }
+
+        public bool UpdateMpesaFromCallback(string checkoutRequestId, int resultCode, string resultDesc, string? mpesaReceipt, decimal paidAmount)
+        {
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("mpesa_update_from_callback", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_checkout_request_id", checkoutRequestId);
+                cmd.Parameters.AddWithValue("@p_result_code", resultCode);
+                cmd.Parameters.AddWithValue("@p_result_desc", resultDesc);
+                cmd.Parameters.AddWithValue("@p_mpesa_receipt", (object?)mpesaReceipt ?? DBNull.Value);
+                cmd.Parameters.Add("@p_paid_amount", MySqlDbType.Decimal).Value = paidAmount <= 0 ? (object)DBNull.Value : paidAmount;
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("UpdateMpesaFromCallback: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return false;
+            }
+        }
+
+        public DataTable GetMpesaByCheckout(string checkoutRequestId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("mpesa_get_by_checkout", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_checkout_request_id", checkoutRequestId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetMpesaByCheckout: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+            }
+            return dt;
+        }
+
+        public DataTable ListMpesaPayments(Int64 pharmacyId)
+        {
+            DataTable dt = new DataTable();
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("mpesa_list", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("ListMpesaPayments: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+            }
+            return dt;
+        }
+
+        #endregion
+
         public bool AddAuditTrail(AuditTrailModel model)
         {
             try

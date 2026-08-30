@@ -9,12 +9,15 @@ using System.Text;
 using MediStock.API.Helpers;
 using MediStock.API.Middlewares;
 using MediStock.API.Models;
+using MediStock.API.Services;
 using NLog.Web;
 
 var logger = LogManager.Setup().LoadConfigurationFromFile("NLog.config").GetCurrentClassLogger();
 try
 {
     var builder = WebApplication.CreateBuilder(args);
+
+    builder.Configuration.AddJsonFile("appsettings.Local.json", optional: true, reloadOnChange: false);
 
     builder.Logging.ClearProviders();
     builder.Logging.SetMinimumLevel(Microsoft.Extensions.Logging.LogLevel.Trace);
@@ -61,6 +64,9 @@ try
     });
 
     builder.Services.AddSingleton<ILoggerManager, LoggerManager>();
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<EmailService>();
+    builder.Services.AddScoped<MpesaService>();
     builder.Services.AddScoped(sp =>
     {
         var config = sp.GetRequiredService<IConfiguration>();

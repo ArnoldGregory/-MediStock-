@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using MediStock.API.Services;
 using System.Data;
 using System.Security.Claims;
 
@@ -16,13 +17,15 @@ namespace MediStock.API.Controllers
         private readonly IWebHostEnvironment ihostingenvironment;
         private readonly ILoggerManager iloggermanager;
         private readonly DBHandler dbhandler;
+        private readonly EmailService emailservice;
 
-        public AuthController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler)
+        public AuthController(ILoggerManager logger, IWebHostEnvironment environment, IConfiguration configuration, DBHandler mydbhandler, EmailService email)
         {
             iloggermanager = logger;
             ihostingenvironment = environment;
             iconfiguration = configuration;
             dbhandler = mydbhandler;
+            emailservice = email;
         }
 
         [AllowAnonymous]
@@ -120,6 +123,7 @@ namespace MediStock.API.Controllers
                 string otp = "1000";
                 string otpRef = Guid.NewGuid().ToString("N");
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
+                emailservice.SendOtp(userEmail, name, otp, "login");
 
                 var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(iloggermanager, iconfiguration);
                 string tempToken = jwtUtils.GenerateAccessToken(new JObject
@@ -411,8 +415,10 @@ namespace MediStock.API.Controllers
                 string otpRef = Guid.NewGuid().ToString("N");
                 long userId = Convert.ToInt64(dt.Rows[0]["id"]);
                 string? mobile = dt.Rows[0]["mobile"]?.ToString();
+                string firstName = dt.Rows[0]["first_name"]?.ToString() ?? "";
 
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", email, mobile, otp, "PASSWORD_RESET", otpRef);
+                emailservice.SendOtp(email, firstName, otp, "password reset");
 
                 iloggermanager.LogInfo($"ForgotPassword: OTP generated for {email}");
                 return Ok(new { success = true, message = "OTP sent to your email", action = "", data = new JObject { { "otp_ref", otpRef } } });
@@ -487,6 +493,7 @@ namespace MediStock.API.Controllers
                 string otp = "1000";
                 string otpRef = Guid.NewGuid().ToString("N");
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", userEmail, mobile, otp, "LOGIN", otpRef);
+                emailservice.SendOtp(userEmail, dt.Rows[0]["first_name"]?.ToString() ?? "", otp, "login");
 
                 iloggermanager.LogInfo($"ResendOtp: OTP regenerated for {userEmail}");
                 return Ok(new { success = true, message = "A new OTP has been sent", action = "", data = new JObject { { "otp", otp }, { "otp_ref", otpRef } } });
