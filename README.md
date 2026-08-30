@@ -22,8 +22,13 @@ MediStock is split into two .NET 10 applications:
 - POS screen with sales history
 - Retail and wholesale customers with credit limit / payment terms
 - **Sales Returns** — record a return against a sale (reason + per-line quantities),
-  gets an automatic `RET-…` number, restores stock to the product and batch, tracks
-  `returned_qty` against the original line, and refuses quantities over what was sold.
+   gets an automatic `RET-…` number, restores stock to the product and batch, tracks
+   `returned_qty` against the original line, and refuses quantities over what was sold.
+- **Void Sale** — cancel a sale from the POS; the sale is marked `Voided` and stock
+  (product + batch) is restored only for the *unreturned* portion, so returns + void
+  never double-restock.
+- **Notifications** — per-pharmacy inbox (`api/notifications` list / count / dismiss /
+  mark-all-read) fed by `add_notification`; voiding a sale raises a `Sale voided` notice.
 
 ### Suppliers, Purchasing & Receiving
 - Supplier register and **supplier price history**
@@ -153,8 +158,15 @@ seed scripts in `database/05_seed_data.sql` / `database/13_superadmin_platform.s
 | Method | Endpoint | Purpose |
 | --- | --- | --- |
 | `POST` | `/api/auth/login` | Login, returns JWT (+ optional refresh) |
+| `POST` | `/api/auth/resendotp` | Re-send a login OTP |
+| `POST` | `/api/auth/resetpassword` | Email-only self-service reset, returns a temp password (`data.temp_password`) |
+| `POST` | `/api/auth/changepassword` | Change password after verifying the current one |
+| `POST` | `/api/auth/register-pharmacy` | Self-register a new pharmacy with an Admin owner (role 1 platform) |
 | `GET` | `/api/menus` | Role-driven menu |
 | `GET/POST` | `/api/products`, `/api/suppliers`, `/api/customers`, `/api/sales`, ... | CRUD modules (Riziki pattern) |
+| `POST` | `/api/sales/voidsale` | Void a sale and restore stock |
+| `GET` | `/api/notifications`, `/api/notifications/count` | Notification inbox + unread count |
+| `POST` | `/api/notifications/dismiss`, `/api/notifications/markallread` | Notification handling |
 | `GET` | `/api/dashboard/summary` | Dashboard stats |
 | `GET` | `/api/dashboard/alerts` | Low-stock / out-of-stock alerts |
 | `GET` | `/api/dashboard/expiringitems` | Expiring batches |
@@ -183,6 +195,32 @@ All endpoints require `Authorization: Bearer <jwt>`.
 
 ---
 
+## Automated Tests
+
+`MediStock.Tests` is an **integration test suite** (xUnit + WebApplicationFactory) that
+boots the real API against a throwaway `medistock_test` database and exercises whole
+flows end-to-end:
+
+- **Provisioning** — DROP/CREATEs `medistock_test`, replays every `/database/*.sql`
+  migration in order (with `DELIMITER` handling), then seeds a super-admin
+  (`role_id = 1`) and admin (`role_id = 2`) pharmacy with password `Test@1234`.
+  Because fresh installs rebuild from the same files, the suite **catches schema and
+  procedure drift** that only the live database had accumulated by hand.
+- **Coverage** — auth (login/OTP/reset/change/register-pharmacy), suppliers, products,
+  categories, batches, stock adjustments, the full sale → return → void cycle, all six
+  reports + `.xlsx` export, notifications, customers, expenses, admin stats, DDA,
+  setup checklist (9 checks) and super-admin endpoints.
+- **CI** — `.github/workflows/ci.yml` runs build + tests on every push/PR, using the
+  `MEDISTOCK_TEST_SERVER` / `MEDISTOCK_TEST_USER` / `MEDISTOCK_TEST_PASSWORD`
+  environment variables (or a `MEDISTOCK_TEST_PASSWORD` repo secret) instead of the
+  local defaults.
+
+```bash
+dotnet test MediStock.Tests/MediStock.Tests.csproj
+```
+
+---
+
 ## Roadmap / Known Follow-ups
 
 - Barcode scanning for receiving & sales
@@ -204,6 +242,17 @@ All endpoints require `Authorization: Bearer <jwt>`.
 > - Audit `session_id` filled (per-request identifier) instead of `"TODO"`.
 > - Removed dead `GetUnapprovedRecords` / `ApproveRecord` API surface.
 > - DB connection string can be overridden with the `MEDISTOCK_DBCONN` environment variable.
+> - **Void Sale** (POS) + notification raised on void.
+> - **Notifications** module (inbox, unread count, dismiss, mark-all-read).
+> - **Auth gaps closed** — self-service reset-password (email lookup + temp password shown
+>   on the reset page until email sending lands), change-password, resend OTP,
+>   register-pharmacy (self-registration flow).
+> - **Integration test suite** (25 tests) + GitHub Actions CI — proves every endpoint and
+>   repays the whole migration history against a fresh `medistock_test` database.
+> - Fixed latent bugs found by the suite: `RemoteIpAddress` null-guard in audit capture
+>   (login 500 under some hosts), `AddBatch` returning id 0 from `LAST_INSERT_ID()` on a
+>   stray connection, `void_sale` double-restocking after partial returns, and the broken
+>   `mig_add_menu_icon` helper that blocked fresh installs.
 
 ---
 

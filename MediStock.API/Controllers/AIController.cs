@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -299,7 +299,7 @@ namespace MediStock.API.Controllers
             new("Warfarin", "Diclofenac", "Severe", "Additive bleeding risk. Avoid; consider alternative analgesia."),
             new("Warfarin", "Ciprofloxacin", "Severe", "Antibiotic increases INR and bleeding risk. Monitor INR closely."),
             new("Warfarin", "Metronidazole", "Severe", "Strongly increases warfarin effect. Reduce dose and monitor INR."),
-            new("Warfarin", "Fluconazole", "Severe", "Inhibits warfarin metabolism — elevated INR and bleeding risk."),
+            new("Warfarin", "Fluconazole", "Severe", "Inhibits warfarin metabolism â€” elevated INR and bleeding risk."),
             new("Warfarin", "Simvastatin", "Moderate", "Additive effect on INR. Monitor and adjust warfarin dose."),
             new("Warfarin", "Paracetamol", "Moderate", "Frequent high doses may increase INR. Keep paracetamol low and monitor."),
 
@@ -322,8 +322,8 @@ namespace MediStock.API.Controllers
             // Antibiotics
             new("Amoxicillin", "Methotrexate", "Severe", "May elevate methotrexate levels to toxic range. Avoid if possible."),
             new("Ciprofloxacin", "Tizanidine", "Severe", "Dangerous drop in blood pressure and sedation. Contraindicated."),
-            new("Ciprofloxacin", "Theophylline", "Moderate", "Raises theophylline levels — risk of seizures. Monitor levels."),
-            new("Ciprofloxacin", "Antacids", "Moderate", "Calcium/magnesium/iron reduce ciprofloxacin absorption. Separate by 2–4 hours."),
+            new("Ciprofloxacin", "Theophylline", "Moderate", "Raises theophylline levels â€” risk of seizures. Monitor levels."),
+            new("Ciprofloxacin", "Antacids", "Moderate", "Calcium/magnesium/iron reduce ciprofloxacin absorption. Separate by 2â€“4 hours."),
             new("Doxycycline", "Antacids", "Moderate", "Calcium/iron/magnesium bind doxycycline. Separate by 2 hours."),
             new("Doxycycline", "Warfarin", "Moderate", "May increase INR. Monitor."),
             new("Clarithromycin", "Digoxin", "Severe", "Raises digoxin levels. Monitor and reduce digoxin dose."),
@@ -331,7 +331,7 @@ namespace MediStock.API.Controllers
             new("Metronidazole", "Alcohol", "Moderate", "Disulfiram-like reaction: flushing, palpitations, nausea. Avoid alcohol during and 48h after."),
 
             // Cardiac
-            new("Digoxin", "Amiodarone", "Severe", "Doubles digoxin levels — toxicity risk. Reduce digoxin dose and monitor."),
+            new("Digoxin", "Amiodarone", "Severe", "Doubles digoxin levels â€” toxicity risk. Reduce digoxin dose and monitor."),
             new("Digoxin", "Furosemide", "Moderate", "Low potassium from furosemide increases digoxin toxicity. Monitor potassium."),
             new("Clopidogrel", "Omeprazole", "Moderate", "Omeprazole may reduce clopidogrel activation. Consider pantoprazole."),
             new("Digoxin", "Omeprazole", "Moderate", "Reduced digoxin absorption. Monitor levels."),
@@ -387,7 +387,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

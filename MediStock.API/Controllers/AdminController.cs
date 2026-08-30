@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
@@ -366,7 +366,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

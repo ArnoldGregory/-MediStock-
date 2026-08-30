@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -77,10 +77,7 @@ namespace MediStock.API.Controllers
 
                 string sql = "INSERT INTO product_batches (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity, status, created_by) " +
                     $"VALUES ({pharmacyId}, {model.product_id}, '{model.batch_number}', '{model.expiry_date:yyyy-MM-dd}', {model.cost_price}, {model.quantity}, 'Active', {userId})";
-                dbhandler.ExecuteNonQuery(sql);
-
-                DataTable dtId = dbhandler.GetAdhocData("SELECT LAST_INSERT_ID() AS id");
-                Int64 id = dtId.Rows.Count > 0 ? Convert.ToInt64(dtId.Rows[0]["id"]) : 0;
+                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
 
                 iloggermanager.LogInfo($"AddBatch: batchId={id}");
                 CaptureAuditTrail(userId.ToString(), "Add Batch", $"Added batch {id} for product {model.product_id}");
@@ -276,7 +273,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

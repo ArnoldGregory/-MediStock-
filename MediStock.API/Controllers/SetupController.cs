@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -38,7 +38,7 @@ namespace MediStock.API.Controllers
                 var checks = new List<SetupCheckItem>
                 {
                     Check("pharmacy_profile", "Pharmacy profile", Scalar(pharmacyId, "SELECT COUNT(*) FROM pharmacies WHERE id = {p} AND is_deleted = 0") > 0,
-                        "Fill in your pharmacy name, phone and licence details under Settings → Pharmacy.",
+                        "Fill in your pharmacy name, phone and licence details under Settings â†’ Pharmacy.",
                         "start"),
                     Check("suppliers", "Add at least one supplier", Scalar(pharmacyId, "SELECT COUNT(*) FROM suppliers WHERE pharmacy_id = {p} AND is_deleted = 0") > 0,
                         "You need suppliers to raise purchase orders and import invoices.",
@@ -47,22 +47,22 @@ namespace MediStock.API.Controllers
                         "Add your stock or import a supplier invoice to create products automatically.",
                         "products"),
                     Check("categories", "Categorise your products", Scalar(pharmacyId, "SELECT COUNT(*) FROM products WHERE pharmacy_id = {p} AND category_id IS NULL AND is_deleted = 0") == 0,
-                        $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM products WHERE pharmacy_id = {p} AND category_id IS NULL AND is_deleted = 0")} product(s) have no category — this makes reports harder to read.",
+                        $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM products WHERE pharmacy_id = {p} AND category_id IS NULL AND is_deleted = 0")} product(s) have no category â€” this makes reports harder to read.",
                         "categories"),
                     Check("pricing", "Ensure products have a buying & selling price", Scalar(pharmacyId, "SELECT COUNT(*) FROM products WHERE pharmacy_id = {p} AND (cost_price <= 0 OR selling_price <= 0) AND is_deleted = 0") == 0,
                         $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM products WHERE pharmacy_id = {p} AND (cost_price <= 0 OR selling_price <= 0) AND is_deleted = 0")} product(s) are missing a cost or selling price.",
                         "products"),
                     Check("batches", "Your stock is batch-tracked", Scalar(pharmacyId, "SELECT COUNT(DISTINCT p.id) FROM products p WHERE p.pharmacy_id = {p} AND p.is_deleted = 0 AND NOT EXISTS (SELECT 1 FROM product_batches b WHERE b.product_id = p.id AND b.is_deleted = 0)") == 0,
-                        "Stock without a batch can't be tracked for expiry — add batches under Inventory → Batches.",
+                        "Stock without a batch can't be tracked for expiry â€” add batches under Inventory â†’ Batches.",
                         "batches"),
                     Check("no_expired", "No expired batches on the shelf", Scalar(pharmacyId, "SELECT COUNT(*) FROM product_batches WHERE pharmacy_id = {p} AND status = 'Active' AND is_deleted = 0 AND expiry_date < CURDATE()") == 0,
-                        $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM product_batches WHERE pharmacy_id = {p} AND status = 'Active' AND is_deleted = 0 AND expiry_date < CURDATE()")} active batch(es) have expired — review under Inventory → Batches.",
+                        $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM product_batches WHERE pharmacy_id = {p} AND status = 'Active' AND is_deleted = 0 AND expiry_date < CURDATE()")} active batch(es) have expired â€” review under Inventory â†’ Batches.",
                         "batches"),
                     Check("expiring", "No batch expiring within 90 days", Scalar(pharmacyId, "SELECT COUNT(*) FROM product_batches WHERE pharmacy_id = {p} AND status = 'Active' AND is_deleted = 0 AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)") == 0,
-                        $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM product_batches WHERE pharmacy_id = {p} AND status = 'Active' AND is_deleted = 0 AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)")} batch(es) expire within 90 days — plan your sales or returns.",
+                        $"{Scalar(pharmacyId, "SELECT COUNT(*) FROM product_batches WHERE pharmacy_id = {p} AND status = 'Active' AND is_deleted = 0 AND expiry_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)")} batch(es) expire within 90 days â€” plan your sales or returns.",
                         "batches"),
                     Check("license", "Pharmacy licence not expiring soon", Scalar(pharmacyId, "SELECT COUNT(*) FROM pharmacies WHERE id = {p} AND license_expiry IS NOT NULL AND license_expiry < DATE_ADD(CURDATE(), INTERVAL 90 DAY)") == 0,
-                        "Your pharmacy licence expires soon — renew under Settings → Pharmacy.",
+                        "Your pharmacy licence expires soon â€” renew under Settings â†’ Pharmacy.",
                         "pharmacy")
                 };
 
@@ -138,7 +138,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

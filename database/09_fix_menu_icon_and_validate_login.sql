@@ -5,8 +5,19 @@
 
 USE medistock;
 
--- 1. Add menu_icon column to menu_access
-ALTER TABLE menu_access ADD COLUMN menu_icon varchar(50) DEFAULT 'fa-circle' AFTER sub_menu_name;
+-- 1. Add menu_icon column to menu_access (idempotent)
+DROP PROCEDURE IF EXISTS mig_add_menu_icon;
+DELIMITER $$
+CREATE PROCEDURE mig_add_menu_icon()
+BEGIN
+  IF (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_access' AND COLUMN_NAME = 'menu_icon') = 0 THEN
+    ALTER TABLE menu_access ADD COLUMN menu_icon varchar(50) DEFAULT 'fa-circle' AFTER sub_menu_name;
+  END IF;
+END$$
+CALL mig_add_menu_icon()$$
+DROP PROCEDURE IF EXISTS mig_add_menu_icon$$
+DELIMITER ;
 
 -- 2. Seed menu_icon values
 UPDATE menu_access SET menu_icon = 'fa-dashboard' WHERE main_menu_name = 'Dashboard';

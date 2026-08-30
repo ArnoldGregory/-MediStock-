@@ -203,17 +203,25 @@ namespace MediStock.Portal.Controllers
                 return View(model);
             }
 
-            var result = await _api.AuthPostAsync<object>(
+            var result = await _api.AuthPostAsync<ResetPasswordResponse>(
                 "api/auth/resetpassword",
                 new { email = model.email });
 
             if (result.IsSuccess)
-                TempData["Success"] = "Password reset. Check your email/SMS for the new password.";
+                TempData["Success"] = string.IsNullOrEmpty(result.Data?.TempPassword)
+                    ? "Password reset. Check your email/SMS for the new password."
+                    : $"Password reset. Your temporary password is: {result.Data.TempPassword} — change it after logging in.";
             else
                 model.errormessage = string.IsNullOrEmpty(result.Error) ? "The email does not exist" : result.Error;
 
             await _audit.LogViewAsync("ResetPassword", $"{model.email} success={result.IsSuccess}");
             return View(model);
+        }
+
+        public class ResetPasswordResponse
+        {
+            [System.Text.Json.Serialization.JsonPropertyName("temp_password")]
+            public string? TempPassword { get; set; }
         }
 
         // ── GET/POST Change Password  -> api/auth/changepassword ─────────────

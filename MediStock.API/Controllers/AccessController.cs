@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
@@ -25,7 +25,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES — GET ALL
+        // ROLES â€” GET ALL
         // =====================================================================
         [Authorize]
         [HttpGet("roles")]
@@ -45,7 +45,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES — GET BY ID
+        // ROLES â€” GET BY ID
         // =====================================================================
         [Authorize]
         [HttpGet("roles/{id}")]
@@ -69,7 +69,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES — CREATE
+        // ROLES â€” CREATE
         // =====================================================================
         [Authorize]
         [HttpPost("roles")]
@@ -110,7 +110,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES — UPDATE
+        // ROLES â€” UPDATE
         // =====================================================================
         [Authorize]
         [HttpPut("roles/{id}")]
@@ -152,7 +152,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES — DELETE
+        // ROLES â€” DELETE
         // =====================================================================
         [Authorize]
         [HttpDelete("roles/{id}")]
@@ -182,7 +182,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENUS — GET ALL
+        // MENUS â€” GET ALL
         // =====================================================================
         [Authorize]
         [HttpGet("menus")]
@@ -202,7 +202,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENU ACCESS — GET FOR ROLE (from master catalog with per-role flag)
+        // MENU ACCESS â€” GET FOR ROLE (from master catalog with per-role flag)
         // =====================================================================
         [Authorize]
         [HttpGet("menu-access")]
@@ -225,7 +225,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENU ACCESS — SAVE FOR ROLE (reconciles against master catalog)
+        // MENU ACCESS â€” SAVE FOR ROLE (reconciles against master catalog)
         // =====================================================================
         [Authorize]
         [HttpPost("menu-access")]
@@ -330,7 +330,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

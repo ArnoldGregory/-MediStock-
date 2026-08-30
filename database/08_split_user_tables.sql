@@ -98,17 +98,19 @@ FROM pharmacy_users
 WHERE role_id IN (3, 4, 5) AND is_deleted = 0$$
 
 -- ============================================================
--- 4. ADD menu_icon column to menu_access
+-- 4. ADD menu_icon column to menu_access (idempotent, wrapped in
+--    a temp procedure so it works on fresh installs)
 -- ============================================================
-SET @col_exists = (
-  SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
-  WHERE TABLE_SCHEMA = 'medistock'
-    AND TABLE_NAME = 'menu_access'
-    AND COLUMN_NAME = 'menu_icon'
-)$$
-IF @col_exists = 0 THEN
-  ALTER TABLE `menu_access` ADD COLUMN `menu_icon` varchar(50) DEFAULT 'fa-circle' AFTER `sub_menu_name`$$
-END IF$$
+DROP PROCEDURE IF EXISTS `mig_add_menu_icon`$$
+CREATE PROCEDURE `mig_add_menu_icon`()
+BEGIN
+  IF (SELECT COUNT(*) FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'menu_access' AND COLUMN_NAME = 'menu_icon') = 0 THEN
+    ALTER TABLE `menu_access` ADD COLUMN `menu_icon` varchar(50) DEFAULT 'fa-circle' AFTER `sub_menu_name`;
+  END IF;
+END$$
+CALL `mig_add_menu_icon`()$$
+DROP PROCEDURE IF EXISTS `mig_add_menu_icon`$$
 
 -- ============================================================
 -- 5. SEED menu_icon values for existing menu_access rows

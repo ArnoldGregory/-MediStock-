@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -47,7 +47,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // Guard — superadmin only (role_id = 1)
+        // Guard â€” superadmin only (role_id = 1)
         // =====================================================================
         private bool IsSuperAdmin(out Int64 userId)
         {
@@ -249,7 +249,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

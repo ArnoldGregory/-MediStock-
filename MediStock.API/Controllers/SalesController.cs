@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -107,6 +107,35 @@ namespace MediStock.API.Controllers
         }
 
         [Authorize]
+        [HttpPost("voidsale")]
+        public ActionResult VoidSale([FromBody] JObject jobject)
+        {
+            iloggermanager.LogInfo("******* VOID SALE REQUEST **********");
+            try
+            {
+                var (userId, pharmacyId, roleId) = GetCaller();
+                iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+
+                if (jobject == null || !jobject.ContainsKey("id"))
+                    return Bad("Sale id is required");
+
+                long saleId = jobject["id"].Value<long>();
+                if (saleId <= 0)
+                    return Bad("Invalid sale id");
+
+                var (ok, message) = dbhandler.VoidSale(saleId, pharmacyId);
+                if (!ok)
+                    return Bad(message);
+
+                CaptureAuditTrail(userId.ToString(), "Void Sale", $"Voided sale {saleId}");
+                dbhandler.AddNotification(pharmacyId, userId, "Sale voided", $"Sale {saleId} was voided by user {userId}. Stock restored.", "Info");
+
+                return Ok(new { success = true, message = message, action = "", data = new JObject() });
+            }
+            catch (Exception ex) { iloggermanager.LogError("VoidSale: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
+        }
+
+        [Authorize]
         [HttpGet("products")]
         public ActionResult GetProductsForPOS()
         {
@@ -165,7 +194,7 @@ namespace MediStock.API.Controllers
                 action_type = action_type,
                 action_description = action_description,
                 page_accessed = $"{HttpContext.Request.Scheme}://{HttpContext.Request.Host}{HttpContext.Request.Path}{HttpContext.Request.QueryString}",
-                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress!.ToString(),
+                client_ip_address = Request.HttpContext.Connection.RemoteIpAddress?.ToString() ?? "",
                 session_id = HttpContext.TraceIdentifier
             };
             return dbhandler.AddAuditTrail(audittrailmodel);

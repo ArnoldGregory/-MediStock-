@@ -114,6 +114,139 @@ namespace MediStock.API.Models
             }
         }
 
+        public (bool success, string message) VoidSale(Int64 saleId, Int64 pharmacyId)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("void_sale", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_sale_id", saleId);
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.ExecuteNonQuery();
+                return (true, "Sale voided successfully");
+            }
+            catch (MySqlException ex)
+            {
+                logger.Error("VoidSale: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                string detail = ex.InnerException?.Message ?? ex.Message;
+                string message = detail.Contains("already voided", StringComparison.OrdinalIgnoreCase) ? "Sale already voided"
+                    : detail.Contains("not found", StringComparison.OrdinalIgnoreCase) ? "Sale not found"
+                    : "Failed to void sale";
+                return (false, message);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("VoidSale: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return (false, "Failed to void sale");
+            }
+        }
+
+        public DataTable GetNotifications(Int64 pharmacyId)
+        {
+            DataTable dt = new();
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand(
+                    "SELECT id, pharmacy_id, COALESCE(user_id,0) AS user_id, title, message, notification_type, is_read, created_on " +
+                    "FROM notifications WHERE pharmacy_id = @pid AND is_deleted = 0 ORDER BY created_on DESC, id DESC LIMIT 50", connect);
+                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
+                cmd.Parameters.AddWithValue("@pid", pharmacyId);
+                sd.Fill(dt);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetNotifications: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+            }
+            return dt;
+        }
+
+        public int GetNotificationCount(Int64 pharmacyId)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand(
+                    "SELECT COUNT(*) FROM notifications WHERE pharmacy_id = @pid AND is_read = 0 AND is_deleted = 0", connect);
+                connect.Open();
+                cmd.Parameters.AddWithValue("@pid", pharmacyId);
+                return Convert.ToInt32(cmd.ExecuteScalar());
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetNotificationCount: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return 0;
+            }
+        }
+
+        public bool MarkNotificationRead(Int64 id)
+        {
+            try
+            {
+                int i = 0;
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("mark_notification_read", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_id", id);
+                i = (int)cmd.ExecuteNonQuery();
+                return i >= 1;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("MarkNotificationRead: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return false;
+            }
+        }
+
+        public bool MarkAllNotificationsRead(Int64 pharmacyId)
+        {
+            try
+            {
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand(
+                    "UPDATE notifications SET is_read = 1 WHERE pharmacy_id = @pid AND is_read = 0 AND is_deleted = 0", connect);
+                connect.Open();
+                cmd.Parameters.AddWithValue("@pid", pharmacyId);
+                cmd.ExecuteNonQuery();
+                return true;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("MarkAllNotificationsRead: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return false;
+            }
+        }
+
+        public Int64 AddNotification(Int64 pharmacyId, Int64 userId, string title, string message, string notificationType)
+        {
+            try
+            {
+                Int64 id = 0;
+                using MySqlConnection connect = new MySqlConnection(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("add_notification", connect);
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@p_id", MySqlDbType.Int64).Direction = ParameterDirection.Output;
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_user_id", userId <= 0 ? DBNull.Value : userId);
+                cmd.Parameters.AddWithValue("@p_title", title);
+                cmd.Parameters.AddWithValue("@p_message", (object?)message ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@p_notification_type", notificationType);
+                cmd.ExecuteNonQuery();
+                if (cmd.Parameters["@p_id"].Value != null && cmd.Parameters["@p_id"].Value != DBNull.Value)
+                    id = Convert.ToInt64(cmd.Parameters["@p_id"].Value);
+                return id;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("AddNotification: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return 0;
+            }
+        }
+
         public bool AddAuditTrail(AuditTrailModel model)
         {
             try
