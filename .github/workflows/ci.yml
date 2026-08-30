@@ -14,9 +14,18 @@ jobs:
     env:
       DOTNET_NOLOGO: true
       DOTNET_CLI_TELEMETRY_OPTOUT: true
-      MEDISTOCK_TEST_SERVER: 164.92.97.131
-      MEDISTOCK_TEST_USER: RizikiDev
-      MEDISTOCK_TEST_PASSWORD: ${{ secrets.MEDISTOCK_TEST_PASSWORD }}
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: medistock-ci
+          MYSQL_DATABASE: medistock_test
+        ports:
+          - 3307:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -pmedistock-ci --silent"
+          --health-interval=5s --health-timeout=5s --health-retries=30
 
     steps:
       - uses: actions/checkout@v4
@@ -30,3 +39,8 @@ jobs:
 
       - name: Run integration tests
         run: dotnet test MediStock.Tests/MediStock.Tests.csproj -c Debug --nologo
+        env:
+          MEDISTOCK_TEST_SERVER: 127.0.0.1
+          MEDISTOCK_TEST_PORT: 3307
+          MEDISTOCK_TEST_USER: root
+          MEDISTOCK_TEST_PASSWORD: medistock-ci

@@ -17,6 +17,7 @@ public static class TestDatabase
 
     public static string ServerConn
         => $"Server={Env("MEDISTOCK_TEST_SERVER", "164.92.97.131")};" +
+           $"Port={Env("MEDISTOCK_TEST_PORT", "3306")};" +
            $"User ID={Env("MEDISTOCK_TEST_USER", "RizikiDev")};" +
            $"Password={Env("MEDISTOCK_TEST_PASSWORD", "Master@047")};" +
            "SslMode=None;AllowPublicKeyRetrieval=True";
