@@ -27,9 +27,9 @@ namespace MediStock.Portal.Controllers
         }
 
         // ── Views ─────────────────────────────────────────────────────────────
-        public async Task<IActionResult> Profile()
+        public async Task<IActionResult> Index()
         {
-            await _audit.LogViewAsync("Settings/Profile");
+            await _audit.LogViewAsync("Settings");
             ViewBag.FirstName = User.FindFirst("first_name")?.Value ?? "";
             ViewBag.LastName  = User.FindFirst("last_name")?.Value ?? "";
             ViewBag.Email     = User.Identity?.Name ?? "";
@@ -38,10 +38,14 @@ namespace MediStock.Portal.Controllers
             return View();
         }
 
+        public async Task<IActionResult> Profile()
+        {
+            return RedirectToAction(nameof(Index));
+        }
+
         public async Task<IActionResult> Pharmacy()
         {
-            await _audit.LogViewAsync("Settings/Pharmacy");
-            return View();
+            return RedirectToAction(nameof(Index));
         }
 
         public async Task<IActionResult> Setup()
