@@ -107,9 +107,7 @@ namespace MediStock.API.Controllers
                 string sql = $"INSERT INTO stock_adjustments (pharmacy_id, product_id, batch_id, adjustment_type, quantity, reason, adjusted_by) " +
                     $"VALUES ({pharmacyId}, {model.product_id}, {(model.batch_id > 0 ? model.batch_id.ToString() : "NULL")}, '{model.adjustment_type}', {model.quantity}, '{(model.reason ?? "").Replace("'", "''")}', {userId})";
 
-                dbhandler.ExecuteNonQuery(sql);
-                DataTable dtAdj = dbhandler.GetAdhocData("SELECT LAST_INSERT_ID() AS id");
-                Int64 id = dtAdj.Rows.Count > 0 ? Convert.ToInt64(dtAdj.Rows[0]["id"]) : 0;
+                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
 
                 iloggermanager.LogInfo($"AddStockAdjustment: adjustmentId={id}");
                 CaptureAuditTrail(userId.ToString(), "Stock Adjustment", $"Recorded adjustment {id} ({model.adjustment_type})");
@@ -168,9 +166,7 @@ namespace MediStock.API.Controllers
                 string sql = $"INSERT INTO stock_take_sessions (pharmacy_id, session_name, status, started_by) " +
                     $"VALUES ({pharmacyId}, '{model.session_name.Replace("'", "''")}', 'Open', {userId})";
 
-                dbhandler.ExecuteNonQuery(sql);
-                DataTable dt = dbhandler.GetAdhocData("SELECT LAST_INSERT_ID() AS id");
-                Int64 id = dt.Rows.Count > 0 ? Convert.ToInt64(dt.Rows[0]["id"]) : 0;
+                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
 
                 iloggermanager.LogInfo($"AddStockTakeSession: sessionId={id}");
                 CaptureAuditTrail(userId.ToString(), "Stock Take Session", $"Created stock take session: {model.session_name}");
@@ -199,10 +195,7 @@ namespace MediStock.API.Controllers
                 string sql = $"INSERT INTO stock_take_items (session_id, product_id, batch_id, system_qty, counted_qty, variance, notes) " +
                     $"VALUES ({model.session_id}, {model.product_id}, {(model.batch_id > 0 ? model.batch_id.ToString() : "NULL")}, {model.system_qty}, {model.counted_qty}, {variance}, '{(model.notes ?? "").Replace("'", "''")}')";
 
-                dbhandler.ExecuteNonQuery(sql);
-
-                DataTable dt = dbhandler.GetAdhocData("SELECT LAST_INSERT_ID() AS id");
-                Int64 id = dt.Rows.Count > 0 ? Convert.ToInt64(dt.Rows[0]["id"]) : 0;
+                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
 
                 iloggermanager.LogInfo($"AddStockTakeItem: itemId={id}");
                 CaptureAuditTrail(userId.ToString(), "Stock Take Item", $"Recorded stock take item {id} for session {model.session_id}");

@@ -134,10 +134,7 @@ namespace MediStock.API.Controllers
                 model.pharmacy_id = pharmacyId;
 
                 string sql = $"INSERT INTO expense_categories (pharmacy_id, name, is_active) VALUES ({pharmacyId}, '{model.name.Replace("'", "''")}', 1)";
-                dbhandler.ExecuteNonQuery(sql);
-
-                DataTable dt = dbhandler.GetAdhocData("SELECT LAST_INSERT_ID() AS id");
-                Int64 id = dt.Rows.Count > 0 ? Convert.ToInt64(dt.Rows[0]["id"]) : 0;
+                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
 
                 iloggermanager.LogInfo($"AddExpenseCategory: categoryId={id}");
                 CaptureAuditTrail(userId.ToString(), "Add Expense Category", $"Added expense category: {model.name}");

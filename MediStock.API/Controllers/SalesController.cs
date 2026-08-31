@@ -90,6 +90,13 @@ namespace MediStock.API.Controllers
 
                 model.pharmacy_id = pharmacyId;
                 model.sold_by = userId;
+                model.user_id = userId;
+
+                if (model.customer_id == null || model.customer_id <= 0)
+                {
+                    model.customer_id = dbhandler.GetOrCreateWalkInCustomer(pharmacyId, userId);
+                    iloggermanager.LogInfo($"CreateSale: attributed walk-in sale to customer_id={model.customer_id}");
+                }
 
                 bool saleOk = dbhandler.AddSale(model);
                 if (!saleOk || model.id <= 0)

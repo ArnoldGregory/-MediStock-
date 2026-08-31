@@ -94,12 +94,7 @@ namespace MediStock.API.Controllers
                     (description ?? "").Replace("'", "''") + "', " +
                     userId + ", NOW())";
 
-                dbhandler.GetAdhocData(sql);
-
-                long newId = 0;
-                DataTable dtId = dbhandler.GetAdhocData("SELECT LAST_INSERT_ID() AS id");
-                if (dtId.Rows.Count > 0)
-                    newId = Convert.ToInt64(dtId.Rows[0]["id"]);
+                long newId = dbhandler.ExecuteInsertReturnId(sql);
 
                 CaptureAuditTrail(userId.ToString(), "Create Role", $"Created role: {roleName}");
                 iloggermanager.LogInfo($"CreateRole: id={newId} name={roleName}");

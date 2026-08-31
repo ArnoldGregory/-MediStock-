@@ -422,6 +422,28 @@ namespace MediStock.API.Models
             return dt;
         }
 
+        /// <summary>
+        /// Executes an INSERT (or any DML) and returns LAST_INSERT_ID() on the SAME
+        /// connection, so the returned id is correct regardless of connection pooling.
+        /// Returns 0 if no id (e.g. the statement was not an insert).
+        /// </summary>
+        public Int64 ExecuteInsertReturnId(string sql)
+        {
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                connect.Open();
+                using MySqlCommand cmd = new MySqlCommand(sql + "; SELECT LAST_INSERT_ID();", connect);
+                object? result = cmd.ExecuteScalar();
+                return result != null && result != DBNull.Value ? Convert.ToInt64(result) : 0;
+            }
+            catch (Exception ex)
+            {
+                logger.Error("ExecuteInsertReturnId: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return 0;
+            }
+        }
+
         public DataTable GetAdhocData(string query, MySqlParameter[] parameters)
         {
             DataTable dataTable = new DataTable();
@@ -1190,6 +1212,43 @@ namespace MediStock.API.Models
             {
                 logger.Error("AddSale: " + ex.Message + " - " + ex.StackTrace + " - " + (ex.InnerException?.ToString() ?? ""));
                 return false;
+            }
+        }
+
+        /// <summary>
+        /// Returns the id of the pharmacy's shared "Walk-In" customer,
+        /// creating it on first use so walk-in sales can be attributed
+        /// to a real customer row (enables per-customer history/reports).
+        /// </summary>
+        public Int64 GetOrCreateWalkInCustomer(Int64 pharmacyId, Int64 createdBy)
+        {
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                connect.Open();
+                using (MySqlCommand find = new MySqlCommand(
+                    "SELECT id FROM customers WHERE pharmacy_id = @ph AND first_name = 'Walk-In' AND is_deleted = 0 LIMIT 1", connect))
+                {
+                    find.Parameters.AddWithValue("@ph", pharmacyId);
+                    object? found = find.ExecuteScalar();
+                    if (found != null && found != DBNull.Value)
+                        return Convert.ToInt64(found);
+                }
+
+                using (MySqlCommand insert = new MySqlCommand(
+                    "INSERT INTO customers (pharmacy_id, customer_type, first_name, last_name, is_active, is_deleted, created_by, created_on) " +
+                    "VALUES (@ph, 'Retail', 'Walk-In', 'Customer', 1, 0, @by, NOW()); SELECT LAST_INSERT_ID();", connect))
+                {
+                    insert.Parameters.AddWithValue("@ph", pharmacyId);
+                    insert.Parameters.AddWithValue("@by", createdBy);
+                    object? id = insert.ExecuteScalar();
+                    return id != null && id != DBNull.Value ? Convert.ToInt64(id) : 0;
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Error("GetOrCreateWalkInCustomer: " + ex.Message);
+                return 0;
             }
         }
 

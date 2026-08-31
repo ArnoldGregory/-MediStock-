@@ -295,6 +295,14 @@ public class SaleFlowTests : FlowTestBase
 
             Assert.Equal(8, Convert.ToInt32(TestDatabase.Scalar($"SELECT stock_qty FROM products WHERE id = {prodId}")));
 
+            long walkInCustomer = Convert.ToInt64(TestDatabase.Scalar(
+                "SELECT customer_id FROM sales WHERE id = " + saleId));
+            Assert.True(walkInCustomer > 0, "Walk-in sale should be attributed to a Walk-In customer");
+            Assert.True(Convert.ToInt32(TestDatabase.Scalar(
+                "SELECT COUNT(*) FROM customers c JOIN sales s ON s.customer_id = c.id " +
+                $"WHERE s.id = {saleId} AND c.first_name = 'Walk-In'")) >= 1,
+                "Attributed walk-in customer should be named 'Walk-In'");
+
             var saleById = await Get($"api/sales/{saleId}");
             AssertOk(saleById);
             Assert.Equal("Completed", DataArray(saleById.doc)[0].GetProperty("status").GetString());
