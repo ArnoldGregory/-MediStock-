@@ -192,7 +192,7 @@ namespace MediStock.API.Controllers
                                 $"'{(item.frequency ?? "").Replace("'", "''")}', " +
                                 $"'{(item.duration ?? "").Replace("'", "''")}', " +
                                 $"{item.quantity}, " +
-                                $"'{(item.notes ?? "").Replace("'", "''")}'";
+                                $"'{(item.notes ?? "").Replace("'", "''")}')";
                             dbhandler.ExecuteNonQuery(sql);
                         }
                     }
