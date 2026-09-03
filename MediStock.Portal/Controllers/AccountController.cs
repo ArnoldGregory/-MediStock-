@@ -12,21 +12,17 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.Portal.Models.Auth;
 using MediStock.Portal.Services;
-using LoginRequest = MediStock.Portal.Models.Auth.LoginRequest;
-using OtpRequest = MediStock.Portal.Models.Auth.OtpRequest;
 
 namespace MediStock.Portal.Controllers
 {
     public class AccountController : Controller
     {
         private readonly ApiClient _api;
-        private readonly IWebHostEnvironment _env;
         private readonly AuditService _audit;
 
-        public AccountController(ApiClient api, IWebHostEnvironment env, AuditService audit)
+        public AccountController(ApiClient api, AuditService audit)
         {
             _api = api;
-            _env = env;
             _audit = audit;
         }
 

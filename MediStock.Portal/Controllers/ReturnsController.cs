@@ -95,11 +95,6 @@ namespace MediStock.Portal.Controllers
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to record return" : result.Error, data = (object?)null });
         }
 
-        private string GetPharmacyId()
-        {
-            return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";
-        }
-
         public class CreateReturnRequest
         {
             public long sale_id { get; set; }

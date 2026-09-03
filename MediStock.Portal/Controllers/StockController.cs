@@ -7,7 +7,6 @@
 //    GET  /Stock/GetBatches       → JSON batches
 //    GET  /Stock/GetAdjustments   → JSON adjustments
 //    GET  /Stock/GetStockTake     → JSON stock take sessions
-//    GET  /Stock/GetExpiringItems → JSON expiring batches
 //    POST /Stock/AddBatch         → proxy → api/stock/batches
 //    POST /Stock/AddAdjustment    → proxy → api/stock/adjustments
 //    POST /Stock/SaveStockTake    → proxy → api/stock/stocktake (session → items → commit)
@@ -85,20 +84,6 @@ namespace MediStock.Portal.Controllers
             try
             {
                 var result = await _api.GetAsync<object>("api/stock/stocktake?pharmacyId=" + GetPharmacyId());
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetExpiringItems()
-        {
-            try
-            {
-                var result = await _api.GetAsync<object>("api/dashboard/expiringitems?pharmacyId=" + GetPharmacyId());
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)

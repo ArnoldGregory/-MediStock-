@@ -23,12 +23,15 @@
                         <thead>
                             <tr>
                                 <th>Product</th>
-                                <th>Ordered Qty</th>
-                                <th>Receive Qty Now</th>
+                                <th style="width:90px;">Ordered</th>
+                                <th style="width:70px;">Already Recv</th>
+                                <th style="width:110px;">Receive Now</th>
+                                <th style="width:140px;">Batch No.</th>
+                                <th style="width:120px;">Expiry</th>
                             </tr>
                         </thead>
                         <tbody id="receiveBody">
-                            <tr><td colspan="3" class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</td></tr>
+                            <tr><td colspan="6" class="text-center"><i class="fa fa-spinner fa-spin"></i> Loading...</td></tr>
                         </tbody>
                     </table>
 
@@ -51,20 +54,22 @@
     <script src="~/assets/static/plugins/bootstrap-sweetalert2/sweetalert2.all.min.js"></script>
     <script>
         // ============================================================
-        //  Receive Stock — (Riziki BFF pattern)
+        //  Receive Stock — multi-line PO receiving (Riziki BFF pattern)
+        //  Each PO line gets its own received qty + batch + expiry,
+        //  so stock lands on the right product/batch.
         // ============================================================
         var poId = @(ViewBag.PoId ?? 0);
         var poRow = null;
 
         $(document).ready(function () {
             if (poId) loadPO();
-            else $('#receiveBody').html('<tr><td colspan="3" class="text-center">No purchase order selected.</td></tr>');
+            else $('#receiveBody').html('<tr><td colspan="6" class="text-center">No purchase order selected.</td></tr>');
         });
 
         function loadPO() {
             ajaxGet('/Suppliers/GetPurchaseOrder?id=' + poId, function (data) {
                 if (!data || !data.length) {
-                    $('#receiveBody').html('<tr><td colspan="3" class="text-center text-danger">Purchase order not found.</td></tr>');
+                    $('#receiveBody').html('<tr><td colspan="6" class="text-center text-danger">Purchase order not found.</td></tr>');
                     return;
                 }
                 poRow = data[0];
@@ -74,17 +79,61 @@
                 $('#poStatus').html('<span class="label label-info">' + (poRow.status || '-') + '</span>');
                 $('#poTotal').text('KES ' + parseFloat(poRow.total || 0).toFixed(2));
 
-                ajaxGet('/Products/GetProduct?id=' + poRow.product_id, function (pdata) {
-                    var productName = (pdata && pdata.length && pdata[0].name) ? pdata[0].name : ('Product #' + poRow.product_id);
-                    $('#receiveBody').html(
-                        '<tr>' +
-                        '<td>' + productName + '</td>' +
-                        '<td>' + (poRow.quantity || 0) + '</td>' +
-                        '<td><input type="number" class="form-control input-sm" id="recvQty" min="0" max="' + (poRow.quantity || 0) + '" value="' + (poRow.quantity || 0) + '" required /></td>' +
-                        '</tr>'
-                    );
-                });
+                loadPOItems();
             });
+        }
+
+        function loadPOItems() {
+            ajaxGet('/Suppliers/GetPurchaseOrderItems?id=' + poId, function (items) {
+                if (!items || !items.length) {
+                    $('#receiveBody').html('<tr><td colspan="6" class="text-center text-muted">No items on this order.</td></tr>');
+                    return;
+                }
+                var rows = [];
+                var pending = items.length;
+                $.each(items, function (i, it) {
+                    var row = {
+                        product_id: it.product_id,
+                        ordered: it.quantity || 0,
+                        received: it.received_qty || 0,
+                        unit_cost: it.unit_cost || 0,
+                        name: 'Product #' + it.product_id
+                    };
+                    rows.push(row);
+                    resolveName(row, function () {
+                        pending--;
+                        if (pending === 0) renderReceive(rows);
+                    });
+                });
+                if (pending === 0) renderReceive(rows);
+            }, function () {
+                $('#receiveBody').html('<tr><td colspan="6" class="text-center text-danger">Failed to load PO items.</td></tr>');
+            });
+        }
+
+        function resolveName(row, cb) {
+            $.ajax({ url: '/Products/GetProduct?id=' + row.product_id, type: 'GET' })
+                .done(function (pd) {
+                    if (pd && pd.length && pd[0].name) row.name = pd[0].name;
+                })
+                .always(cb);
+        }
+
+        function renderReceive(rows) {
+            var html = '';
+            $.each(rows, function (i, r) {
+                var remaining = Math.max(r.ordered - r.received, 0);
+                html +=
+                    '<tr>' +
+                    '<td>' + r.name + '</td>' +
+                    '<td>' + r.ordered + '</td>' +
+                    '<td><span class="label label-default">' + r.received + '</span></td>' +
+                    '<td><input type="number" class="form-control input-sm recv-qty" min="0" max="' + remaining + '" value="' + remaining + '" data-product="' + r.product_id + '" data-cost="' + r.unit_cost + '" /></td>' +
+                    '<td><input type="text" class="form-control input-sm recv-batch" placeholder="Batch no." data-product="' + r.product_id + '" /></td>' +
+                    '<td><input type="date" class="form-control input-sm recv-expiry" data-product="' + r.product_id + '" /></td>' +
+                    '</tr>';
+            });
+            $('#receiveBody').html(html);
         }
 
         function formatDate(d) {
@@ -94,14 +143,35 @@
         $('#receiveBtn').on('click', function (e) {
             e.preventDefault();
             if (!poRow) return;
-            var qty = parseInt($('#recvQty').val()) || 0;
-            if (qty <= 0) { Swal.fire('Validation', 'Enter a quantity to receive.', 'warning'); return; }
-            var max = poRow.quantity || 0;
-            if (qty > max) { Swal.fire('Validation', 'Receive quantity exceeds ordered quantity (' + max + ').', 'warning'); return; }
+
+            var items = [];
+            var totalQty = 0;
+            $('#receiveBody tr').each(function () {
+                var $qty = $(this).find('.recv-qty');
+                if (!$qty.length) return;
+                var qty = parseInt($qty.val()) || 0;
+                var productId = parseInt($qty.attr('data-product')) || 0;
+                var max = parseInt($qty.attr('max')) || 0;
+                if (qty < 0 || qty > max) { Swal.fire('Validation', 'Receive quantity exceeds remaining ordered quantity.', 'warning'); return; }
+                if (qty > 0) {
+                    var $batch = $(this).find('.recv-batch');
+                    var $expiry = $(this).find('.recv-expiry');
+                    items.push({
+                        product_id: productId,
+                        quantity: qty,
+                        unit_cost: parseFloat($qty.attr('data-cost')) || 0,
+                        batch_number: ($batch.val() || '').trim(),
+                        expiry_date: $expiry.val() || null
+                    });
+                    totalQty += qty;
+                }
+            });
+
+            if (items.length === 0) { Swal.fire('Validation', 'Enter at least one quantity to receive.', 'warning'); return; }
 
             Swal.fire({
                 title: 'Confirm Receipt',
-                text: 'Receive ' + qty + ' item(s)?',
+                text: 'Receive ' + totalQty + ' item(s) across ' + items.length + ' line(s)?',
                 icon: 'question',
                 showCancelButton: true,
                 confirmButtonColor: '#28a745'
@@ -111,8 +181,9 @@
                 btnLoad(btn, 'Receiving...');
                 ajaxPost('/Suppliers/ReceivePurchaseOrder', {
                     id: poId,
-                    quantity_received: qty,
-                    notes: $('#receiveNotes').val().trim() || null
+                    quantity_received: totalQty,
+                    notes: $('#receiveNotes').val().trim() || null,
+                    items: items
                 }, function (res) {
                     btnStop(btn);
                     if (res.success) {

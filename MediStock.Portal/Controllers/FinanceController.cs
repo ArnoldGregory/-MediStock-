@@ -4,7 +4,6 @@
 //    GET  /Finance/Expenses          → expenses view
 //    GET  /Finance/PurchaseOrders    → purchase orders finance view
 //    GET  /Finance/GetExpenses       → JSON expenses list        → api/finance/expenses
-//    GET  /Finance/GetExpense?id=    → JSON single expense       → api/finance/expenses/{id}
 //    GET  /Finance/GetExpenseCategories → JSON categories        → api/finance/categories
 //    POST /Finance/AddExpense        → proxy → POST api/finance/expenses
 //    GET  /Finance/GetPurchaseOrders → JSON purchase orders      → api/suppliers/po
@@ -52,21 +51,6 @@ namespace MediStock.Portal.Controllers
                 if (!string.IsNullOrWhiteSpace(to_date)) qs += $"&to_date={to_date}";
                 var result = await _api.GetAsync<object>(qs);
                 return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetExpense(long id)
-        {
-            if (id <= 0) return Json(new { error = "id required" });
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/finance/expenses/{id}");
-                return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
             {

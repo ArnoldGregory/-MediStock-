@@ -30,21 +30,6 @@ INSERT IGNORE INTO `roles` (id, role_name, description, created_on) VALUES
   (4, 'Staff',      'Pharmacy staff',                   NOW()),
   (5, 'Cashier',    'Point of sale cashier',            NOW());
 
--- 3. get_records_by_id: add a 'roles' case so GetRoleById works (run with app)
---    (see note below)
---
--- 4. delete_records: add a 'roles' case so DeleteRole works (soft delete)
---    (see note below)
-
--- ── OPTIONAL: patch get_records_by_id ────────────────────────────────────────
--- Replace the whole SP, adding this branch:
---
---     WHEN 'roles' THEN
---         SELECT * FROM roles WHERE id = p_record_id AND COALESCE(is_deleted,0) = 0;
---
--- ── OPTIONAL: patch delete_records ───────────────────────────────────────────
--- Add this branch before ELSE:
---
---     WHEN 'roles' THEN
---         UPDATE roles SET is_deleted = 1, deleted_by = p_deleted_by, deleted_on = NOW()
---         WHERE id = p_recordid;
+-- 3./4. The get_records_by_id 'roles' branch and delete_records 'roles' soft-delete
+--    branch are implemented by later migrations (15_get_records_elseif.sql and
+--    25_sp_generic_align.sql), so no inline patch is needed here.

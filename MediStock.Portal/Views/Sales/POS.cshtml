@@ -51,6 +51,28 @@
             </div>
             <div class="panel-body" style="padding:10px;">
                 <div class="form-group">
+                    <label class="checkbox-inline">
+                        <input type="checkbox" id="dispenseToggle" />
+                        <strong>Dispense Prescription (Rx)</strong>
+                    </label>
+                </div>
+
+                <div id="dispenseFields" style="display:none;">
+                    <div class="form-group">
+                        <label>Patient</label>
+                        <select class="form-control select2" id="dispensePatient" style="width:100%;">
+                            <option value="">Select patient...</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Prescription</label>
+                        <select class="form-control" id="dispensePrescription" style="width:100%;">
+                            <option value="">Auto (create on save)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
                     <label>Customer</label>
                     <select class="form-control select2" id="posCustomer" style="width:100%;">
                         <option value="">Walk-In Customer</option>
@@ -127,8 +149,15 @@
             $('.select2').select2({ width: '100%' });
             loadProducts();
             loadCustomers();
+            loadPatients();
             $('#paymentMethod').on('change', function () {
                 $('#mpesaRefGroup').toggle($(this).val() === 'Mpesa');
+            });
+            $('#dispenseToggle').on('change', function () {
+                $('#dispenseFields').toggle($(this).is(':checked'));
+            });
+            $('#dispensePatient').on('change', function () {
+                loadPrescriptions($(this).val());
             });
 
             $('#productSearch').on('keyup', function () {
@@ -274,6 +303,35 @@
             });
         }
 
+        function loadPatients() {
+            ajaxGet('/Sales/GetPatients', function (data) {
+                var $sel = $('#dispensePatient');
+                data = data || [];
+                $.each(data, function (i, p) {
+                    var name = (p.first_name || '') + ' ' + (p.last_name || '');
+                    $sel.append('<option value="' + p.id + '">' + name.trim() + (p.phone ? ' (' + p.phone + ')' : '') + '</option>');
+                });
+            });
+        }
+
+        function loadPrescriptions(patientId) {
+            var $sel = $('#dispensePrescription');
+            $sel.empty().append('<option value="">Auto (create on save)</option>');
+            if (!patientId) return;
+            $.ajax({
+                url: '/Sales/GetPrescriptions?patientId=' + patientId,
+                type: 'GET'
+            }).done(function (res) {
+                var list = (res && res.data) ? res.data : (res || []);
+                if (Array.isArray(list)) {
+                    $.each(list, function (i, r) {
+                        var num = r.prescription_number || '';
+                        $sel.append('<option value="' + r.id + '">' + (num || ('# ' + r.id)) + '</option>');
+                    });
+                }
+            });
+        }
+
         function processSale() {
             if (cart.length === 0) return;
 
@@ -294,9 +352,14 @@
             var discount = parseFloat($('#cartDiscount').val()) || 0;
             var total = subtotal - discount;
             var method = $('#paymentMethod').val();
+            var dispense = $('#dispenseToggle').is(':checked');
+            var prescriptionId = dispense ? (parseInt($('#dispensePrescription').val()) || null) : null;
             var payload = {
                 customer_id: $('#posCustomer').val() ? parseInt($('#posCustomer').val()) : null,
                 sale_type: 'Retail',
+                sale_mode: dispense ? 'DISPENSE' : 'POS',
+                prescription_id: prescriptionId,
+                dispensed_by: null,
                 subtotal: parseFloat(subtotal.toFixed(2)),
                 discount: parseFloat(discount.toFixed(2)),
                 tax: 0,
@@ -304,7 +367,7 @@
                 amount_paid: method === 'Credit' ? 0 : parseFloat(total.toFixed(2)),
                 payment_method: method,
                 payment_reference: method === 'Mpesa' ? ($('#mpesaRef').val() || null) : null,
-                notes: null,
+                notes: dispense && prescriptionId == null ? 'Rx dispense (new prescription)' : null,
                 items: items
             };
 

@@ -368,6 +368,9 @@ CREATE PROCEDURE `create_sale`(
     IN  in_amount_paid      DECIMAL(15,2),
     IN  in_payment_method   VARCHAR(50),
     IN  in_notes            TEXT,
+    IN  in_sale_mode        VARCHAR(20),
+    IN  in_prescription_id  BIGINT,
+    IN  in_dispensed_by     BIGINT,
     OUT p_sale_id           BIGINT
 )
 BEGIN
@@ -376,13 +379,15 @@ BEGIN
     SET v_sale_number = CONCAT('SAL-', DATE_FORMAT(NOW(), '%Y%m%d%H%i%s'), '-', FLOOR(1000 + RAND() * 9000));
     INSERT INTO sales
         (pharmacy_id, customer_id, sale_number, sale_type, subtotal, vat_amount,
-         discount, total, amount_paid, payment_method, notes, sold_by, created_on)
+         discount, total, amount_paid, payment_method, notes, sold_by,
+         sale_mode, prescription_id, dispensed_by, created_on)
     VALUES
         (in_pharmacy_id, in_customer_id, v_sale_number, 'Retail',
          COALESCE(in_total_amount, 0), COALESCE(in_tax, 0),
          COALESCE(in_discount, 0), COALESCE(in_net_amount, 0),
          COALESCE(in_amount_paid, 0), COALESCE(in_payment_method, 'Cash'),
-         in_notes, in_user_id, NOW());
+         in_notes, in_user_id,
+         COALESCE(in_sale_mode, 'POS'), in_prescription_id, in_dispensed_by, NOW());
     SET p_sale_id = LAST_INSERT_ID();
 END$$
 

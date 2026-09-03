@@ -6,8 +6,9 @@
 --  'pharmacy_settings' and the report_* modules.
 --  This re-creates get_records as a superset of file 12 with
 --  those branches re-added (SQL copied from file 02).
---  NOTE: not applied to the live DB (its get_records already
---  carries the equivalent branches).
+--  NOTE: the live DB's get_records already carries the equivalent
+--  branches and was not re-patched by hand, but this migration IS
+--  replayed from scratch during test/CI provisioning.
 -- ============================================================
 
 USE medistock;

@@ -4,11 +4,9 @@
 //    GET  /Customers/Retail       → retail customers view
 //    GET  /Customers/Wholesale    → wholesale customers view
 //    GET  /Customers/GetCustomers → JSON customers list
-//    GET  /Customers/GetCustomer?id= → JSON single customer
 //    POST /Customers/AddCustomer  → proxy → api/customers/addcustomer
 //    POST /Customers/UpdateCustomer → proxy → api/customers/updatecustomer
 //    POST /Customers/DeleteCustomer → proxy → api/customers/deletecustomer
-//    GET  /Customers/GetCustomerSales?id= → JSON customer purchase history
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -51,36 +49,6 @@ namespace MediStock.Portal.Controllers
                 var qs = "api/customers";
                 if (type == "Wholesale") qs = "api/customers/wholesale";
                 var result = await _api.GetAsync<object>(qs);
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetCustomer(long id)
-        {
-            if (id <= 0) return Json(new { error = "id required" });
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/customers/{id}");
-                return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetCustomerSales(long customer_id)
-        {
-            if (customer_id <= 0) return Json(new List<object>());
-            try
-            {
-                var result = await _api.GetAsync<object>("api/sales");
                 return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)

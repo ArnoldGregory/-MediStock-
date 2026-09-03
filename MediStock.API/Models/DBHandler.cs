@@ -1198,6 +1198,9 @@ namespace MediStock.API.Models
                 cmd.Parameters.AddWithValue("@in_amount_paid", m.amount_paid);
                 cmd.Parameters.AddWithValue("@in_payment_method", (object?)m.payment_method ?? DBNull.Value);
                 cmd.Parameters.AddWithValue("@in_notes", (object?)m.notes ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_sale_mode", (object?)m.sale_mode ?? "POS");
+                cmd.Parameters.AddWithValue("@in_prescription_id", (object?)m.prescription_id ?? DBNull.Value);
+                cmd.Parameters.AddWithValue("@in_dispensed_by", (object?)m.dispensed_by ?? (object)m.sold_by);
                 cmd.ExecuteNonQuery();
 
                 if (cmd.Parameters["@p_sale_id"].Value != null && cmd.Parameters["@p_sale_id"].Value != DBNull.Value)
@@ -1380,16 +1383,121 @@ namespace MediStock.API.Models
             logger.Info("******* Start ReceiveStock Process *********");
             try
             {
-                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new MySqlCommand("receive_stock", connect);
-                connect.Open();
-                cmd.CommandType = CommandType.StoredProcedure;
-                cmd.Parameters.AddWithValue("@in_po_id", poId);
-                cmd.Parameters.AddWithValue("@in_received_by", m.received_by);
-                cmd.Parameters.AddWithValue("@in_quantity_received", m.quantity_received);
-                cmd.Parameters.AddWithValue("@in_notes", (object?)m.notes ?? DBNull.Value);
-                cmd.ExecuteNonQuery();
-                logger.Info("******* End ReceiveStock Process *********");
+                // If detailed per-line items are supplied, process line-by-line so the
+                // right quantity lands on the right product/batch/PO-line. Otherwise fall
+                // back to a plain quantity (legacy path).
+                if (m.items != null && m.items.Count > 0)
+                {
+                    using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                    connect.Open();
+
+                    foreach (var item in m.items)
+                    {
+                        if (item.product_id <= 0 || item.quantity <= 0) continue;
+
+                        // 1) Add/update the batch for this received line.
+                        long batchId = 0;
+                        if (!string.IsNullOrEmpty(item.batch_number))
+                        {
+                            using (MySqlCommand find = new MySqlCommand(
+                                "SELECT id FROM product_batches WHERE pharmacy_id = @ph AND product_id = @p AND batch_number = @b AND is_deleted = 0 LIMIT 1", connect))
+                            {
+                                find.Parameters.AddWithValue("@ph", m.pharmacy_id);
+                                find.Parameters.AddWithValue("@p", item.product_id);
+                                find.Parameters.AddWithValue("@b", item.batch_number);
+                                object? f = find.ExecuteScalar();
+                                if (f != null && f != DBNull.Value) batchId = Convert.ToInt64(f);
+                            }
+                        }
+
+                        if (batchId == 0)
+                        {
+                            string num = string.IsNullOrEmpty(item.batch_number) ? ("BN-" + Guid.NewGuid().ToString("N")[..10]) : item.batch_number;
+                            batchId = ExecuteInsertReturnId(
+                                "INSERT INTO product_batches (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity, quantity_sold, status, created_by, created_on) " +
+                                "VALUES (@ph, @p, @b, @e, @cost, @qty, 0, 'Active', @by, NOW())",
+                                new
+                                {
+                                    ph = m.pharmacy_id,
+                                    p = item.product_id,
+                                    b = num,
+                                    e = item.expiry_date == default ? (object?)DBNull.Value : (object?)item.expiry_date,
+                                    cost = item.unit_cost,
+                                    qty = item.quantity,
+                                    by = m.received_by
+                                });
+                        }
+                        else
+                        {
+                            // Add to existing batch.
+                            using (MySqlCommand upd = new MySqlCommand(
+                                "UPDATE product_batches SET quantity = quantity + @qty WHERE id = @id", connect))
+                            {
+                                upd.Parameters.AddWithValue("@qty", item.quantity);
+                                upd.Parameters.AddWithValue("@id", batchId);
+                                upd.ExecuteNonQuery();
+                            }
+                        }
+
+                        // 2) Bump the product's stock_qty for the received quantity.
+                        using (MySqlCommand stock = new MySqlCommand(
+                            "UPDATE products SET stock_qty = stock_qty + @qty WHERE id = @p AND is_deleted = 0", connect))
+                        {
+                            stock.Parameters.AddWithValue("@qty", item.quantity);
+                            stock.Parameters.AddWithValue("@p", item.product_id);
+                            stock.ExecuteNonQuery();
+                        }
+
+                        // 3) Record received quantity against the matching PO line.
+                        using (MySqlCommand po = new MySqlCommand(
+                            "UPDATE po_items SET received_qty = received_qty + @qty WHERE po_id = @po AND product_id = @p", connect))
+                        {
+                            po.Parameters.AddWithValue("@qty", item.quantity);
+                            po.Parameters.AddWithValue("@po", poId);
+                            po.Parameters.AddWithValue("@p", item.product_id);
+                            po.ExecuteNonQuery();
+                        }
+
+                        // 4) Record the supplier purchase price history for the line.
+                        using (MySqlCommand price = new MySqlCommand(
+                            "INSERT INTO supplier_price_history (pharmacy_id, product_id, supplier_id, unit_cost, recorded_on) " +
+                            "SELECT s.pharmacy_id, @p, s.supplier_id, @cost, NOW() FROM purchase_orders s WHERE s.id = @po LIMIT 1", connect))
+                        {
+                            price.Parameters.AddWithValue("@p", item.product_id);
+                            price.Parameters.AddWithValue("@cost", item.unit_cost);
+                            price.Parameters.AddWithValue("@po", poId);
+                            price.ExecuteNonQuery();
+                        }
+                    }
+
+                    // 5) Set PO status: Received when all lines are fully received, else Partial.
+                    using (MySqlCommand status = new MySqlCommand(
+                        "UPDATE purchase_orders po SET po.status = " +
+                        "CASE WHEN (SELECT COUNT(*) FROM po_items WHERE po_id = @po AND received_qty < quantity) = 0 THEN 'Received' ELSE 'Partial' END, " +
+                        "po.received_date = CASE WHEN (SELECT COUNT(*) FROM po_items WHERE po_id = @po AND received_qty < quantity) = 0 THEN CURDATE() ELSE po.received_date END " +
+                        "WHERE po.id = @po", connect))
+                    {
+                        status.Parameters.AddWithValue("@po", poId);
+                        status.ExecuteNonQuery();
+                    }
+
+                    logger.Info("******* End ReceiveStock (detailed) Process *********");
+                    return true;
+                }
+
+                // Legacy path: plain quantity all-at-once via the receive_stock proc.
+                using (MySqlConnection connect2 = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
+                using (MySqlCommand cmd = new MySqlCommand("receive_stock", connect2))
+                {
+                    connect2.Open();
+                    cmd.CommandType = CommandType.StoredProcedure;
+                    cmd.Parameters.AddWithValue("@in_po_id", poId);
+                    cmd.Parameters.AddWithValue("@in_received_by", m.received_by);
+                    cmd.Parameters.AddWithValue("@in_quantity_received", m.quantity_received);
+                    cmd.Parameters.AddWithValue("@in_notes", (object?)m.notes ?? DBNull.Value);
+                    cmd.ExecuteNonQuery();
+                }
+                logger.Info("******* End ReceiveStock (legacy) Process *********");
                 return true;
             }
             catch (Exception ex)

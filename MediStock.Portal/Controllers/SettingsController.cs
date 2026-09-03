@@ -125,11 +125,6 @@ namespace MediStock.Portal.Controllers
                 : new { success = false, message = string.IsNullOrEmpty(result.Error) ? "Failed to save setting" : result.Error });
         }
 
-        private string GetPharmacyId()
-        {
-            return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";
-        }
-
         // ── Request models ────────────────────────────────────────────────────
         public class UpdatePharmacyRequest
         {

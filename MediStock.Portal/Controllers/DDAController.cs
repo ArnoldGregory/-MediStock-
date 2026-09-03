@@ -5,7 +5,6 @@
 //    GET  /DDA/Register        → DDA register view
 //    GET  /DDA/Report          → DDA report view (client-side filter)
 //    GET  /DDA/GetRegister     → JSON DDA register entries
-//    GET  /DDA/GetEntry?id=    → JSON single DDA entry
 //    POST /DDA/AddEntry        → proxy → api/dda
 // ============================================================
 
@@ -48,21 +47,6 @@ namespace MediStock.Portal.Controllers
             {
                 var result = await _api.GetAsync<object>("api/dda?pharmacyId=" + GetPharmacyId());
                 return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetEntry(long id)
-        {
-            if (id <= 0) return Json(new { error = "id required" });
-            try
-            {
-                var result = await _api.GetAsync<object>("api/dda/" + id);
-                return Json(result.IsSuccess ? result.Data : null);
             }
             catch (Exception ex)
             {

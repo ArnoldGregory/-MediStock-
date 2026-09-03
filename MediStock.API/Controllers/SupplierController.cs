@@ -228,10 +228,11 @@ namespace MediStock.API.Controllers
 
                 var receiveStock = new ReceiveStockModel
                 {
-                    quantity_received = model.quantity_received,
-                    notes             = model.notes,
-                    received_by       = userId,
-                    items = model.items ?? new List<ReceiveStockItemModel>()
+                    pharmacy_id         = pharmacyId,
+                    quantity_received   = model.quantity_received,
+                    notes               = model.notes,
+                    received_by         = userId,
+                    items               = model.items ?? new List<ReceiveStockItemModel>()
                 };
 
                 bool ok = dbhandler.ReceiveStock(id, receiveStock);

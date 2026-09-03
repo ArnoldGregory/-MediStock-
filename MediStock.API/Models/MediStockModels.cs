@@ -151,6 +151,9 @@ namespace MediStock.API.Models
         public string? notes { get; set; }
         public string status { get; set; } = "Completed";
         public Int64 sold_by { get; set; }
+        public string sale_mode { get; set; } = "POS";
+        public Int64? prescription_id { get; set; }
+        public Int64? dispensed_by { get; set; }
         public List<SaleItemModel>? items { get; set; }
     }
 
@@ -203,6 +206,7 @@ namespace MediStock.API.Models
     // ── Receive Stock ──
     public class ReceiveStockModel
     {
+        public Int64 pharmacy_id { get; set; }
         public Int64 received_by { get; set; }
         public int quantity_received { get; set; }
         public string? notes { get; set; }

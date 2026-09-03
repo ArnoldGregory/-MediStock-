@@ -72,21 +72,6 @@ namespace MediStock.Portal.Controllers
             }
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetSupplier(long id)
-        {
-            if (id <= 0) return Json(new { error = "id required" });
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/suppliers/{id}");
-                return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
         [HttpPost]
         public async Task<IActionResult> AddSupplier([FromBody] AddSupplierRequest model)
         {
@@ -178,6 +163,21 @@ namespace MediStock.Portal.Controllers
             }
         }
 
+        [HttpGet]
+        public async Task<IActionResult> GetPurchaseOrderItems(long id)
+        {
+            if (id <= 0) return Json(new { error = "id required" });
+            try
+            {
+                var result = await _api.GetAsync<object>($"api/suppliers/po/{id}/items");
+                return Json(result.IsSuccess ? result.Data : null);
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
         [HttpPost]
         public async Task<IActionResult> CreatePurchaseOrder([FromBody] CreatePoRequest model)
         {
@@ -209,7 +209,8 @@ namespace MediStock.Portal.Controllers
             var result = await _api.PostAsync<object>($"api/suppliers/po/{model.id}/receive", new
             {
                 quantity_received = model.quantity_received,
-                notes             = model.notes
+                notes             = model.notes,
+                items             = model.items
             });
 
             return Json(result.IsSuccess
@@ -314,6 +315,16 @@ namespace MediStock.Portal.Controllers
             public long    id                 { get; set; }
             public int     quantity_received  { get; set; }
             public string? notes              { get; set; }
+            public List<ReceiveLineRequest>? items { get; set; }
+        }
+
+        public class ReceiveLineRequest
+        {
+            public long     product_id  { get; set; }
+            public string?  batch_number { get; set; }
+            public DateTime expiry_date { get; set; }
+            public decimal  unit_cost   { get; set; }
+            public int      quantity    { get; set; }
         }
 
         public class ImportConfirmRequest

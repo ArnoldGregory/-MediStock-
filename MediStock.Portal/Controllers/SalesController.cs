@@ -4,10 +4,8 @@
 //    GET  /Sales/POS              → point-of-sale view
 //    GET  /Sales/History          → sales history view
 //    GET  /Sales/GetSales         → JSON sales list
-//    GET  /Sales/GetSale?id=      → JSON single sale detail
 //    POST /Sales/ProcessSale      → proxy → api/sales/processsale
 //    POST /Sales/VoidSale         → proxy → api/sales/voidsale
-//    GET  /Sales/GetSaleItems?id= → JSON sale line items
 // ============================================================
 
 using Microsoft.AspNetCore.Authorization;
@@ -76,36 +74,6 @@ namespace MediStock.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetSale(long id)
-        {
-            if (id <= 0) return Json(new { error = "id required" });
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/sales/{id}");
-                return Json(result.IsSuccess ? result.Data : null);
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
-        public async Task<IActionResult> GetSaleItems(long sale_id)
-        {
-            if (sale_id <= 0) return Json(new List<object>());
-            try
-            {
-                var result = await _api.GetAsync<object>($"api/sales/{sale_id}/items");
-                return Json(result.IsSuccess ? result.Data : new List<object>());
-            }
-            catch (Exception ex)
-            {
-                return Json(new { error = ex.Message });
-            }
-        }
-
-        [HttpGet]
         public async Task<IActionResult> GetPOSProducts()
         {
             try
@@ -134,12 +102,27 @@ namespace MediStock.Portal.Controllers
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetTodaySummary()
+        public async Task<IActionResult> GetPatients()
         {
             try
             {
-                var result = await _api.GetAsync<object>("api/dashboard/salesstats");
-                return Json(result.IsSuccess ? result.Data : null);
+                var result = await _api.GetAsync<object>("api/clinical/patients");
+                return Json(result.IsSuccess ? result.Data : new List<object>());
+            }
+            catch (Exception ex)
+            {
+                return Json(new { error = ex.Message });
+            }
+        }
+
+        [HttpGet]
+        public async Task<IActionResult> GetPrescriptions(long? patientId)
+        {
+            try
+            {
+                var result = await _api.GetAsync<object>(
+                    "api/clinical/prescriptions" + (patientId.HasValue && patientId.Value > 0 ? "?patientId=" + patientId.Value : ""));
+                return Json(result.IsSuccess ? result.Data : new List<object>());
             }
             catch (Exception ex)
             {
@@ -158,6 +141,9 @@ namespace MediStock.Portal.Controllers
                 pharmacy_id     = GetPharmacyId(),
                 customer_id     = model.customer_id,
                 sale_type       = model.sale_type,
+                sale_mode       = model.sale_mode,
+                prescription_id = model.prescription_id,
+                dispensed_by    = model.dispensed_by,
                 subtotal        = model.subtotal,
                 total_amount    = model.subtotal,
                 discount        = model.discount,
@@ -199,6 +185,9 @@ namespace MediStock.Portal.Controllers
         {
             public long?          customer_id       { get; set; }
             public string?        sale_type         { get; set; }
+            public string?        sale_mode         { get; set; }
+            public long?          prescription_id   { get; set; }
+            public long?          dispensed_by      { get; set; }
             public List<object>?  items             { get; set; }
             public decimal        subtotal          { get; set; }
             public decimal        discount          { get; set; }
