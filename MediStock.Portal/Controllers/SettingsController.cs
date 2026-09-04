@@ -74,9 +74,9 @@ namespace MediStock.Portal.Controllers
         {
             try
             {
-                var result = await _api.GetAsync<List<object>>("api/settings/");
-                if (result.IsSuccess && result.Data != null && result.Data.Count > 0)
-                    return Json(result.Data[0]);
+                var result = await _api.GetAsync<object>("api/settings/");
+                if (result.IsSuccess && result.Data != null)
+                    return Json(result.Data);
                 return Json((object?)null);
             }
             catch (Exception ex)

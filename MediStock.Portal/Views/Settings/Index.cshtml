@@ -227,9 +227,10 @@
         function SaveConfigs(done) {
             var pending = 3;
             var doneAll = function () { if (--pending === 0 && done) done(); };
-            ajaxPost('/Settings/SavePharmacyConfig', { key: 'tax_rate', value: $('#taxRate').val() || '' }, function () { doneAll(); });
-            ajaxPost('/Settings/SavePharmacyConfig', { key: 'discount_limit', value: $('#discountLimit').val() || '' }, function () { doneAll(); });
-            ajaxPost('/Settings/SavePharmacyConfig', { key: 'low_stock_alert_days', value: $('#lowStockDays').val() || '' }, function () { doneAll(); });
+            var finish = function (e) { doneAll(); };
+            ajaxPost('/Settings/SavePharmacyConfig', { key: 'tax_rate', value: $('#taxRate').val() || '' }, finish, finish);
+            ajaxPost('/Settings/SavePharmacyConfig', { key: 'discount_limit', value: $('#discountLimit').val() || '' }, finish, finish);
+            ajaxPost('/Settings/SavePharmacyConfig', { key: 'low_stock_alert_days', value: $('#lowStockDays').val() || '' }, finish, finish);
         }
 
         function SaveFail(btn, msg) {

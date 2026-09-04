@@ -33,11 +33,22 @@ namespace MediStock.API.Controllers
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                DataTable dt = dbhandler.GetRecords("pharmacy_settings", pharmacyId.ToString());
-                iloggermanager.LogInfo($"Result: dt.Rows.Count={dt.Rows.Count}");
-                if (dt.Rows.Count == 0)
-                    return Ok(new { success = true, message = "Success", action = "", data = new JObject() });
-                return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
+
+                var profile = new JObject();
+                DataTable pt = dbhandler.GetAdhocData($"SELECT id, name, slug, phone, email, address, license_number, license_expiry, vat_number, receipt_footer, currency FROM pharmacies WHERE id={pharmacyId} AND is_deleted=0");
+                if (pt.Rows.Count > 0)
+                {
+                    DataRow r = pt.Rows[0];
+                    foreach (DataColumn col in pt.Columns)
+                        profile[col.ColumnName] = r[col] == DBNull.Value ? JValue.CreateNull() : JToken.FromObject(r[col]);
+                }
+
+                DataTable ct = dbhandler.GetAdhocData($"SELECT config_key, config_value FROM pharmacy_config WHERE pharmacy_id={pharmacyId}");
+                foreach (DataRow r in ct.Rows)
+                    profile[Convert.ToString(r["config_key"])] = r["config_value"] == DBNull.Value ? JValue.CreateNull() : JToken.FromObject(r["config_value"]);
+
+                iloggermanager.LogInfo($"Result: profile_keys={string.Join(",", ((JObject)profile).Properties().Select(p => p.Name))}");
+                return Ok(new { success = true, message = "Success", action = "", data = profile });
             }
             catch (Exception ex) { iloggermanager.LogError("GetSettings: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException); return ServerError(); }
         }

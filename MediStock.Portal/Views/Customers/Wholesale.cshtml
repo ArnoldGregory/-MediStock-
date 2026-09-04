@@ -157,10 +157,13 @@
 
         function loadWholesale() {
             ajaxGet('/Customers/GetCustomers?type=Wholesale', function (data) {
-                var filtered = (data || []).filter(function (c) { return c.customer_type === 'Wholesale'; });
+                // The wholesale endpoint already returns only customer_type='Wholesale',
+                // so no client-side type filter is needed here (the field may not even be
+                // present in the payload).
+                var rows = (data || []).filter(function (c) { return (c.first_name || c.last_name); });
                 var s = table.fnSettings();
                 table.fnClearTable(true);
-                for (var i = 0; i < filtered.length; i++) table.oApi._fnAddData(s, filtered[i]);
+                for (var i = 0; i < rows.length; i++) table.oApi._fnAddData(s, rows[i]);
                 s.aiDisplay = s.aiDisplayMaster.slice();
                 table.fnDraw();
             });

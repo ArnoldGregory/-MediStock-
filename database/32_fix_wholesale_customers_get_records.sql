@@ -1,14 +1,15 @@
 -- ============================================================
---  MediStock — 24. get_records: restore missing branches
---  A fresh install's final get_records (file 12) lacked the
---  branches the API depends on, most importantly 'sales_demand'
---  (used by the stock-performance report) as well as 'roles',
---  'pharmacy_settings' and the report_* modules.
---  This re-creates get_records as a superset of file 12 with
---  those branches re-added (SQL copied from file 02).
---  NOTE: the live DB's get_records already carries the equivalent
---  branches and was not re-patched by hand, but this migration IS
---  replayed from scratch during test/CI provisioning.
+--  MediStock — 32. get_records: include customer_type in the
+--  'wholesale_customers' branch
+--  The wholesale customer list endpoint selects a fixed column
+--  set via get_records('wholesale_customers', ...). It previously
+--  omitted `customer_type`, so a client relying on that field to
+--  distinguish the list could drop every row. This re-creates
+--  get_records with that column added, matching the canonical
+--  migration 24 definition.
+--  NOTE: for a fresh install, migration 24 already carries the fix;
+--        this file patches an already-provisioned (live) DB where the
+--        compiled get_records predates the change.
 -- ============================================================
 
 USE medistock;
