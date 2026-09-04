@@ -127,19 +127,6 @@ namespace MediStock.API.Controllers
         }
 
         [NonAction]
-        private List<Dictionary<string, object>> ToRows(DataTable dt)
-        {
-            var rows = new List<Dictionary<string, object>>();
-            foreach (DataRow dr in dt.Rows)
-            {
-                var row = new Dictionary<string, object>();
-                foreach (DataColumn col in dt.Columns) row[col.ColumnName] = dr[col];
-                rows.Add(row);
-            }
-            return rows;
-        }
-
-        [NonAction]
         private (Int64 userId, Int64 pharmacyId, Int64 roleId) GetCaller()
         {
             Int64 userId = Convert.ToInt64(HttpContext.Items["user_id"]?.ToString() ?? "0");
@@ -151,10 +138,6 @@ namespace MediStock.API.Controllers
         [NonAction]
         private ActionResult Bad(string msg) =>
             StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
-
-        [NonAction]
-        private ActionResult Forbidden(string msg) =>
-            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
         [NonAction]
         private ActionResult ServerError() =>
