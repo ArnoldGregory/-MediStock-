@@ -281,44 +281,6 @@ namespace MediStock.Portal.Controllers
         [HttpGet]
         public IActionResult AccessDenied() => View();
 
-        // ── Company self-registration ─────────────────────────────────────────
-        [HttpGet]
-        public IActionResult PharmacyRegister() => View();
-
-        [HttpPost]
-        [ValidateAntiForgeryToken]
-        public async Task<IActionResult> PharmacyRegister(RegisterViewModel model)
-        {
-            if (!ModelState.IsValid) return View(model);
-
-            if (model.Password != model.ConfirmPassword)
-            {
-                ModelState.AddModelError("", "Passwords do not match.");
-                return View(model);
-            }
-
-            var payload = new
-            {
-                pharmacy_name     = model.PharmacyName,
-                pharmacy_email    = model.PharmacyEmail,
-                pharmacy_phone    = model.PharmacyPhone,
-                pharmacy_address  = model.PharmacyAddress,
-                admin_first_name  = model.FirstName,
-                admin_last_name   = model.LastName,
-                admin_email       = model.AdminEmail,
-                admin_phone       = model.AdminPhone,
-                password          = model.Password,
-                confirm_password  = model.ConfirmPassword
-            };
-
-            var r = await _api.AuthPostAsync<object>("api/auth/register-pharmacy", payload);
-            if (r.IsSuccess)
-                return RedirectToAction(nameof(Login), new { registered = "true" });
-
-            ModelState.AddModelError("", string.IsNullOrEmpty(r.Error) ? "Registration failed. Please try again." : r.Error);
-            return View(model);
-        }
-
         // ── role-based landing ───────────────────────────────────────────────
         private IActionResult RedirectToDashboard()
         {

@@ -434,45 +434,6 @@ namespace MediStock.API.Models
             }
         }
 
-        public DataTable GetAdhocData(string sql)
-        {
-            DataTable dt = new DataTable();
-            try
-            {
-                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new MySqlCommand(sql, connect);
-                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
-                sd.Fill(dt);
-            }
-            catch (Exception ex)
-            {
-                logger.Error("GetAdhocData: " + " sql: " + sql + " - " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-            }
-            return dt;
-        }
-
-        /// <summary>
-        /// Executes an INSERT (or any DML) and returns LAST_INSERT_ID() on the SAME
-        /// connection, so the returned id is correct regardless of connection pooling.
-        /// Returns 0 if no id (e.g. the statement was not an insert).
-        /// </summary>
-        public Int64 ExecuteInsertReturnId(string sql)
-        {
-            try
-            {
-                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
-                connect.Open();
-                using MySqlCommand cmd = new MySqlCommand(sql + "; SELECT LAST_INSERT_ID();", connect);
-                object? result = cmd.ExecuteScalar();
-                return result != null && result != DBNull.Value ? Convert.ToInt64(result) : 0;
-            }
-            catch (Exception ex)
-            {
-                logger.Error("ExecuteInsertReturnId: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-                return 0;
-            }
-        }
-
         public DataTable GetAdhocData(string query, MySqlParameter[] parameters)
         {
             DataTable dataTable = new DataTable();
@@ -488,24 +449,6 @@ namespace MediStock.API.Models
                 }
             }
             return dataTable;
-        }
-
-        public string GetScalarItem(string sql)
-        {
-            string scalaritem = "";
-            try
-            {
-                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand command = new MySqlCommand(sql, connect);
-                connect.Open();
-                scalaritem = command.ExecuteScalar()?.ToString() ?? "";
-            }
-            catch (Exception ex)
-            {
-                logger.Error("GetScalarItem: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-                scalaritem = "";
-            }
-            return scalaritem;
         }
 
         public async Task<int> ExecuteNonQuery(string query, object parameters = null)
@@ -572,36 +515,6 @@ namespace MediStock.API.Models
             }
         }
 
-        public async Task<DataTable> GetAdhocDataAsync(string query)
-        {
-            var dataTable = new DataTable();
-            try
-            {
-                using (MySqlConnection connection = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
-                {
-                    await connection.OpenAsync();
-                    using (MySqlCommand command = new MySqlCommand(query, connection))
-                    {
-                        using (MySqlDataReader reader = (MySqlDataReader)await command.ExecuteReaderAsync())
-                        {
-                            dataTable.Load(reader);
-                        }
-                    }
-                }
-            }
-            catch (MySqlException sqlEx)
-            {
-                logger.Error("GetAdhocDataAsync: " + sqlEx.Message + " - " + sqlEx.StackTrace + " - " + sqlEx.InnerException);
-                throw;
-            }
-            catch (Exception ex)
-            {
-                logger.Error("GetAdhocDataAsync: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-                throw;
-            }
-            return dataTable;
-        }
-
         #endregion
 
         #region Auth Methods
@@ -652,25 +565,6 @@ namespace MediStock.API.Models
             }
             logger.Info("******* End AddRefreshToken Process *********");
             return newId;
-        }
-
-        public DataTable GetActiveRefreshTokens()
-        {
-            DataTable dt = new();
-            try
-            {
-                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new MySqlCommand("get_active_refresh_tokens", connect);
-                using MySqlDataAdapter sd = new MySqlDataAdapter(cmd);
-                connect.Open();
-                cmd.CommandType = CommandType.StoredProcedure;
-                sd.Fill(dt);
-            }
-            catch (Exception ex)
-            {
-                logger.Error("GetActiveRefreshTokens: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-            }
-            return dt;
         }
 
         public long GetUserIdFromRefreshToken(string plainToken)
@@ -812,60 +706,6 @@ namespace MediStock.API.Models
             return dt;
         }
 
-        public bool GetUserChangePasswordFlag(Int64 userId)
-        {
-            try
-            {
-                using MySqlConnection c = new(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new(
-                    "SELECT change_password FROM p_external_portal_user WHERE id = @id LIMIT 1", c);
-                c.Open();
-                cmd.Parameters.AddWithValue("@id", userId);
-                var val = cmd.ExecuteScalar();
-                if (val == null || val == DBNull.Value) return false;
-                return Convert.ToBoolean(val);
-            }
-            catch (Exception ex) { logger.Error("GetUserChangePasswordFlag: " + ex.Message); return false; }
-        }
-
-        public bool SetChangePasswordFlag(Int64 userId)
-        {
-            try
-            {
-                using MySqlConnection c = new(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new(
-                    "UPDATE p_external_portal_user SET change_password = 1 WHERE id = @id LIMIT 1", c);
-                c.Open();
-                cmd.Parameters.AddWithValue("@id", userId);
-                cmd.ExecuteNonQuery();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error("SetChangePasswordFlag: " + ex.Message);
-                return false;
-            }
-        }
-
-        public bool ClearChangePasswordFlag(string email)
-        {
-            try
-            {
-                using MySqlConnection c = new(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new(
-                    "UPDATE p_external_portal_user SET change_password = 0 WHERE email = @email LIMIT 1", c);
-                c.Open();
-                cmd.Parameters.AddWithValue("@email", email);
-                cmd.ExecuteNonQuery();
-                return true;
-            }
-            catch (Exception ex)
-            {
-                logger.Error("ClearChangePasswordFlag: " + ex.Message);
-                return false;
-            }
-        }
-
         public bool PortalPasswordReset(string email, string password, string profile_type)
         {
             try
@@ -887,30 +727,6 @@ namespace MediStock.API.Models
             catch (Exception ex)
             {
                 logger.Error("PortalPasswordReset: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-                return false;
-            }
-        }
-
-        public bool UpdateJWT(string jwt, Int64 user_id)
-        {
-            try
-            {
-                int i = 0;
-                using (MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB)))
-                {
-                    using MySqlCommand cmd = new MySqlCommand("update_jwt_token", connect);
-                    connect.Open();
-                    cmd.CommandType = CommandType.StoredProcedure;
-                    cmd.Parameters.AddWithValue("@p_id", user_id);
-                    cmd.Parameters.AddWithValue("@p_jwt", jwt);
-                    i = (int)cmd.ExecuteNonQuery();
-                }
-                if (i >= 1) return true;
-                else return false;
-            }
-            catch (Exception ex)
-            {
-                logger.Error("UpdateJWT: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
                 return false;
             }
         }
@@ -1757,27 +1573,6 @@ namespace MediStock.API.Models
                 logger.Error("GetPharmacyIdBySlug: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
             }
             return dt;
-        }
-
-        public string GetCallerIdByEmail(string email)
-        {
-            string callerId = "";
-            try
-            {
-                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
-                using MySqlCommand cmd = new MySqlCommand(
-                    "SELECT id FROM p_external_portal_user WHERE email = @email LIMIT 1", connect);
-                connect.Open();
-                cmd.Parameters.AddWithValue("@email", email);
-                var scalar = cmd.ExecuteScalar();
-                if (scalar != null && scalar != DBNull.Value)
-                    callerId = scalar.ToString() ?? "";
-            }
-            catch (Exception ex)
-            {
-                logger.Error("GetCallerIdByEmail: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
-            }
-            return callerId;
         }
 
         #endregion

@@ -19,6 +19,10 @@ namespace MediStock.API.Services
             !string.IsNullOrWhiteSpace(_config["Email:Password"]) &&
             !string.IsNullOrWhiteSpace(_config["Email:Host"]);
 
+        public bool EmailsAreDelivered =>
+            IsConfigured &&
+            !string.Equals(_config["Email:Mode"] ?? "Screen", "Screen", StringComparison.OrdinalIgnoreCase);
+
         public void SendOtp(string to, string recipientName, string otp, string purpose)
         {
             string subject = $"Your MediStock {purpose} code is {otp}";

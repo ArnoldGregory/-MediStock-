@@ -132,7 +132,7 @@
 
                     <div class="text-center" style="margin-bottom:28px;">
                         <i class="fa fa-shield" style="font-size:3rem; color:#3498db;"></i>
-                        <p style="margin-top:12px; color:#555; font-size:0.95rem;">Enter the 4-digit code sent to your emai     l</p>
+                        <p style="margin-top:12px; color:#555; font-size:0.95rem;">Enter the 6-digit code sent to your email</p>
                     </div>
 
                     @if (!string.IsNullOrEmpty(ViewBag.DevOtpHint as string))
@@ -146,7 +146,9 @@
                         <input type="text" maxlength="1" class="otp-input" id="otp1" data-next="otp2" autofocus />
                         <input type="text" maxlength="1" class="otp-input" id="otp2" data-next="otp3" />
                         <input type="text" maxlength="1" class="otp-input" id="otp3" data-next="otp4" />
-                        <input type="text" maxlength="1" class="otp-input" id="otp4" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp4" data-next="otp5" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp5" data-next="otp6" />
+                        <input type="text" maxlength="1" class="otp-input" id="otp6" />
                     </div>
 
                     <input type="hidden" name="otp" id="otpCode" />
@@ -189,7 +191,7 @@
             });
             $('form').on('submit', function () {
                 var code = '';
-                for (var i = 1; i <= 4; i++) { code += $('#otp' + i).val(); }
+                for (var i = 1; i <= 6; i++) { code += $('#otp' + i).val(); }
                 $('#otpCode').val(code);
             });
         });

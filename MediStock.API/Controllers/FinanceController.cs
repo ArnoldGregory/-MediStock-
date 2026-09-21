@@ -170,9 +170,6 @@ namespace MediStock.API.Controllers
         private ActionResult Bad(string msg) =>
             StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
 
-        [NonAction]
-        private ActionResult Forbidden(string msg) =>
-            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
         [NonAction]
         private ActionResult ServerError() =>

@@ -7,39 +7,7 @@ namespace MediStock.API.Helpers
     {
         public class MediSecurity
         {
-            private const string hashProvider = "hashprovider";
-            private const string symmProvider = "symprovider";
-            private const string symmKeyFileName = "SymmetricKeyFile.txt";
-
-            public interface ICrypto
-            {
-                int BlockSize();
-                int KeySize();
-                string Encrypt(string data);
-                string Decrypt(string data);
-                string Base64Encode(string data);
-                string Base64Decode(string data);
-            }
-
-            public class CryptoFactory
-            {
-                public ICrypto MakeCryptographer(string type)
-                {
-                    switch (type.ToLower())
-                    {
-                        case "des":
-                            return new Rijndael();
-                        case "tripledes":
-                            return new Rijndael();
-                        case "rijndael":
-                            return new Rijndael();
-                        default:
-                            return new Rijndael();
-                    }
-                }
-            }
-
-            public class Rijndael : ICrypto
+            public class Rijndael
             {
                 private byte[] _key = {
             132, 42, 53, 124, 75, 56, 87, 38,
@@ -51,18 +19,6 @@ namespace MediStock.API.Helpers
             83, 71, 26, 58, 54, 35, 22, 11,
             83, 71, 26, 58, 54, 35, 22, 11
         };
-
-                public int BlockSize()
-                {
-                    Aes aes = Aes.Create();
-                    return aes.BlockSize;
-                }
-
-                public int KeySize()
-                {
-                    Aes aes = Aes.Create();
-                    return aes.KeySize;
-                }
 
                 public string Decrypt(string data)
                 {
@@ -103,18 +59,6 @@ namespace MediStock.API.Helpers
                     {
                         throw ex;
                     }
-                }
-
-                public string Base64Encode(string plainText)
-                {
-                    var plainTextBytes = Encoding.UTF8.GetBytes(plainText);
-                    return Convert.ToBase64String(plainTextBytes);
-                }
-
-                public string Base64Decode(string base64EncodedData)
-                {
-                    var base64EncodedBytes = Convert.FromBase64String(base64EncodedData);
-                    return Encoding.UTF8.GetString(base64EncodedBytes);
                 }
             }
         }

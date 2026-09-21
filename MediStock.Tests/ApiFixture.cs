@@ -51,8 +51,16 @@ public sealed class ApiFixture : IAsyncLifetime
         var (status, doc) = await SendAsync(HttpMethod.Post, "api/auth/clientlogin",
             new { username = email, password = TestDatabase.Password });
         if (status != 200) throw new Exception($"Login failed ({status}) for {email}: {doc?.RootElement.GetRawText()}");
-        var token = doc!.RootElement.GetProperty("data").GetProperty("accessToken").GetString();
-        if (string.IsNullOrEmpty(token)) throw new Exception("Login response had no accessToken");
+
+        var otp = doc!.RootElement.GetProperty("data").TryGetProperty("otp", out var otpEl)
+            ? otpEl.GetString() : null;
+        if (string.IsNullOrEmpty(otp)) throw new Exception($"Login response had no otp for {email}: {doc.RootElement.GetRawText()}");
+
+        var (s2, d2) = await SendAsync(HttpMethod.Post, "api/auth/otpclientlogin",
+            new { username = email, otp });
+        if (s2 != 200) throw new Exception($"OTP step failed ({s2}) for {email}: {d2?.RootElement.GetRawText()}");
+        var token = d2!.RootElement.GetProperty("data").GetProperty("accessToken").GetString();
+        if (string.IsNullOrEmpty(token)) throw new Exception("OTP response had no accessToken");
         return token;
     }
 

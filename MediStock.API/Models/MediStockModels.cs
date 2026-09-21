@@ -191,18 +191,6 @@ namespace MediStock.API.Models
         public Int64 created_by { get; set; }
     }
 
-    // ── PO Item ──
-    public class POItemModel
-    {
-        public Int64 id { get; set; }
-        public Int64 po_id { get; set; }
-        public Int64 product_id { get; set; }
-        public int quantity { get; set; }
-        public int received_qty { get; set; }
-        public decimal unit_cost { get; set; }
-        public decimal total { get; set; }
-    }
-
     // ── Receive Stock ──
     public class ReceiveStockModel
     {
@@ -376,24 +364,6 @@ namespace MediStock.API.Models
         public string client_ip_address { get; set; } = "";
         public string session_id { get; set; } = "";
         public DateTime created_on { get; set; } = DateTime.UtcNow;
-    }
-
-    // ── API Response Wrapper ──
-    public class ApiResponse<T>
-    {
-        public bool success { get; set; }
-        public string message { get; set; } = "";
-        public string? action { get; set; }
-        public T? data { get; set; }
-    }
-
-    // ── Pagination ──
-    public class PaginatedResult<T>
-    {
-        public List<T> items { get; set; } = new();
-        public int total_count { get; set; }
-        public int page { get; set; }
-        public int page_size { get; set; }
     }
 
     // ── Invoice Import ──

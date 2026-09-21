@@ -4,7 +4,6 @@
 // ============================================================
 
 using System.Security.Claims;
-using System.Text.Json;
 using NLog;
 
 namespace MediStock.Portal.Services
@@ -48,34 +47,6 @@ namespace MediStock.Portal.Services
         {
             _log.Info($"VIEW | {entity} | user={User} | {detail}");
             return Task.CompletedTask;
-        }
-
-        public void Log(string user, string action, string detail)
-        {
-            _log.Info($"{action} | {detail} | user={user} | ip={Ip}");
-        }
-
-        public Task LogCreateAsync(string entity, object payload, bool success, string? detail = null)
-        {
-            _log.Info($"CREATE | {entity} | user={User} | success={success} | {Safe(payload)} | {detail}");
-            return Task.CompletedTask;
-        }
-
-        public Task LogEditAsync(string entity, object payload, bool success, string? detail = null)
-        {
-            _log.Info($"EDIT | {entity} | user={User} | success={success} | {Safe(payload)} | {detail}");
-            return Task.CompletedTask;
-        }
-
-        public Task LogDeleteAsync(string entity, object id, bool success, string? detail = null)
-        {
-            _log.Info($"DELETE | {entity} | id={id} | user={User} | success={success} | {detail}");
-            return Task.CompletedTask;
-        }
-
-        private static string Safe(object payload)
-        {
-            try { return JsonSerializer.Serialize(payload); } catch { return "<unserializable>"; }
         }
     }
 }

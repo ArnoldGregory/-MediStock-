@@ -120,23 +120,15 @@ namespace MediStock.API.Controllers
                     { "change_password", dt.Rows[0]["change_password"] != DBNull.Value && Convert.ToBoolean(dt.Rows[0]["change_password"]) }
                 };
 
-                string otp = "1000";
+                string otp = new Random().Next(100000, 999999).ToString();
                 string otpRef = Guid.NewGuid().ToString("N");
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", userEmail, dt.Rows[0]["mobile"]?.ToString(), otp, "LOGIN", otpRef);
                 emailservice.SendOtp(userEmail, name, otp, "login");
 
-                var jwtUtils = new JwtUtilsHelper.JwtUtilsHandler(iloggermanager, iconfiguration);
-                string tempToken = jwtUtils.GenerateAccessToken(new JObject
-                {
-                    { "user_id", userId.ToString() },
-                    { "email", userEmail },
-                    { "role_id", roleId.ToString() },
-                    { "pharmacy_id", pharmacyId.ToString() }
-                });
-
-                userJobject.Add("accessToken", tempToken);
+                userJobject.Add("accessToken", "");
                 userJobject.Add("refreshToken", "");
-                userJobject.Add("otp", otp);
+                if (!emailservice.EmailsAreDelivered)
+                    userJobject.Add("otp", otp);
 
                 iloggermanager.LogInfo($"RESPONSE: OTP sent for {email}");
                 return Ok(new { success = true, message = "OTP sent to your device", action = "VerifyOTP", data = userJobject });
@@ -490,13 +482,16 @@ namespace MediStock.API.Controllers
                 string userEmail = dt.Rows[0]["email"]?.ToString() ?? email;
                 string mobile = dt.Rows[0]["mobile"]?.ToString() ?? "";
 
-                string otp = "1000";
+                string otp = new Random().Next(100000, 999999).ToString();
                 string otpRef = Guid.NewGuid().ToString("N");
                 dbhandler.RizikiSaveOtp(userId, "CLIENT", userEmail, mobile, otp, "LOGIN", otpRef);
                 emailservice.SendOtp(userEmail, dt.Rows[0]["first_name"]?.ToString() ?? "", otp, "login");
 
                 iloggermanager.LogInfo($"ResendOtp: OTP regenerated for {userEmail}");
-                return Ok(new { success = true, message = "A new OTP has been sent", action = "", data = new JObject { { "otp", otp }, { "otp_ref", otpRef } } });
+                var resendData = new JObject { { "otp_ref", otpRef } };
+                if (!emailservice.EmailsAreDelivered)
+                    resendData.Add("otp", otp);
+                return Ok(new { success = true, message = "A new OTP has been sent", action = "", data = resendData });
             }
             catch (Exception ex)
             {
@@ -732,14 +727,6 @@ namespace MediStock.API.Controllers
         [NonAction]
         private ActionResult Bad(string msg) =>
             StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
-
-        [NonAction]
-        private ActionResult Forbidden(string msg) =>
-            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
-
-        [NonAction]
-        private ActionResult ServerError() =>
-            StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Server error", action = "", data = new JObject() });
 
         [NonAction]
         public bool CaptureAuditTrail(string user, string action_type, string action_description)

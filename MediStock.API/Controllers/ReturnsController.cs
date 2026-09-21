@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -101,7 +101,7 @@ namespace MediStock.API.Controllers
                     req.reason, totalRefund, userId, itemsJson);
 
                 if (created == null)
-                    return Bad("Return failed — check that quantities do not exceed what was sold");
+                    return Bad("Return failed â€” check that quantities do not exceed what was sold");
 
                 iloggermanager.LogInfo($"CreateReturn: returnId={created.Value.id} number={created.Value.number}");
                 CaptureAuditTrail(userId.ToString(), "Sales Return",
@@ -161,9 +161,6 @@ namespace MediStock.API.Controllers
         private ActionResult Bad(string msg) =>
             StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
 
-        [NonAction]
-        private ActionResult Forbidden(string msg) =>
-            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
         [NonAction]
         private ActionResult ServerError() =>

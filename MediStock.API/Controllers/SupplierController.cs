@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -310,7 +310,7 @@ namespace MediStock.API.Controllers
                 decimal total = lines.Sum(l => l.quantity * l.unit_cost);
                 decimal markup = req.markup_percent > 0 ? req.markup_percent : 25m;
 
-                // 1. PO header (status Received — this order already arrived)
+                // 1. PO header (status Received â€” this order already arrived)
                 long poId = dbhandler.ExecuteInsertReturnId(
                     "INSERT INTO purchase_orders (pharmacy_id, supplier_id, po_number, status, total, expected_date, received_date, created_by, created_on) " +
                     "VALUES (@pharmacy_id, @supplier_id, @po_number, 'Received', @total, @received_date, @received_date, @created_by, NOW())",
@@ -339,7 +339,7 @@ namespace MediStock.API.Controllers
                     long productId = MatchProduct(existing, line.product_name);
                     if (productId <= 0)
                     {
-                        // New product — create it with sensible defaults + auto category
+                        // New product â€” create it with sensible defaults + auto category
                         var pm = new ProductModel
                         {
                             pharmacy_id = pharmacyId,
@@ -469,7 +469,7 @@ namespace MediStock.API.Controllers
                 if (cn.Length > 2 && n.Contains(cn)) return c.id;
             }
 
-            // Keyword lookup — only assigns if the matched category already exists.
+            // Keyword lookup â€” only assigns if the matched category already exists.
             foreach (var kv in CategoryKeywords)
             {
                 foreach (string kw in kv.Value)
@@ -521,9 +521,6 @@ namespace MediStock.API.Controllers
         private ActionResult Bad(string msg) =>
             StatusCode(StatusCodes.Status400BadRequest, new { success = false, message = msg, action = "", data = new JObject() });
 
-        [NonAction]
-        private ActionResult Forbidden(string msg) =>
-            StatusCode(StatusCodes.Status403Forbidden, new { success = false, message = msg, action = "", data = new JObject() });
 
         [NonAction]
         private ActionResult ServerError() =>
