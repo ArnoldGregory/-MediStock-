@@ -75,9 +75,19 @@ namespace MediStock.API.Controllers
                 model.pharmacy_id = pharmacyId;
                 model.created_by = userId;
 
-                string sql = "INSERT INTO product_batches (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity, status, created_by) " +
-                    $"VALUES ({pharmacyId}, {model.product_id}, '{model.batch_number}', '{model.expiry_date:yyyy-MM-dd}', {model.cost_price}, {model.quantity}, 'Active', {userId})";
-                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
+                Int64 id = dbhandler.ExecuteInsertReturnId(
+                    "INSERT INTO product_batches (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity, status, created_by) " +
+                    "VALUES (@pharmacy_id, @product_id, @batch_number, @expiry_date, @cost_price, @quantity, 'Active', @created_by)",
+                    new
+                    {
+                        pharmacy_id = pharmacyId,
+                        product_id = model.product_id,
+                        batch_number = model.batch_number,
+                        expiry_date = model.expiry_date,
+                        cost_price = model.cost_price,
+                        quantity = model.quantity,
+                        created_by = userId
+                    });
 
                 iloggermanager.LogInfo($"AddBatch: batchId={id}");
                 CaptureAuditTrail(userId.ToString(), "Add Batch", $"Added batch {id} for product {model.product_id}");
@@ -104,10 +114,19 @@ namespace MediStock.API.Controllers
                 model.pharmacy_id = pharmacyId;
                 model.adjusted_by = userId;
 
-                string sql = $"INSERT INTO stock_adjustments (pharmacy_id, product_id, batch_id, adjustment_type, quantity, reason, adjusted_by) " +
-                    $"VALUES ({pharmacyId}, {model.product_id}, {(model.batch_id > 0 ? model.batch_id.ToString() : "NULL")}, '{model.adjustment_type}', {model.quantity}, '{(model.reason ?? "").Replace("'", "''")}', {userId})";
-
-                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
+                Int64 id = dbhandler.ExecuteInsertReturnId(
+                    "INSERT INTO stock_adjustments (pharmacy_id, product_id, batch_id, adjustment_type, quantity, reason, adjusted_by) " +
+                    "VALUES (@pharmacy_id, @product_id, @batch_id, @adjustment_type, @quantity, @reason, @adjusted_by)",
+                    new
+                    {
+                        pharmacy_id = pharmacyId,
+                        product_id = model.product_id,
+                        batch_id = model.batch_id > 0 ? (object)model.batch_id.Value : DBNull.Value,
+                        adjustment_type = model.adjustment_type,
+                        quantity = model.quantity,
+                        reason = model.reason ?? "",
+                        adjusted_by = userId
+                    });
 
                 iloggermanager.LogInfo($"AddStockAdjustment: adjustmentId={id}");
                 CaptureAuditTrail(userId.ToString(), "Stock Adjustment", $"Recorded adjustment {id} ({model.adjustment_type})");
@@ -163,10 +182,10 @@ namespace MediStock.API.Controllers
                 model.pharmacy_id = pharmacyId;
                 model.started_by = userId;
 
-                string sql = $"INSERT INTO stock_take_sessions (pharmacy_id, session_name, status, started_by) " +
-                    $"VALUES ({pharmacyId}, '{model.session_name.Replace("'", "''")}', 'Open', {userId})";
-
-                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
+                Int64 id = dbhandler.ExecuteInsertReturnId(
+                    "INSERT INTO stock_take_sessions (pharmacy_id, session_name, status, started_by) " +
+                    "VALUES (@pharmacy_id, @session_name, 'Open', @started_by)",
+                    new { pharmacy_id = pharmacyId, session_name = model.session_name, started_by = userId });
 
                 iloggermanager.LogInfo($"AddStockTakeSession: sessionId={id}");
                 CaptureAuditTrail(userId.ToString(), "Stock Take Session", $"Created stock take session: {model.session_name}");
@@ -192,10 +211,19 @@ namespace MediStock.API.Controllers
 
                 int variance = model.counted_qty - model.system_qty;
 
-                string sql = $"INSERT INTO stock_take_items (session_id, product_id, batch_id, system_qty, counted_qty, variance, notes) " +
-                    $"VALUES ({model.session_id}, {model.product_id}, {(model.batch_id > 0 ? model.batch_id.ToString() : "NULL")}, {model.system_qty}, {model.counted_qty}, {variance}, '{(model.notes ?? "").Replace("'", "''")}')";
-
-                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
+                Int64 id = dbhandler.ExecuteInsertReturnId(
+                    "INSERT INTO stock_take_items (session_id, product_id, batch_id, system_qty, counted_qty, variance, notes) " +
+                    "VALUES (@session_id, @product_id, @batch_id, @system_qty, @counted_qty, @variance, @notes)",
+                    new
+                    {
+                        session_id = model.session_id,
+                        product_id = model.product_id,
+                        batch_id = model.batch_id > 0 ? (object)model.batch_id.Value : DBNull.Value,
+                        system_qty = model.system_qty,
+                        counted_qty = model.counted_qty,
+                        variance = variance,
+                        notes = model.notes ?? ""
+                    });
 
                 iloggermanager.LogInfo($"AddStockTakeItem: itemId={id}");
                 CaptureAuditTrail(userId.ToString(), "Stock Take Item", $"Recorded stock take item {id} for session {model.session_id}");
@@ -213,8 +241,9 @@ namespace MediStock.API.Controllers
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
-                string sql = $"UPDATE stock_take_sessions SET status = 'Committed', committed_on = NOW(), committed_by = {userId} WHERE id = {sessionId}";
-                dbhandler.ExecuteNonQuery(sql);
+
+                var (ok, message) = dbhandler.CommitStockTake(sessionId, pharmacyId, userId);
+                if (!ok) return Bad(string.IsNullOrEmpty(message) || message == "OK" ? "Failed to commit stock take" : message);
 
                 iloggermanager.LogInfo($"CommitStockTake: sessionId={sessionId}");
                 CaptureAuditTrail(userId.ToString(), "Commit Stock Take", $"Committed stock take session {sessionId}");

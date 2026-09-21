@@ -450,7 +450,7 @@ namespace MediStock.API.Controllers
                 if (dt.Rows.Count == 0) return Bad("Invalid or expired OTP");
 
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(newPassword);
-                bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, "ADMIN");
+                bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, DetectProfileType(email));
 
                 if (!reset) return Bad("Failed to reset password");
 
@@ -526,7 +526,7 @@ namespace MediStock.API.Controllers
 
                 string tempPassword = GenerateTempPassword();
                 string hashedPassword = BCrypt.Net.BCrypt.HashPassword(tempPassword);
-                bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, "ADMIN");
+                bool reset = dbhandler.PortalPasswordReset(email, hashedPassword, DetectProfileType(email));
 
                 if (!reset) return Bad("Failed to reset password");
 
@@ -584,7 +584,7 @@ namespace MediStock.API.Controllers
                     return Bad("Current password is incorrect");
 
                 string hashedNew = BCrypt.Net.BCrypt.HashPassword(newPassword);
-                bool updated = dbhandler.PortalPasswordReset(email, hashedNew, "ADMIN");
+                bool updated = dbhandler.PortalPasswordReset(email, hashedNew, DetectProfileType(email));
                 if (!updated) return Bad("Failed to change password");
 
                 iloggermanager.LogInfo($"ChangePassword: Password changed for {email}");
@@ -660,6 +660,12 @@ namespace MediStock.API.Controllers
                 iloggermanager.LogError("RegisterPharmacy: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
                 return StatusCode(StatusCodes.Status500InternalServerError, new { success = false, message = "Registration failed. Please try again.", action = "", data = new JObject() });
             }
+        }
+
+        [NonAction]
+        private string DetectProfileType(string email)
+        {
+            return dbhandler.ValidateUserLogin("ADMIN", email).Rows.Count > 0 ? "ADMIN" : "CLIENT";
         }
 
         [NonAction]

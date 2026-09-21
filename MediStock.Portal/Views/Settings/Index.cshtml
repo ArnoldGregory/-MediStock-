@@ -34,9 +34,11 @@
                             <tr>
                                 <th>Role</th>
                                 <td>
-                                    @if (ViewBag.RoleId == "1") { <text>Administrator</text> }
-                                    else if (ViewBag.RoleId == "2") { <text>Pharmacist</text> }
-                                    else if (ViewBag.RoleId == "3") { <text>Store Clerk</text> }
+                                    @if (ViewBag.RoleId == "1") { <text>SuperAdmin</text> }
+                                    else if (ViewBag.RoleId == "2") { <text>Admin</text> }
+                                    else if (ViewBag.RoleId == "3") { <text>Pharmacist</text> }
+                                    else if (ViewBag.RoleId == "4") { <text>Staff</text> }
+                                    else if (ViewBag.RoleId == "5") { <text>Cashier</text> }
                                     else { <text>Staff</text> }
                                 </td>
                             </tr>

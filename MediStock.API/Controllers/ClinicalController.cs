@@ -185,15 +185,20 @@ namespace MediStock.API.Controllers
                     {
                         foreach (var item in model.items)
                         {
-                            string sql = $"INSERT INTO prescription_items (prescription_id, product_id, medication_name, dosage, frequency, duration, quantity, notes) " +
-                                $"VALUES ({model.id}, {(item.product_id > 0 ? item.product_id.ToString() : "NULL")}, " +
-                                $"'{item.medication_name.Replace("'", "''")}', " +
-                                $"'{(item.dosage ?? "").Replace("'", "''")}', " +
-                                $"'{(item.frequency ?? "").Replace("'", "''")}', " +
-                                $"'{(item.duration ?? "").Replace("'", "''")}', " +
-                                $"{item.quantity}, " +
-                                $"'{(item.notes ?? "").Replace("'", "''")}')";
-                            dbhandler.ExecuteNonQuery(sql);
+                            dbhandler.ExecuteNonQuery(
+                                "INSERT INTO prescription_items (prescription_id, product_id, medication_name, dosage, frequency, duration, quantity, notes) " +
+                                "VALUES (@prescription_id, @product_id, @medication_name, @dosage, @frequency, @duration, @quantity, @notes)",
+                                new
+                                {
+                                    prescription_id = model.id,
+                                    product_id = item.product_id > 0 ? (object)item.product_id.Value : DBNull.Value,
+                                    medication_name = item.medication_name,
+                                    dosage = item.dosage ?? "",
+                                    frequency = item.frequency ?? "",
+                                    duration = item.duration ?? "",
+                                    quantity = item.quantity,
+                                    notes = item.notes ?? ""
+                                });
                         }
                     }
 

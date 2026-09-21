@@ -32,6 +32,7 @@ namespace MediStock.Portal.Controllers
         // ── Views ─────────────────────────────────────────────────────────────
         public async Task<IActionResult> Users()
         {
+            if (!IsAdmin()) return Forbid();
             await _audit.LogViewAsync("Admin/Users");
             return View();
         }
@@ -44,6 +45,7 @@ namespace MediStock.Portal.Controllers
 
         public async Task<IActionResult> AccessControl()
         {
+            if (!IsAdmin()) return Forbid();
             await _audit.LogViewAsync("Admin/AccessControl");
             return View();
         }
@@ -52,6 +54,8 @@ namespace MediStock.Portal.Controllers
         [HttpGet]
         public async Task<IActionResult> GetUsers()
         {
+            if (!IsAdmin())
+                return Json(new { error = "Unauthorized" });
             try
             {
                 var result = await _api.GetAsync<object>("api/admin/users?pharmacyId=" + GetPharmacyId());
@@ -66,6 +70,8 @@ namespace MediStock.Portal.Controllers
         [HttpGet]
         public async Task<IActionResult> GetUser(long id)
         {
+            if (!IsAdmin())
+                return Json(new { error = "Unauthorized" });
             if (id <= 0) return Json(new { error = "id required" });
             try
             {
@@ -95,6 +101,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> AddUser([FromBody] AddUserRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null)
                 return Json(new { success = false, message = "Invalid request" });
 
@@ -117,6 +125,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> UpdateUser([FromBody] UpdateUserRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "Invalid request" });
 
@@ -139,6 +149,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> DeleteUser([FromBody] IdRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "id is required" });
 
@@ -151,6 +163,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || model.user_id <= 0)
                 return Json(new { success = false, message = "user_id is required" });
 
@@ -254,6 +268,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> SaveMenuAccess([FromBody] SaveMenuAccessRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || model.role_id <= 0)
                 return Json(new { success = false, message = "role_id is required" });
 
@@ -271,6 +287,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> SaveRole([FromBody] SaveRoleRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || string.IsNullOrEmpty(model.role_name))
                 return Json(new { success = false, message = "role_name is required" });
 
@@ -301,6 +319,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> DeleteRole([FromBody] IdRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || model.id <= 0)
                 return Json(new { success = false, message = "id is required" });
 
@@ -313,6 +333,19 @@ namespace MediStock.Portal.Controllers
         private string GetPharmacyId()
         {
             return User.Claims.FirstOrDefault(c => c.Type == "pharmacy_id")?.Value ?? "0";
+        }
+
+        private bool IsAdmin()
+        {
+            var roleId = User.Claims.FirstOrDefault(c => c.Type == "profile_id")?.Value ?? "0";
+            return roleId == "1" || roleId == "2";
+        }
+
+        private async Task<IActionResult> RejectIfNotAdmin()
+        {
+            if (IsAdmin()) return null;
+            await _audit.LogViewAsync("Admin/Unauthorized");
+            return Forbid();
         }
 
         // ── Request models ────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using MySqlConnector;
 using Newtonsoft.Json.Linq;
 using System.Data;
 
@@ -35,7 +36,7 @@ namespace MediStock.API.Controllers
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
 
                 var profile = new JObject();
-                DataTable pt = dbhandler.GetAdhocData($"SELECT id, name, slug, phone, email, address, license_number, license_expiry, vat_number, receipt_footer, currency FROM pharmacies WHERE id={pharmacyId} AND is_deleted=0");
+                DataTable pt = dbhandler.GetAdhocData("SELECT id, name, slug, phone, email, address, license_number, license_expiry, vat_number, receipt_footer, currency FROM pharmacies WHERE id=@pharmacyId AND is_deleted=0", new[] { new MySqlParameter("@pharmacyId", pharmacyId) });
                 if (pt.Rows.Count > 0)
                 {
                     DataRow r = pt.Rows[0];
@@ -43,7 +44,7 @@ namespace MediStock.API.Controllers
                         profile[col.ColumnName] = r[col] == DBNull.Value ? JValue.CreateNull() : JToken.FromObject(r[col]);
                 }
 
-                DataTable ct = dbhandler.GetAdhocData($"SELECT config_key, config_value FROM pharmacy_config WHERE pharmacy_id={pharmacyId}");
+                DataTable ct = dbhandler.GetAdhocData("SELECT config_key, config_value FROM pharmacy_config WHERE pharmacy_id=@pharmacyId", new[] { new MySqlParameter("@pharmacyId", pharmacyId) });
                 foreach (DataRow r in ct.Rows)
                     profile[Convert.ToString(r["config_key"])] = r["config_value"] == DBNull.Value ? JValue.CreateNull() : JToken.FromObject(r["config_value"]);
 
@@ -55,7 +56,7 @@ namespace MediStock.API.Controllers
 
         [Authorize]
         [HttpPost("profile")]
-        public ActionResult UpdatePharmacyProfile([FromBody] PharmacyModel model)
+        public async Task<ActionResult> UpdatePharmacyProfile([FromBody] PharmacyModel model)
         {
             iloggermanager.LogInfo("******* UPDATE PHARMACY PROFILE REQUEST **********");
             try
@@ -64,18 +65,29 @@ namespace MediStock.API.Controllers
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 if (model == null || string.IsNullOrEmpty(model.name)) return Bad("Pharmacy name is required");
 
-                string sql = $"UPDATE pharmacies SET " +
-                    $"name='{model.name.Replace("'", "''")}', " +
-                    $"phone='{(model.phone ?? "").Replace("'", "''")}', " +
-                    $"email='{(model.email ?? "").Replace("'", "''")}', " +
-                    $"address='{(model.address ?? "").Replace("'", "''")}', " +
-                    $"license_number='{(model.license_number ?? "").Replace("'", "''")}', " +
-                    $"vat_number='{(model.vat_number ?? "").Replace("'", "''")}', " +
-                    $"receipt_footer='{(model.receipt_footer ?? "").Replace("'", "''")}', " +
-                    $"currency='{(model.currency).Replace("'", "''")}' " +
-                    $"WHERE id={pharmacyId}";
+                string sql = "UPDATE pharmacies SET " +
+                            "name=@name, " +
+                            "phone=@phone, " +
+                            "email=@email, " +
+                            "address=@address, " +
+                            "license_number=@licenseNo, " +
+                            "vat_number=@vatNumber, " +
+                            "receipt_footer=@receiptFooter, " +
+                            "currency=@currency " +
+                            "WHERE id=@pharmacyId";
 
-                dbhandler.ExecuteNonQuery(sql);
+                await dbhandler.ExecuteNonQuery(sql, new
+                {
+                    name = model.name ?? "",
+                    phone = model.phone ?? "",
+                    email = model.email ?? "",
+                    address = model.address ?? "",
+                    licenseNo = model.license_number ?? "",
+                    vatNumber = model.vat_number ?? "",
+                    receiptFooter = model.receipt_footer ?? "",
+                    currency = model.currency ?? "",
+                    pharmacyId
+                });
 
                 iloggermanager.LogInfo($"UpdatePharmacyProfile: pharmacyId={pharmacyId}");
                 CaptureAuditTrail(userId.ToString(), "Update Pharmacy Profile", $"Updated pharmacy profile {pharmacyId}");
@@ -86,7 +98,7 @@ namespace MediStock.API.Controllers
 
         [Authorize]
         [HttpPost("config")]
-        public ActionResult SavePharmacySetting([FromBody] Newtonsoft.Json.Linq.JObject jobject)
+        public async Task<ActionResult> SavePharmacySetting([FromBody] Newtonsoft.Json.Linq.JObject jobject)
         {
             iloggermanager.LogInfo("******* SAVE PHARMACY SETTING REQUEST **********");
             try
@@ -102,21 +114,18 @@ namespace MediStock.API.Controllers
                 if (string.IsNullOrEmpty(key))
                     return Bad("Setting key is required");
 
-                string escapedKey = key.Replace("'", "''");
-                string escapedValue = value.Replace("'", "''");
-
-                string checkSql = $"SELECT id FROM pharmacy_config WHERE pharmacy_id={pharmacyId} AND config_key='{escapedKey}'";
-                DataTable existing = dbhandler.GetAdhocData(checkSql);
+                string checkSql = "SELECT id FROM pharmacy_config WHERE pharmacy_id=@pharmacyId AND config_key=@key";
+                DataTable existing = dbhandler.GetAdhocData(checkSql, new[] { new MySqlParameter("@pharmacyId", pharmacyId), new MySqlParameter("@key", key) });
 
                 if (existing.Rows.Count > 0)
                 {
-                    string updateSql = $"UPDATE pharmacy_config SET config_value='{escapedValue}', updated_at=NOW(), updated_by={userId} WHERE pharmacy_id={pharmacyId} AND config_key='{escapedKey}'";
-                    dbhandler.ExecuteNonQuery(updateSql);
+                    string updateSql = "UPDATE pharmacy_config SET config_value=@value, updated_at=NOW(), updated_by=@userId WHERE pharmacy_id=@pharmacyId AND config_key=@key";
+                    await dbhandler.ExecuteNonQuery(updateSql, new { value, userId, pharmacyId, key });
                 }
                 else
                 {
-                    string insertSql = $"INSERT INTO pharmacy_config (pharmacy_id, config_key, config_value, created_by) VALUES ({pharmacyId}, '{escapedKey}', '{escapedValue}', {userId})";
-                    dbhandler.ExecuteNonQuery(insertSql);
+                    string insertSql = "INSERT INTO pharmacy_config (pharmacy_id, config_key, config_value, created_by) VALUES (@pharmacyId, @key, @value, @userId)";
+                    await dbhandler.ExecuteNonQuery(insertSql, new { pharmacyId, key, value, userId });
                 }
 
                 iloggermanager.LogInfo($"SavePharmacySetting: pharmacyId={pharmacyId} key={key}");

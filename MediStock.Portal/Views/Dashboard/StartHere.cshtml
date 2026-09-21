@@ -1,0 +1,193 @@
+@{
+    ViewData["Title"] = "Start Here - Guided Tour";
+    ViewBag.MenuLayout = "Side";
+}
+
+@functions {
+    private int _step = 0;
+    int NextStep() { return ++_step; }
+}
+
+@section PageStyles {
+    <style>
+        .tour-card { min-height: 100px; }
+        .tour-step { font-size: 40px; font-weight: 700; color: #fff; width: 64px; height: 64px; line-height: 64px; text-align: center; border-radius: 50%; background: #0088cc; display: inline-block; }
+        .tour-step.done { background: #2ecc71; }
+        .tour-card .m-r-10 { margin-right: 10px; }
+        .tour-section h3 { border-bottom: 1px solid #eee; padding-bottom: 8px; }
+        .tour-hint { font-size: 12px; color: #888; }
+        .big-go { font-size: 14px; padding: 8px 18px; }
+    </style>
+}
+
+<div class="row m-b-10">
+    <div class="col-md-12">
+        <div class="panel panel-inverse">
+            <div class="panel-heading">
+                <h4 class="panel-title" style="color:#fff;"><i class="fa fa-road m-r-5"></i> Hello @ViewBag.Name — let's set up your pharmacy</h4>
+            </div>
+            <div class="panel-body">
+                <p>
+                    Follow the numbered steps <b>from top to bottom, one at a time</b>.
+                    Each card tells you exactly which screen to open and what to do there.
+                </p>
+                <p class="tour-hint">If you get stuck on any step, click the blue <i class="fa fa-arrow-right"></i> button and that screen will open for you.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── ROLE 1: SUPERADMIN ─────────────────────────────────────────────── *@
+@if (ViewBag.IsSuperAdmin)
+{
+    <div class="row">
+        <div class="col-md-12">
+            <div class="alert alert-info">
+                <h4><i class="fa fa-globe"></i> You are a Platform Admin</h4>
+                You manage all pharmacies from the <b>Platform</b> menu. Add a pharmacy, create its Admin, then that Admin follows the guided tour below for their own shop.
+            </div>
+        </div>
+    </div>
+}
+
+@* ── SECTION A: BACK OFFICE ──────────────────────────────────────────── *@
+@if (ViewBag.IsAdmin || ViewBag.IsPharmacist)
+{
+    <h3 class="m-t-20"><i class="fa fa-archive"></i> Part 1 — Stock the shop</h3>
+    <div class="row">
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-success tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step done m-r-10">@NextStep()</span> Tell us about the pharmacy</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Open <b>Settings</b> and type the pharmacy name, phone number and licence number.</p>
+                    <a href="/Settings/Index" class="btn btn-primary big-go"><i class="fa fa-arrow-right"></i> Open Settings</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Add your people</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Under <b>Admin → Users</b> add every worker (Pharmacist, Staff, Cashier) with their own email. Each person logs in with their own account.</p>
+                    <a href="/Admin/Users" class="btn btn-primary big-go"><i class="fa fa-arrow-right"></i> Manage Users</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Add your medicines</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Two ways: import the supplier's invoice, or add each medicine by hand under <b>Inventory → Products</b>. Give each one a buying price and a selling price.</p>
+                    <a href="/Products/Index" class="btn btn-primary big-go"><i class="fa fa-cube"></i> Products</a>
+                    <a href="/Suppliers/ImportInvoice" class="btn btn-success big-go"><i class="fa fa-file-pdf-o"></i> Import Invoice</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Add stock &amp; batches</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Under <b>Inventory → Batches</b> add the expiry date for each box you bought. This is how the system warns you before medicines go bad.</p>
+                    <a href="/Stock/Batches" class="btn btn-primary big-go"><i class="fa fa-arrow-right"></i> Batches</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Add suppliers</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Under <b>Suppliers</b> save who you buy from (name, phone). You'll need this for purchase orders and for importing invoices.</p>
+                    <a href="/Suppliers/Index" class="btn btn-primary big-go"><i class="fa fa-arrow-right"></i> Suppliers</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Record a purchase</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">When goods arrive, open <b>Suppliers → Purchase Orders</b> and raise the order, or <b>Receive Stock</b> and confirm what arrived. This puts the stock onto your shelves.</p>
+                    <a href="/Suppliers/PurchaseOrders" class="btn btn-primary big-go"><i class="fa fa-arrow-right"></i> Purchase Orders</a>
+                    <a href="/Suppliers/ReceiveStock" class="btn btn-success big-go"><i class="fa fa-truck"></i> Receive Stock</a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── SECTION B: SELLING ──────────────────────────────────────────────── *@
+<h3 class="m-t-20"><i class="fa fa-shopping-cart"></i> Part 2 — Sell to customers</h3>
+<div class="row">
+    <div class="col-md-4 col-sm-6">
+        <div class="panel panel-primary tour-card">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Open the till (POS)</h4></div>
+            <div class="panel-body">
+                <p class="tour-hint">Every sale starts here. Type or scan a medicine, set the number bought, and choose cash or M-Pesa.</p>
+                <a href="/Sales/POS" class="btn btn-primary big-go"><i class="fa fa-shopping-cart"></i> Open POS</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="panel panel-primary tour-card">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Finish and print the receipt</h4></div>
+            <div class="panel-body">
+                <p class="tour-hint">Press <b>Charge</b>, confirm the amount, and a receipt is saved. Give the printed (or screen) receipt to the customer.</p>
+                <a href="/Sales/History" class="btn btn-primary big-go"><i class="fa fa-arrow-right"></i> Past Sales</a>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-sm-6">
+        <div class="panel panel-primary tour-card">
+            <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Handle returns</h4></div>
+            <div class="panel-body">
+                <p class="tour-hint">If a customer returns medicine, open the old sale under <b>Sales → Returns</b> and follow the refund steps.</p>
+                <a href="/Sales/Returns" class="btn btn-primary big-go"><i class="fa fa-undo"></i> Returns</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+@* ── SECTION C: REPORTS ──────────────────────────────────────────────── *@
+@if (ViewBag.IsAdmin || ViewBag.IsPharmacist)
+{
+    <h3 class="m-t-20"><i class="fa fa-bar-chart"></i> Part 3 — Check your numbers</h3>
+    <div class="row">
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> See what you sold</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Open <b>Reports → Sales Report</b> to see money made today, this week, or this month.</p>
+                    <a href="/Reports/Sales" class="btn btn-primary big-go"><i class="fa fa-bar-chart"></i> Sales Report</a>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4 col-sm-6">
+            <div class="panel panel-primary tour-card">
+                <div class="panel-heading"><h4 class="panel-title" style="color:#fff;"><span class="tour-step m-r-10">@NextStep()</span> Run the setup check</h4></div>
+                <div class="panel-body">
+                    <p class="tour-hint">Once a week open <b>Settings → Setup Checklist</b>. It flags expired stock, missing prices and other issues before they hurt you.</p>
+                    <a href="/Settings/Setup" class="btn btn-primary big-go"><i class="fa fa-check-square-o"></i> Setup Checklist</a>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@section PageScripts {
+    <script>
+        $(document).ready(function () {
+            var total = $('.tour-card').length;
+            if (total > 0) RenderTour();
+        });
+
+        function RenderTour() {
+            ajaxGet('/Settings/GetSetupChecklist', function (data) {
+                if (!data || !data.checks) return;
+                var keyDone = data.checks.filter(function (c) { return c.ok; }).length;
+                var pct = data.total ? Math.round(keyDone / data.total * 100) : 0;
+                $('#tourBar').css('width', pct + '%').text(pct + '%');
+                $('#tourDone').text(keyDone);
+                $('#tourTotal').text(data.total);
+            });
+        }
+    </script>
+}

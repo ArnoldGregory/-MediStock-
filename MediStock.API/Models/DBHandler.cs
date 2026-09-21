@@ -118,6 +118,35 @@ namespace MediStock.API.Models
             }
         }
 
+        public (bool success, string message) CommitStockTake(Int64 sessionId, Int64 pharmacyId, Int64 committedBy)
+        {
+            try
+            {
+                using MySqlConnection connect = OpenSession(GetDataBaseConnection(DataBaseObject.HostDB));
+                using MySqlCommand cmd = new MySqlCommand("commit_stock_take", connect);
+                cmd.Parameters.Add("@p_error_code", MySqlDbType.VarChar, 2).Direction = ParameterDirection.Output;
+                cmd.Parameters.Add("@p_error_desc", MySqlDbType.VarChar, 500).Direction = ParameterDirection.Output;
+                connect.Open();
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.AddWithValue("@p_session_id", sessionId);
+                cmd.Parameters.AddWithValue("@p_pharmacy_id", pharmacyId);
+                cmd.Parameters.AddWithValue("@p_committed_by", committedBy);
+                cmd.ExecuteNonQuery();
+
+                string errorCode = cmd.Parameters["@p_error_code"].Value != null && cmd.Parameters["@p_error_code"].Value != DBNull.Value
+                    ? Convert.ToString(cmd.Parameters["@p_error_code"].Value) ?? "" : "";
+                string errorDesc = cmd.Parameters["@p_error_desc"].Value != null && cmd.Parameters["@p_error_desc"].Value != DBNull.Value
+                    ? cmd.Parameters["@p_error_desc"].Value.ToString() ?? "OK" : "OK";
+
+                return (errorCode == "00", errorDesc);
+            }
+            catch (Exception ex)
+            {
+                logger.Error("CommitStockTake: " + ex.Message + " - " + ex.StackTrace + " - " + ex.InnerException);
+                return (false, "Failed to commit stock take");
+            }
+        }
+
         public (bool success, string message) VoidSale(Int64 saleId, Int64 pharmacyId)
         {
             try
@@ -1811,33 +1840,35 @@ namespace MediStock.API.Models
         {
             try
             {
-                mainMenuName = mainMenuName?.Replace("'", "''") ?? "";
-                subMenuName = (subMenuName ?? "").Replace("'", "''");
-                pageUrl = "~" + (pageUrl ?? "").Replace("~", "").Replace("'", "''");
-                menuIcon = (menuIcon ?? "fa-circle").Replace("'", "''");
+                mainMenuName = mainMenuName ?? "";
+                subMenuName = subMenuName ?? "";
+                pageUrl = "~" + (pageUrl ?? "").Replace("~", "");
+                menuIcon = menuIcon ?? "fa-circle";
 
-                string existsSql = $"SELECT id FROM menu_access WHERE role_id = {roleId} " +
-                    $"AND main_menu_name = '{mainMenuName}' AND COALESCE(sub_menu_name,'') = '{subMenuName}'";
-                DataTable exists = GetAdhocData(existsSql);
+                string existsSql = "SELECT id FROM menu_access WHERE role_id = @roleId AND main_menu_name = @mainMenuName AND COALESCE(sub_menu_name,'') = @subMenuName";
+                DataTable exists = GetAdhocData(existsSql, new[] { new MySqlParameter("@roleId", roleId), new MySqlParameter("@mainMenuName", mainMenuName), new MySqlParameter("@subMenuName", subMenuName) });
 
                 if (canAccess)
                 {
                     if (exists.Rows.Count > 0)
                     {
-                        GetAdhocData($"UPDATE menu_access SET can_access = 1, page_url = '{pageUrl}', " +
-                            $"menu_icon = '{menuIcon}', menu_order = {menuOrder}, sub_menu_order = {subMenuOrder} " +
-                            $"WHERE id = {exists.Rows[0]["id"]}");
+                        GetAdhocData("UPDATE menu_access SET can_access = 1, page_url = @pageUrl, " +
+                            "menu_icon = @menuIcon, menu_order = @menuOrder, sub_menu_order = @subMenuOrder " +
+                            "WHERE id = @id",
+                            new[] { new MySqlParameter("@pageUrl", pageUrl), new MySqlParameter("@menuIcon", menuIcon), new MySqlParameter("@menuOrder", menuOrder), new MySqlParameter("@subMenuOrder", subMenuOrder), new MySqlParameter("@id", exists.Rows[0]["id"]) });
                     }
                     else
                     {
-                        GetAdhocData($"INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page_url, can_access, menu_order, sub_menu_order) " +
-                            $"VALUES ({roleId}, '{mainMenuName}', '{subMenuName}', '{menuIcon}', '{pageUrl}', 1, {menuOrder}, {subMenuOrder})");
+                        GetAdhocData("INSERT INTO menu_access (role_id, main_menu_name, sub_menu_name, menu_icon, page_url, can_access, menu_order, sub_menu_order) " +
+                            "VALUES (@roleId, @mainMenuName, @subMenuName, @menuIcon, @pageUrl, 1, @menuOrder, @subMenuOrder)",
+                            new[] { new MySqlParameter("@roleId", roleId), new MySqlParameter("@mainMenuName", mainMenuName), new MySqlParameter("@subMenuName", subMenuName), new MySqlParameter("@menuIcon", menuIcon), new MySqlParameter("@pageUrl", pageUrl), new MySqlParameter("@menuOrder", menuOrder), new MySqlParameter("@subMenuOrder", subMenuOrder) });
                     }
                 }
                 else
                 {
-                    GetAdhocData($"UPDATE menu_access SET can_access = 0, menu_order = {menuOrder}, sub_menu_order = {subMenuOrder} " +
-                        $"WHERE role_id = {roleId} AND main_menu_name = '{mainMenuName}' AND COALESCE(sub_menu_name,'') = '{subMenuName}'");
+                    GetAdhocData("UPDATE menu_access SET can_access = 0, menu_order = @menuOrder, sub_menu_order = @subMenuOrder " +
+                        "WHERE role_id = @roleId AND main_menu_name = @mainMenuName AND COALESCE(sub_menu_name,'') = @subMenuName",
+                        new[] { new MySqlParameter("@roleId", roleId), new MySqlParameter("@mainMenuName", mainMenuName), new MySqlParameter("@subMenuName", subMenuName), new MySqlParameter("@menuOrder", menuOrder), new MySqlParameter("@subMenuOrder", subMenuOrder) });
                 }
                 return true;
             }

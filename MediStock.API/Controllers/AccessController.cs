@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using MySqlConnector;
 using System.Data;
 
 namespace MediStock.API.Controllers
@@ -25,7 +26,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES â€” GET ALL
+        // ROLES — GET ALL
         // =====================================================================
         [Authorize]
         [HttpGet("roles")]
@@ -45,7 +46,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES â€” GET BY ID
+        // ROLES — GET BY ID
         // =====================================================================
         [Authorize]
         [HttpGet("roles/{id}")]
@@ -69,7 +70,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES â€” CREATE
+        // ROLES — CREATE
         // =====================================================================
         [Authorize]
         [HttpPost("roles")]
@@ -89,12 +90,9 @@ namespace MediStock.API.Controllers
                 if (string.IsNullOrEmpty(roleName))
                     return Bad("role_name is required");
 
-                string sql = "INSERT INTO roles (role_name, description, created_by, created_on) VALUES ('" +
-                    roleName.Replace("'", "''") + "', '" +
-                    (description ?? "").Replace("'", "''") + "', " +
-                    userId + ", NOW())";
+                string sql = "INSERT INTO roles (role_name, description, created_by, created_on) VALUES (@roleName, @description, @userId, NOW())";
 
-                long newId = dbhandler.ExecuteInsertReturnId(sql);
+                long newId = dbhandler.ExecuteInsertReturnId(sql, new { roleName, description = (description ?? ""), userId });
 
                 CaptureAuditTrail(userId.ToString(), "Create Role", $"Created role: {roleName}");
                 iloggermanager.LogInfo($"CreateRole: id={newId} name={roleName}");
@@ -105,7 +103,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES â€” UPDATE
+        // ROLES — UPDATE
         // =====================================================================
         [Authorize]
         [HttpPut("roles/{id}")]
@@ -126,17 +124,27 @@ namespace MediStock.API.Controllers
                 string? description = body["description"]?.ToString()?.Trim();
 
                 string updates = "";
+                var parameters = new Dictionary<string, object>();
                 if (!string.IsNullOrEmpty(roleName))
-                    updates += "role_name = '" + roleName.Replace("'", "''") + "'";
+                {
+                    updates += "role_name = @roleName";
+                    parameters["@roleName"] = roleName;
+                }
                 if (description != null)
-                    updates += (updates.Length > 0 ? ", " : "") + "description = '" + description.Replace("'", "''") + "'";
-                updates += ", updated_by = " + userId + ", updated_on = NOW()";
+                {
+                    updates += (updates.Length > 0 ? ", " : "") + "description = @description";
+                    parameters["@description"] = description;
+                }
+                updates += ", updated_by = @updatedBy, updated_on = NOW()";
+                parameters["@updatedBy"] = userId;
 
                 if (string.IsNullOrEmpty(roleName) && description == null)
                     return Bad("No fields to update");
 
-                string sql = "UPDATE roles SET " + updates + " WHERE id = " + id;
-                dbhandler.GetAdhocData(sql);
+                string sql = "UPDATE roles SET " + updates + " WHERE id = @id";
+                var sqlParams = parameters.Select(kv => new MySqlParameter(kv.Key, kv.Value)).ToList();
+                sqlParams.Add(new MySqlParameter("@id", id));
+                dbhandler.GetAdhocData(sql, sqlParams.ToArray());
 
                 CaptureAuditTrail(userId.ToString(), "Update Role", $"Updated role {id}: {roleName}");
                 iloggermanager.LogInfo($"UpdateRole: id={id} name={roleName}");
@@ -147,7 +155,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // ROLES â€” DELETE
+        // ROLES — DELETE
         // =====================================================================
         [Authorize]
         [HttpDelete("roles/{id}")]
@@ -177,7 +185,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENUS â€” GET ALL
+        // MENUS — GET ALL
         // =====================================================================
         [Authorize]
         [HttpGet("menus")]
@@ -197,7 +205,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENU ACCESS â€” GET FOR ROLE (from master catalog with per-role flag)
+        // MENU ACCESS — GET FOR ROLE (from master catalog with per-role flag)
         // =====================================================================
         [Authorize]
         [HttpGet("menu-access")]
@@ -220,7 +228,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // MENU ACCESS â€” SAVE FOR ROLE (reconciles against master catalog)
+        // MENU ACCESS — SAVE FOR ROLE (reconciles against master catalog)
         // =====================================================================
         [Authorize]
         [HttpPost("menu-access")]

@@ -1,8 +1,9 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
 using MediStock.API.Services;
+using MySqlConnector;
 using Newtonsoft.Json.Linq;
 using System.Data;
 
@@ -309,7 +310,7 @@ namespace MediStock.API.Controllers
                 decimal total = lines.Sum(l => l.quantity * l.unit_cost);
                 decimal markup = req.markup_percent > 0 ? req.markup_percent : 25m;
 
-                // 1. PO header (status Received â€” this order already arrived)
+                // 1. PO header (status Received — this order already arrived)
                 long poId = dbhandler.ExecuteInsertReturnId(
                     "INSERT INTO purchase_orders (pharmacy_id, supplier_id, po_number, status, total, expected_date, received_date, created_by, created_on) " +
                     "VALUES (@pharmacy_id, @supplier_id, @po_number, 'Received', @total, @received_date, @received_date, @created_by, NOW())",
@@ -338,7 +339,7 @@ namespace MediStock.API.Controllers
                     long productId = MatchProduct(existing, line.product_name);
                     if (productId <= 0)
                     {
-                        // New product â€” create it with sensible defaults + auto category
+                        // New product — create it with sensible defaults + auto category
                         var pm = new ProductModel
                         {
                             pharmacy_id = pharmacyId,
@@ -361,29 +362,48 @@ namespace MediStock.API.Controllers
                     {
                         var ex = existing.First(e => e.id == productId);
                         matched++;
-                        string upd = line.unit_sell_price.HasValue && line.unit_sell_price > 0
-                            ? $"UPDATE products SET stock_qty = stock_qty + {line.quantity}, cost_price = {line.unit_cost}, selling_price = {line.unit_sell_price} WHERE id = {productId} AND pharmacy_id = {pharmacyId}"
-                            : $"UPDATE products SET stock_qty = stock_qty + {line.quantity}, cost_price = {line.unit_cost} WHERE id = {productId} AND pharmacy_id = {pharmacyId}";
-                        _ = dbhandler.ExecuteNonQuery(upd);
+                        if (line.unit_sell_price.HasValue && line.unit_sell_price > 0)
+                        {
+                            _ = dbhandler.ExecuteNonQuery(
+                                "UPDATE products SET stock_qty = stock_qty + @quantity, cost_price = @unit_cost, selling_price = @unit_sell_price WHERE id = @product_id AND pharmacy_id = @pharmacy_id",
+                                new { quantity = line.quantity, unit_cost = line.unit_cost, unit_sell_price = line.unit_sell_price.Value, product_id = productId, pharmacy_id = pharmacyId });
+                        }
+                        else
+                        {
+                            _ = dbhandler.ExecuteNonQuery(
+                                "UPDATE products SET stock_qty = stock_qty + @quantity, cost_price = @unit_cost WHERE id = @product_id AND pharmacy_id = @pharmacy_id",
+                                new { quantity = line.quantity, unit_cost = line.unit_cost, product_id = productId, pharmacy_id = pharmacyId });
+                        }
                     }
 
                     if (productId <= 0) continue;
 
                     // 3. Batch (the actual inventory increase)
-                    string expiry = string.IsNullOrWhiteSpace(line.expiry_date) ? "NULL" : $"'{line.expiry_date}'";
                     _ = dbhandler.ExecuteNonQuery(
                         "INSERT INTO product_batches (pharmacy_id, product_id, batch_number, expiry_date, cost_price, quantity, status, created_by) " +
-                        $"VALUES ({pharmacyId}, {productId}, '{Escape(poNumber)}', {expiry}, {line.unit_cost}, {line.quantity}, 'Active', {userId})");
+                        "VALUES (@pharmacy_id, @product_id, @batch_number, @expiry_date, @cost_price, @quantity, 'Active', @created_by)",
+                        new
+                        {
+                            pharmacy_id = pharmacyId,
+                            product_id = productId,
+                            batch_number = poNumber,
+                            expiry_date = string.IsNullOrWhiteSpace(line.expiry_date) ? (object)DBNull.Value : line.expiry_date,
+                            cost_price = line.unit_cost,
+                            quantity = line.quantity,
+                            created_by = userId
+                        });
 
                     // 4. PO line item
                     _ = dbhandler.ExecuteNonQuery(
                         "INSERT INTO po_items (po_id, product_id, quantity, received_qty, unit_cost, total) " +
-                        $"VALUES ({poId}, {productId}, {line.quantity}, {line.quantity}, {line.unit_cost}, {line.quantity * line.unit_cost})");
+                        "VALUES (@po_id, @product_id, @quantity, @received_qty, @unit_cost, @total)",
+                        new { po_id = poId, product_id = productId, quantity = line.quantity, received_qty = line.quantity, unit_cost = line.unit_cost, total = line.quantity * line.unit_cost });
 
                     // 5. Price history
                     _ = dbhandler.ExecuteNonQuery(
                         "INSERT INTO supplier_price_history (pharmacy_id, supplier_id, product_id, unit_cost, recorded_on) " +
-                        $"VALUES ({pharmacyId}, {req.supplier_id}, {productId}, {line.unit_cost}, NOW())");
+                        "VALUES (@pharmacy_id, @supplier_id, @product_id, @unit_cost, NOW())",
+                        new { pharmacy_id = pharmacyId, supplier_id = req.supplier_id, product_id = productId, unit_cost = line.unit_cost });
                 }
 
                 iloggermanager.LogInfo($"ImportConfirm: poId={poId} created={created} matched={matched}");
@@ -401,23 +421,21 @@ namespace MediStock.API.Controllers
                 : requested.Trim();
             string test = po;
             int n = 1;
-            while (GetAdhocScalarInt($"SELECT COUNT(*) AS c FROM purchase_orders WHERE po_number = '{Escape(test)}'") > 0)
+            while (GetAdhocScalarInt("SELECT COUNT(*) AS c FROM purchase_orders WHERE po_number = @po_number",
+                new[] { new MySqlParameter("@po_number", test) }) > 0)
                 test = $"{po}-{n++}";
             return test;
         }
 
         [NonAction]
-        private int GetAdhocScalarInt(string sql)
+        private int GetAdhocScalarInt(string sql, MySqlParameter[] parameters)
         {
-            DataTable dt = dbhandler.GetAdhocData(sql);
+            DataTable dt = dbhandler.GetAdhocData(sql, parameters);
             return dt.Rows.Count > 0 && dt.Rows[0][0] != DBNull.Value ? Convert.ToInt32(dt.Rows[0][0]) : 0;
         }
 
         [NonAction]
         private string GenerateSku(long pharmacyId, int seq) => $"MED-{pharmacyId}-{DateTime.Now:yyMMdd}-{seq + 1:D3}";
-
-        [NonAction]
-        private static string Escape(string s) => s.Replace("'", "''");
 
         [NonAction]
         private long MatchProduct(List<(long id, string name, decimal sell, int reorder)> existing, string name)
@@ -451,7 +469,7 @@ namespace MediStock.API.Controllers
                 if (cn.Length > 2 && n.Contains(cn)) return c.id;
             }
 
-            // Keyword lookup â€” only assigns if the matched category already exists.
+            // Keyword lookup — only assigns if the matched category already exists.
             foreach (var kv in CategoryKeywords)
             {
                 foreach (string kw in kv.Value)

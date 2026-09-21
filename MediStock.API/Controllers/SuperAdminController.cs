@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
@@ -47,7 +47,7 @@ namespace MediStock.API.Controllers
         }
 
         // =====================================================================
-        // Guard â€” superadmin only (role_id = 1)
+        // Guard — superadmin only (role_id = 1)
         // =====================================================================
         private bool IsSuperAdmin(out Int64 userId)
         {

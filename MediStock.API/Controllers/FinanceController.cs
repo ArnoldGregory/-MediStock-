@@ -133,8 +133,9 @@ namespace MediStock.API.Controllers
 
                 model.pharmacy_id = pharmacyId;
 
-                string sql = $"INSERT INTO expense_categories (pharmacy_id, name, is_active) VALUES ({pharmacyId}, '{model.name.Replace("'", "''")}', 1)";
-                Int64 id = dbhandler.ExecuteInsertReturnId(sql);
+                Int64 id = dbhandler.ExecuteInsertReturnId(
+                    "INSERT INTO expense_categories (pharmacy_id, name, is_active) VALUES (@pharmacy_id, @name, 1)",
+                    new { pharmacy_id = pharmacyId, name = model.name });
 
                 iloggermanager.LogInfo($"AddExpenseCategory: categoryId={id}");
                 CaptureAuditTrail(userId.ToString(), "Add Expense Category", $"Added expense category: {model.name}");

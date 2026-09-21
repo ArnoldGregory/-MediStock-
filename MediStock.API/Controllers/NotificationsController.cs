@@ -32,8 +32,7 @@ namespace MediStock.API.Controllers
             try
             {
                 var (userId, callerPharmacyId, roleId) = GetCaller();
-                long pid = pharmacyId ?? callerPharmacyId;
-                if (pid <= 0) pid = callerPharmacyId;
+                long pid = roleId == 1 && pharmacyId is > 0 ? pharmacyId.Value : callerPharmacyId;
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pid}, role={roleId}");
                 DataTable dt = dbhandler.GetNotifications(pid);
                 return Ok(new { success = true, message = "Success", action = "", data = ToRows(dt) });
@@ -49,8 +48,7 @@ namespace MediStock.API.Controllers
             try
             {
                 var (userId, callerPharmacyId, roleId) = GetCaller();
-                long pid = pharmacyId ?? callerPharmacyId;
-                if (pid <= 0) pid = callerPharmacyId;
+                long pid = roleId == 1 && pharmacyId is > 0 ? pharmacyId.Value : callerPharmacyId;
                 int count = dbhandler.GetNotificationCount(pid);
                 return Ok(new { success = true, message = "Success", action = "", data = new JObject { { "count", count } } });
             }
@@ -87,9 +85,9 @@ namespace MediStock.API.Controllers
             try
             {
                 var (userId, callerPharmacyId, roleId) = GetCaller();
-                long pharmacyId = callerPharmacyId;
-                if (jobject != null && jobject.ContainsKey("pharmacy_id") && jobject["pharmacy_id"]?.Value<long?>() is long pid && pid > 0)
-                    pharmacyId = pid;
+                long pharmacyId = roleId == 1 && jobject?["pharmacy_id"]?.Value<long?>() is > 0
+                    ? jobject!["pharmacy_id"]!.Value<long>()
+                    : callerPharmacyId;
 
                 bool ok = dbhandler.MarkAllNotificationsRead(pharmacyId);
                 if (!ok) return Bad("Failed to mark notifications as read");

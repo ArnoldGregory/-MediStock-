@@ -95,6 +95,7 @@ namespace MediStock.API.Controllers
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (roleId != 1 && roleId != 2) return Forbidden("Only Admin or SuperAdmin can create users");
 
                 string firstName = body["firstName"]?.ToString() ?? body["first_name"]?.ToString() ?? "";
                 string lastName = body["lastName"]?.ToString() ?? body["last_name"]?.ToString() ?? "";
@@ -105,9 +106,7 @@ namespace MediStock.API.Controllers
 
                 if (string.IsNullOrEmpty(email)) return Bad("Email is required");
 
-                string storedPassword = newRoleId is 1 or 2
-                    ? new CryptoHelper.MediSecurity.Rijndael().Encrypt(password)
-                    : BCrypt.Net.BCrypt.HashPassword(password);
+                string storedPassword = BCrypt.Net.BCrypt.HashPassword(password);
 
                 var user = new PharmacyUserModel
                 {
@@ -149,6 +148,7 @@ namespace MediStock.API.Controllers
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 if (id <= 0) return Bad("id is required");
+                if (roleId != 1 && roleId != 2) return Forbidden("Only Admin or SuperAdmin can update users");
 
                 string? firstName = body["firstName"]?.ToString() ?? body["first_name"]?.ToString();
                 string? lastName = body["lastName"]?.ToString() ?? body["last_name"]?.ToString();
@@ -184,6 +184,7 @@ namespace MediStock.API.Controllers
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
                 if (id <= 0) return Bad("id is required");
+                if (roleId != 1 && roleId != 2) return Forbidden("Only Admin or SuperAdmin can delete users");
 
                 bool deleted = dbhandler.DeleteRecord(id, userId, "pharmacy_user");
                 if (!deleted)
@@ -214,6 +215,7 @@ namespace MediStock.API.Controllers
             {
                 var (userId, pharmacyId, roleId) = GetCaller();
                 iloggermanager.LogInfo($"REQUEST: user_id={userId}, pharmacy_id={pharmacyId}, role={roleId}");
+                if (roleId != 1 && roleId != 2) return Forbidden("Only Admin or SuperAdmin can reset passwords");
                 long targetUserId = body["user_id"] != null ? Convert.ToInt64(body["user_id"]) : 0;
                 string newPassword = body["new_password"]?.ToString() ?? "password";
 

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Newtonsoft.Json.Linq;
 using MediStock.API.Helpers;
 using MediStock.API.Models;
+using MySqlConnector;
 using System.Data;
 
 namespace MediStock.API.Controllers
@@ -164,8 +165,10 @@ namespace MediStock.API.Controllers
                     }
                     else
                     {
-                        menu.menu_url = dbhandler.GetScalarItem(
-                            $"call get_menu({profileId}, 'page_url', '{mainMenuName.Replace("'", "''")}')");
+                        DataTable urlDt = dbhandler.GetAdhocData(
+                            "call get_menu(@profileId, 'page_url', @mainMenuName)",
+                            new[] { new MySqlParameter("@profileId", profileId), new MySqlParameter("@mainMenuName", mainMenuName) });
+                        menu.menu_url = urlDt.Rows.Count > 0 && urlDt.Rows[0][0] != DBNull.Value ? urlDt.Rows[0][0].ToString() ?? "" : "";
 
                         if (pageaccessed == menu.menu_url.Replace("~", ""))
                             menu.menu_selected = "active";

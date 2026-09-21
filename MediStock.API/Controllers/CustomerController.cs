@@ -117,19 +117,33 @@ namespace MediStock.API.Controllers
                 model.id = id;
                 model.pharmacy_id = pharmacyId;
 
-                string sql = $"UPDATE customers SET first_name='{(model.first_name ?? "").Replace("'", "''")}', " +
-                    $"last_name='{(model.last_name ?? "").Replace("'", "''")}', " +
-                    $"phone='{(model.phone ?? "").Replace("'", "''")}', " +
-                    $"email='{(model.email ?? "").Replace("'", "''")}', " +
-                    $"address='{(model.address ?? "").Replace("'", "''")}', " +
-                    $"customer_type='{(model.customer_type).Replace("'", "''")}', " +
-                    $"credit_limit={model.credit_limit}, " +
-                    $"outstanding_balance={model.outstanding_balance}, " +
-                    $"payment_terms='{(model.payment_terms).Replace("'", "''")}', " +
-                    $"is_active={model.is_active} " +
-                    $"WHERE id={id} AND pharmacy_id={pharmacyId}";
+                string sql = "UPDATE customers SET first_name=@first_name, " +
+                    "last_name=@last_name, " +
+                    "phone=@phone, " +
+                    "email=@email, " +
+                    "address=@address, " +
+                    "customer_type=@customer_type, " +
+                    "credit_limit=@credit_limit, " +
+                    "outstanding_balance=@outstanding_balance, " +
+                    "payment_terms=@payment_terms, " +
+                    "is_active=@is_active " +
+                    "WHERE id=@id AND pharmacy_id=@pharmacy_id";
 
-                dbhandler.ExecuteNonQuery(sql);
+                dbhandler.ExecuteNonQuery(sql, new
+                {
+                    first_name = model.first_name ?? "",
+                    last_name = model.last_name ?? "",
+                    phone = model.phone ?? "",
+                    email = model.email ?? "",
+                    address = model.address ?? "",
+                    customer_type = model.customer_type,
+                    credit_limit = model.credit_limit,
+                    outstanding_balance = model.outstanding_balance,
+                    payment_terms = model.payment_terms,
+                    is_active = model.is_active,
+                    id = id,
+                    pharmacy_id = pharmacyId
+                });
 
                 iloggermanager.LogInfo($"UpdateCustomer: customerId={id}");
                 CaptureAuditTrail(userId.ToString(), "Update Customer", $"Updated customer {id}");

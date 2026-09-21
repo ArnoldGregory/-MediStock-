@@ -88,6 +88,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> UpdatePharmacy([FromBody] UpdatePharmacyRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null)
                 return Json(new { success = false, message = "Invalid request" });
 
@@ -111,6 +113,8 @@ namespace MediStock.Portal.Controllers
         [HttpPost]
         public async Task<IActionResult> SavePharmacyConfig([FromBody] SaveConfigRequest model)
         {
+            if (!IsAdmin())
+                return Json(new { success = false, message = "Unauthorized" });
             if (model == null || string.IsNullOrEmpty(model.key))
                 return Json(new { success = false, message = "key is required" });
 
@@ -126,6 +130,12 @@ namespace MediStock.Portal.Controllers
         }
 
         // ── Request models ────────────────────────────────────────────────────
+        private bool IsAdmin()
+        {
+            var roleId = User.Claims.FirstOrDefault(c => c.Type == "profile_id")?.Value ?? "0";
+            return roleId == "1" || roleId == "2";
+        }
+
         public class UpdatePharmacyRequest
         {
             public string? pharmacy_name   { get; set; }

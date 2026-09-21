@@ -42,6 +42,29 @@ namespace MediStock.Portal.Controllers
             return View("Index");
         }
 
+        // ── GET /Dashboard/StartHere ──────────────────────────────────────────
+        // Guided, novice-friendly journey: back office setup → stocking → selling.
+        public async Task<IActionResult> StartHere()
+        {
+            await _audit.LogViewAsync("Dashboard/StartHere");
+
+            var roleId = User.FindFirst("profile_id")?.Value ?? "";
+            var name = User.FindFirstValue(ClaimTypes.Name) ?? "";
+
+            int role = int.TryParse(roleId, out var r) ? r : 0;
+            ViewBag.Name = name;
+            ViewBag.RoleId = roleId;
+            ViewBag.IsAdmin = role == 1 || role == 2;
+            ViewBag.IsSuperAdmin = role == 1;
+            ViewBag.IsPharmacist = role == 3;
+            ViewBag.IsStaff = role >= 4;
+            ViewBag.CanSell = role is 2 or 3 or 4 or 5;
+            ViewBag.CanStock = role is 1 or 2 or 3 or 4;
+
+            ViewData["Title"] = "Start Here — Guided Tour";
+            return View();
+        }
+
         // ── GET /Dashboard/Summary ───────────────────────────────────────────
         [HttpGet]
         public async Task<IActionResult> Summary()
